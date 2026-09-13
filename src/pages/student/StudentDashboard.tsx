@@ -1,48 +1,39 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth';
 import { Sidebar } from '../../components/common/Sidebar';
 import { Card } from '../../components/common/Card';
 import { Button } from '../../components/common/Button';
-import { Badge } from '../../components/common/Badge';
 import { Avatar } from '../../components/common/Avatar';
-import { Trophy, Award, ArrowRight, CheckCircle2, Sparkles, Clock, BarChart3, Calendar, ShieldCheck } from 'lucide-react';
+import { Trophy, Award, ArrowRight, Sparkles, Clock, BarChart3, ShieldCheck, HelpCircle } from 'lucide-react';
 import { useOlympiadStore } from '../../store/useOlympiadStore';
+import { certificateService } from '../../services/certificateService';
+import { submissionService } from '../../services/submissionService';
 
 export const StudentDashboard: React.FC = () => {
   const { user } = useAuth();
   const { olympiads } = useOlympiadStore();
+
+  const [certificatesCount, setCertificatesCount] = useState<number>(0);
+  const [submissions, setSubmissions] = useState<any[]>([]);
+
+  useEffect(() => {
+    if (user?.id) {
+      certificateService.getUserCertificates(user.id).then((certs) => {
+        setCertificatesCount(certs.length);
+      });
+      const realSubs = submissionService.getUserSubmissions(user.id);
+      setSubmissions(realSubs);
+    }
+  }, [user]);
 
   if (!user) return null;
 
   // Filter active competitions
   const activeOlympiads = olympiads.filter((o) => o.status === 'ochiq');
 
-  // Recent results mock data bound to student
-  const recentResults = [
-    {
-      id: 'res-1',
-      title: "Respublika Matematika Iqtidorlari II Bosqichi",
-      date: "2026-09-03",
-      score: 95,
-      maxScore: 100,
-      rank: 2,
-      total: 3420,
-      status: "Tasdiqlangan",
-      subject: "Matematika"
-    },
-    {
-      id: 'res-2',
-      title: "Respublika Kimyogarlar Chempionati",
-      date: "2026-08-28",
-      score: 82,
-      maxScore: 100,
-      rank: 14,
-      total: 2150,
-      status: "Tasdiqlangan",
-      subject: "Kimyo"
-    }
-  ];
+  // Real student XP (calculated from completed submissions, 10 XP per score point)
+  const totalXp = submissions.reduce((acc, curr) => acc + (curr.score ? curr.score * 10 : 0), 0);
 
   return (
     <div className="flex bg-surface min-h-screen">
@@ -68,7 +59,7 @@ export const StudentDashboard: React.FC = () => {
               </h1>
               
               <p className="text-sm text-blue-200 font-medium">
-                {user.school || 'Toshkent Prezident Maktabi'} • <span className="text-white font-bold">{user.grade || 9}-sinf</span> • {user.region || 'Toshkent shahri'}
+                {user.school || 'Maktab belgilanmagan'} • <span className="text-white font-bold">{user.grade ? `${user.grade}-sinf` : 'Sinf yo\'q'}</span> • {user.region || 'Hudud belgilanmagan'}
               </p>
             </div>
           </div>
@@ -102,7 +93,7 @@ export const StudentDashboard: React.FC = () => {
                 <Award className="w-6 h-6" />
               </div>
               <div>
-                <div className="text-3xl font-black text-slate-900 font-mono">2 ta</div>
+                <div className="text-3xl font-black text-slate-900 font-mono">{certificatesCount} ta</div>
                 <div className="text-xs text-slate-600 font-bold uppercase tracking-wider mt-0.5">Sertifikatlar</div>
               </div>
             </Card>
@@ -114,7 +105,7 @@ export const StudentDashboard: React.FC = () => {
                 <BarChart3 className="w-6 h-6" />
               </div>
               <div>
-                <div className="text-3xl font-black text-emerald-600 font-mono">2,550 XP</div>
+                <div className="text-3xl font-black text-emerald-600 font-mono">{totalXp.toLocaleString()} XP</div>
                 <div className="text-xs text-slate-600 font-bold uppercase tracking-wider mt-0.5">Reyting Ballaringiz</div>
               </div>
             </Card>
@@ -181,48 +172,60 @@ export const StudentDashboard: React.FC = () => {
           )}
         </div>
 
-        {/* So'nggi Ishtirok Etilgan Olimpiada Natijalari Vidjeti */}
+        {/* So'nggi Ishtirok Etilgan Olimpiada Natijalari */}
         <div className="space-y-4">
           <div className="flex items-center justify-between">
             <h3 className="text-xl font-black text-slate-900 tracking-tight">
               So'nggi Ishtirok Etilgan Olimpiada Natijalari
             </h3>
-            <Link to="/results" className="text-xs font-bold text-blue-600 hover:underline">
-              Barcha natijalarni ko'rish →
-            </Link>
+            {submissions.length > 0 && (
+              <Link to="/results" className="text-xs font-bold text-blue-600 hover:underline">
+                Barcha natijalarni ko'rish →
+              </Link>
+            )}
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {recentResults.map((res) => (
-              <Card key={res.id} className="p-5 bg-white border border-slate-200 shadow-xs hover:border-blue-400 transition-all space-y-3">
-                <div className="flex items-center justify-between border-b border-slate-100 pb-2.5">
-                  <div>
-                    <span className="text-[10px] font-bold text-blue-600 uppercase tracking-wider">{res.subject} • {res.date}</span>
-                    <h4 className="font-bold text-sm text-slate-900 line-clamp-1">{res.title}</h4>
+          {submissions.length === 0 ? (
+            <div className="p-8 rounded-2xl bg-white border border-dashed border-slate-300 text-center space-y-2">
+              <div className="w-10 h-10 rounded-xl bg-slate-100 text-slate-400 mx-auto flex items-center justify-center">
+                <BarChart3 className="w-5 h-5" />
+              </div>
+              <h4 className="text-sm font-bold text-slate-800">Hozircha topshirilgan testlar natijalari yo'q</h4>
+              <p className="text-xs text-slate-500 max-w-sm mx-auto">
+                Olimpiadalarda ishtirok eting va to'plagan ballaringiz hamda anti-cheat tahlillari shu yerda aks etadi.
+              </p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {submissions.map((sub, idx) => (
+                <Card key={idx} className="p-5 bg-white border border-slate-200 shadow-xs hover:border-blue-400 transition-all space-y-3">
+                  <div className="flex items-center justify-between border-b border-slate-100 pb-2.5">
+                    <div>
+                      <span className="text-[10px] font-bold text-blue-600 uppercase tracking-wider">
+                        Musobaqa ID: {sub.olympiadId}
+                      </span>
+                      <h4 className="font-bold text-sm text-slate-900">Natija qayd etildi</h4>
+                    </div>
+                    <span className="px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 font-bold text-[10px] border border-emerald-200 flex items-center gap-1">
+                      <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
+                      <span>Tasdiqlangan</span>
+                    </span>
                   </div>
-                  <span className="px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 font-bold text-[10px] border border-emerald-200 flex items-center gap-1">
-                    <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
-                    <span>{res.status}</span>
-                  </span>
-                </div>
 
-                <div className="grid grid-cols-3 gap-2 text-center text-xs">
-                  <div className="p-2 bg-blue-50/50 rounded-xl border border-blue-100">
-                    <span className="text-[10px] text-slate-500 font-medium">To'plangan Ball</span>
-                    <p className="text-base font-black text-blue-600 font-mono">{res.score} / {res.maxScore}</p>
+                  <div className="grid grid-cols-2 gap-2 text-center text-xs">
+                    <div className="p-2 bg-blue-50/50 rounded-xl border border-blue-100">
+                      <span className="text-[10px] text-slate-500 font-medium">To'plangan Ball</span>
+                      <p className="text-base font-black text-blue-600 font-mono">{sub.score} / {sub.maxScore || 100}</p>
+                    </div>
+                    <div className="p-2 bg-emerald-50/50 rounded-xl border border-emerald-100">
+                      <span className="text-[10px] text-slate-500 font-medium">Anti-Cheat Status</span>
+                      <p className="text-xs font-bold text-emerald-600 mt-1">Toza (Passed)</p>
+                    </div>
                   </div>
-                  <div className="p-2 bg-amber-50/50 rounded-xl border border-amber-100">
-                    <span className="text-[10px] text-slate-500 font-medium">Egallangan O'rin</span>
-                    <p className="text-base font-black text-amber-600">{res.rank}-o'rin</p>
-                  </div>
-                  <div className="p-2 bg-slate-50 rounded-xl border border-slate-100">
-                    <span className="text-[10px] text-slate-500 font-medium">Anti-Cheat</span>
-                    <p className="text-xs font-bold text-emerald-600 mt-1">Tasdiqlangan</p>
-                  </div>
-                </div>
-              </Card>
-            ))}
-          </div>
+                </Card>
+              ))}
+            </div>
+          )}
         </div>
       </main>
     </div>

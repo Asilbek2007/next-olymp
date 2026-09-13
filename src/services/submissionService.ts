@@ -62,5 +62,26 @@ export const submissionService = {
       status: 'completed',
       grading,
     };
+  },
+
+  getUserSubmissions(userId: string): Array<{
+    userId: string;
+    olympiadId: string;
+    score: number;
+    maxScore: number;
+    completedAt: string;
+    grading?: any;
+  }> {
+    const list: any[] = [];
+    try {
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        if (key && key.startsWith(`submission_completed_${userId}_`)) {
+          const val = localStorage.getItem(key);
+          if (val) list.push(JSON.parse(val));
+        }
+      }
+    } catch {}
+    return list;
   }
 };
