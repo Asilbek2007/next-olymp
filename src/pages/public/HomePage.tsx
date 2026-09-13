@@ -36,13 +36,19 @@ export const HomePage: React.FC = () => {
   // Dynamic Real Statistics
   const registeredStudentsCount = React.useMemo(() => {
     const authUsers = authService.getRegisteredUsers();
-    return Math.max(authUsers.length, users.filter((u) => u.role === 'student').length);
+    const realStudents = authUsers.filter((u) => u.role === 'student' || !u.role);
+    return Math.max(realStudents.length, users.filter((u) => u.role === 'student').length);
   }, [users]);
 
-  const totalOlympiadsCount = allStoreOlympiads.length;
+  // Faqat o'tkazilgan (yakunlangan) olimpiadalar soni
+  const completedOlympiadsCount = React.useMemo(() => {
+    return allStoreOlympiads.filter((o) => (o as any).status === 'tugagan' || (o as any).status === 'yopiq').length;
+  }, [allStoreOlympiads]);
 
+  // Faqat o'tkazilgan olimpiadalarning mukofot jamg'armasi
   const totalPrizeFundFormatted = React.useMemo(() => {
-    const sum = allStoreOlympiads.reduce((acc, curr) => acc + (curr.totalRevenue || 0), 0);
+    const completed = allStoreOlympiads.filter((o) => (o as any).status === 'tugagan' || (o as any).status === 'yopiq');
+    const sum = completed.reduce((acc, curr) => acc + (curr.totalRevenue || 0), 0);
     if (sum >= 1_000_000) {
       return `${(sum / 1_000_000).toFixed(0)}M+ UZS`;
     } else if (sum > 0) {
@@ -136,7 +142,7 @@ export const HomePage: React.FC = () => {
             </div>
             <div className="p-5 rounded-2xl bg-indigo-950/60 border border-indigo-800/80 text-left space-y-1 backdrop-blur-md">
               <div className="text-3xl font-black text-cyan-400 font-mono">
-                {totalOlympiadsCount > 0 ? `${totalOlympiadsCount}+` : '0'}
+                {completedOlympiadsCount > 0 ? `${completedOlympiadsCount}+` : '0'}
               </div>
               <div className="text-xs text-indigo-300 font-bold uppercase">{t('hero.statOlympiads')}</div>
             </div>

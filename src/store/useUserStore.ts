@@ -10,7 +10,7 @@ interface UserState {
   resetToDefaults: () => void;
 }
 
-const STORAGE_KEY = 'next_olymp_users_v1';
+const STORAGE_KEY = 'next_olymp_users_v2';
 
 const getInitialUsers = (): UserItem[] => {
   try {

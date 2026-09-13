@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { OlympiadItem, INITIAL_OLYMPIADS } from '../data/initialOlympiads';
 
-const STORAGE_KEY = 'next_olymp_olympiads_v1';
+const STORAGE_KEY = 'next_olymp_olympiads_v2';
 
 interface OlympiadStore {
   olympiads: OlympiadItem[];
