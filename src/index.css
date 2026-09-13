@@ -1,0 +1,20 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    @apply bg-surface text-accent font-sans antialiased;
+  }
+}
+
+/* Chrome/Safari/Edge autofill override for dark inputs */
+.dark-autofill:-webkit-autofill,
+.dark-autofill:-webkit-autofill:hover, 
+.dark-autofill:-webkit-autofill:focus, 
+.dark-autofill:-webkit-autofill:active {
+  -webkit-box-shadow: 0 0 0 1000px #060d1f inset !important;
+  -webkit-text-fill-color: #ffffff !important;
+  caret-color: #ffffff !important;
+  transition: background-color 5000s ease-in-out 0s;
+}
