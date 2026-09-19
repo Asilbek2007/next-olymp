@@ -1,11 +1,18 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { EgaLayout } from '../../components/ega/EgaLayout';
 import { Card } from '../../components/common/Card';
 import { Button } from '../../components/common/Button';
 import { Download, RefreshCw } from 'lucide-react';
-import { MOCK_CERTIFICATES } from '../../services/mockData';
+import { certificateService } from '../../services/certificateService';
+import { Certificate } from '../../types';
 
 export const EgaCertificatesPage: React.FC = () => {
+  const [certs, setCerts] = useState<Certificate[]>([]);
+
+  useEffect(() => {
+    certificateService.getAllCertificates().then(setCerts);
+  }, []);
+
   return (
     <EgaLayout>
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -33,7 +40,7 @@ export const EgaCertificatesPage: React.FC = () => {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 font-medium">
-              {MOCK_CERTIFICATES.map((c) => (
+              {certs.map((c) => (
                 <tr key={c.id} className="hover:bg-slate-50 transition-colors">
                   <td className="p-3 font-mono font-bold text-blue-600">{c.verificationCode}</td>
                   <td className="p-3 font-bold text-slate-900">{c.userName}</td>

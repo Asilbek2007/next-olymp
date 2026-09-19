@@ -1,63 +1,117 @@
 import { Certificate } from '../types';
-import { MOCK_CERTIFICATES } from './mockData';
+import { apiClient } from './api';
 
 export const certificateService = {
   async getUserCertificates(userId: string): Promise<Certificate[]> {
-    await new Promise((resolve) => setTimeout(resolve, 100));
     try {
-      const saved = localStorage.getItem(`user_certificates_${userId}`);
-      if (saved) {
-        return JSON.parse(saved);
+      const res = await apiClient.get(`/submissions.php?user_id=${encodeURIComponent(userId)}`);
+      const subs = Array.isArray(res) ? res : (res?.data || []);
+      
+      if (subs.length === 0) {
+        return [];
       }
-      const allCertsKey = 'next_olymp_all_issued_certificates';
-      const stored = localStorage.getItem(allCertsKey);
-      const all: Certificate[] = stored ? JSON.parse(stored) : MOCK_CERTIFICATES;
-      // return user's certs or all fallback if mock
-      const userCerts = all.filter(c => c.userId === userId);
-      return userCerts.length > 0 ? userCerts : all.slice(0, 2);
+
+      return subs.map((s: any, idx: number) => {
+        const score = Number(s.score || 0);
+        const maxScore = Number(s.maxScore || (s.total_questions ? s.total_questions * 4 : 100));
+        const percentage = Number(s.percentage || Math.round((score / Math.max(maxScore, 1)) * 100));
+        const isWinner = percentage >= 70 || (s.rasch_theta && s.rasch_theta >= 1.0);
+
+        return {
+          id: s.id || `cert_${idx + 1}`,
+          userId: s.userId || s.user_id || userId,
+          userName: s.userName || s.user_name || 'Ishtirokchi',
+          olympiadId: s.olympiadId || s.olympiad_id || 'OLY-101',
+          olympiadTitle: s.olympiadTitle || 'Next Olymp Olimpiadasi',
+          subject: s.subject || 'Matematika',
+          type: isWinner ? 'winner' : 'round_failed',
+          issuedAt: s.submitted_at || s.completedAt || new Date().toISOString(),
+          verificationCode: `NO-2026-${(s.olympiadTitle || 'OLY').slice(0, 4).toUpperCase()}-${Math.abs(Number(s.id) || 8921)}`,
+          score: score,
+          maxScore: maxScore,
+          rank: isWinner ? (idx + 1) : 0,
+          totalParticipants: 100,
+          fontFamily: 'cinzel'
+        };
+      });
     } catch {
-      return MOCK_CERTIFICATES.slice(0, 2);
+      return [];
     }
   },
 
   async verifyCertificate(code: string): Promise<Certificate | null> {
-    await new Promise((resolve) => setTimeout(resolve, 200));
     const cleanCode = code.trim().toUpperCase();
     try {
-      const allCertsKey = 'next_olymp_all_issued_certificates';
-      const stored = localStorage.getItem(allCertsKey);
-      const all: Certificate[] = stored ? JSON.parse(stored) : MOCK_CERTIFICATES;
-      return all.find((c) => c.verificationCode.toUpperCase() === cleanCode) || null;
+      const res = await apiClient.get('/submissions.php');
+      const subs = Array.isArray(res) ? res : (res?.data || []);
+      
+      const found = subs.find((s: any) => {
+        const genCode = `NO-2026-${(s.olympiadTitle || 'OLY').slice(0, 4).toUpperCase()}-${Math.abs(Number(s.id) || 8921)}`;
+        return genCode.toUpperCase() === cleanCode || (s.verificationCode && s.verificationCode.toUpperCase() === cleanCode);
+      });
+
+      if (!found) return null;
+
+      const score = Number(found.score || 0);
+      const maxScore = Number(found.maxScore || 100);
+      return {
+        id: found.id || 'cert_verified',
+        userId: found.userId || found.user_id || 'USR-1',
+        userName: found.userName || 'Ishtirokchi',
+        olympiadId: found.olympiadId || found.olympiad_id || 'OLY-101',
+        olympiadTitle: found.olympiadTitle || 'Next Olymp Olimpiadasi',
+        subject: found.subject || 'Matematika',
+        type: 'winner',
+        issuedAt: found.submitted_at || new Date().toISOString(),
+        verificationCode: cleanCode,
+        score: score,
+        maxScore: maxScore,
+        rank: 1,
+        totalParticipants: 100,
+        fontFamily: 'cinzel'
+      };
     } catch {
-      return MOCK_CERTIFICATES.find((c) => c.verificationCode.toUpperCase() === cleanCode) || null;
+      return null;
     }
   },
 
   async getAllCertificates(): Promise<Certificate[]> {
     try {
-      const allCertsKey = 'next_olymp_all_issued_certificates';
-      const stored = localStorage.getItem(allCertsKey);
-      return stored ? JSON.parse(stored) : MOCK_CERTIFICATES;
+      const res = await apiClient.get('/submissions.php');
+      const subs = Array.isArray(res) ? res : (res?.data || []);
+      return subs.map((s: any, idx: number) => ({
+        id: s.id || `cert_${idx + 1}`,
+        userId: s.userId || s.user_id || 'USR-1',
+        userName: s.userName || s.user_name || 'Ishtirokchi',
+        olympiadId: s.olympiadId || s.olympiad_id || 'OLY-101',
+        olympiadTitle: s.olympiadTitle || 'Next Olymp Olimpiadasi',
+        subject: s.subject || 'Matematika',
+        type: 'winner',
+        issuedAt: s.submitted_at || new Date().toISOString(),
+        verificationCode: `NO-2026-${(s.olympiadTitle || 'OLY').slice(0, 4).toUpperCase()}-${Math.abs(Number(s.id) || 8921)}`,
+        score: Number(s.score || 0),
+        maxScore: Number(s.maxScore || 100),
+        rank: idx + 1,
+        totalParticipants: 100,
+        fontFamily: 'cinzel'
+      }));
     } catch {
-      return MOCK_CERTIFICATES;
+      return [];
     }
   },
 
   saveCertificate(cert: Certificate): void {
-    try {
-      const allCertsKey = 'next_olymp_all_issued_certificates';
-      const stored = localStorage.getItem(allCertsKey);
-      const all: Certificate[] = stored ? JSON.parse(stored) : [...MOCK_CERTIFICATES];
-      const index = all.findIndex(c => c.id === cert.id || c.verificationCode === cert.verificationCode);
-      if (index >= 0) {
-        all[index] = cert;
-      } else {
-        all.unshift(cert);
-      }
-      localStorage.setItem(allCertsKey, JSON.stringify(all));
-    } catch (e) {
-      console.error("Failed to save certificate:", e);
-    }
+    apiClient.post('/submissions.php', {
+      id: cert.id,
+      userId: cert.userId,
+      userName: cert.userName,
+      olympiadId: cert.olympiadId,
+      olympiadTitle: cert.olympiadTitle,
+      score: cert.score,
+      maxScore: cert.maxScore,
+      percentage: Math.round((cert.score / Math.max(cert.maxScore, 1)) * 100),
+      status: 'completed'
+    }).catch((e) => console.warn('Certificate save warning:', e));
   }
 };
 

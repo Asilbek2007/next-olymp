@@ -142,11 +142,14 @@ export const CertificateCard: React.FC<CertificateCardProps> = ({ certificate })
                 <div style="display: inline-block; background: #f59e0b; color: #0f172a; padding: 4px 16px; border-radius: 20px; font-size: 12px; font-weight: 800; text-transform: uppercase; margin-bottom: 10px;">
                   ${certificate.type === 'winner' ? "G'OLIBLIK DIPLOMI" : certificate.type === 'round_passed' ? "BOSQICH G'OLIBI SERTIFIKATI" : certificate.type === 'round_failed' ? "ISHTIROKCHI SERTIFIKATI" : "MUVAFFAQIYAT SERTIFIKATI"}
                 </div>
-                <div style="font-size: 11px; text-transform: uppercase; letter-spacing: 2px; color: #cbd5e1;">Ushbu rasmiy hujjat tasdiqlaydiki:</div>
                 <h1>${certificate.userName}</h1>
-                <p style="max-width: 800px; margin: 0 auto;">
-                  "${certificate.olympiadTitle}" fan musobaqasida faol va yuqori akademik natija ko'rsatib, <strong>${certificate.score} ball</strong> to'pladi ${certificate.rank > 0 ? `va <strong>${certificate.rank}-o'rinni</strong> egalladi` : ''}.
+                <p style="max-width: 800px; margin: 0 auto; font-size: 14px;">
+                  "${certificate.olympiadTitle || 'Olimpiada'}" fan musobaqasida yuqori intellektual salohiyat namoyon etib, ${certificate.rank && certificate.rank > 0 ? `faxrli ${certificate.rank}-o'rinni egalladi va` : ''} g'oliblik diplomi bilan taqdirlanadi.
                 </p>
+                <div style="margin-top: 15px; display: flex; justify-content: center; gap: 15px;">
+                  <span style="background: rgba(255,255,255,0.08); padding: 4px 12px; border-radius: 6px; font-size: 13px;">To'plangan ball: <strong style="color: #fbbf24;">${certificate.score}</strong> / ${certificate.maxScore || 100}</span>
+                  ${certificate.rank && certificate.rank > 0 ? `<span style="background: rgba(245, 158, 11, 0.15); border: 1px solid rgba(245, 158, 11, 0.4); color: #fcd34d; padding: 4px 12px; border-radius: 6px; font-size: 13px;">O'rni: <strong>${certificate.rank}-o'rin</strong></span>` : ''}
+                </div>
               </div>
 
               <div class="footer">

@@ -44,39 +44,39 @@ export const CertificateCanvas: React.FC<CertificateCanvasProps> = ({
 
   // Generate description based on type or customMessage
   const getCertificateBodyText = () => {
-    if (certificate.customMessage) {
+    if (certificate.customMessage && certificate.customMessage.length > 30) {
       return certificate.customMessage;
     }
 
     if (config?.isMultiRound) {
       if (certificate.type === 'round_passed') {
         return config.round1PassedText || 
-          `Tabriklaymiz! "${certificate.olympiadTitle}" fan olimpiadasining 1-bosqichida yuqori natija ko'rsatib, ${certificate.score} ball bilan muvaffaqiyatli o'tdingiz va final bosqichiga yo'llanma oldingiz.`;
+          `Tabriklaymiz! "${certificate.olympiadTitle || 'Olimpiada'}" fan olimpiadasining 1-bosqichida yuqori natija ko'rsatib, ${certificate.score} ball bilan muvaffaqiyatli o'tdingiz va final bosqichiga yo'llanma oldingiz.`;
       } else {
         return config.round1FailedText ||
-          `"${certificate.olympiadTitle}" fan olimpiadasida faol va munosib ishtirok etganingiz uchun samimiy minnatdorchilik bildiramiz. Bilim olishdan to'xtamang, kelgusi musobaqalarda albatta zafar quchasiz!`;
+          `"${certificate.olympiadTitle || 'Olimpiada'}" fan olimpiadasida faol va munosib ishtirok etganingiz uchun samimiy minnatdorchilik bildiramiz. Bilim olishdan to'xtamang, kelgusi musobaqalarda albatta zafar quchasiz!`;
       }
     }
 
-    if (certificate.type === 'winner' || (certificate.rank && certificate.rank <= 3)) {
+    if (certificate.type === 'winner' || !certificate.rank || certificate.rank <= 3) {
       if (config?.winnerText) {
         return config.winnerText
           .replace('{name}', certificate.userName)
-          .replace('{olympiad}', certificate.olympiadTitle)
+          .replace('{olympiad}', certificate.olympiadTitle || 'Olimpiada')
           .replace('{rank}', String(certificate.rank || 1))
           .replace('{score}', String(certificate.score));
       }
-      return `"${certificate.olympiadTitle}" musobaqasida yuksak bilim va mahorat namoyon etib, faxrli ${certificate.rank || 1}-o'rinni egalladi hamda ${certificate.score} ball to'pladi. Ushbu yuksak muvaffaqiyat bilan muborakbod etamiz!`;
+      return `"${certificate.olympiadTitle || 'Olimpiada'}" fan musobaqasida yuqori intellektual salohiyat namoyon etib, faxrli ${certificate.rank || 1}-o'rinni egalladi va g'oliblik diplomi bilan taqdirlanadi.`;
     }
 
     // Participation
     if (config?.participantText) {
       return config.participantText
         .replace('{name}', certificate.userName)
-        .replace('{olympiad}', certificate.olympiadTitle)
+        .replace('{olympiad}', certificate.olympiadTitle || 'Olimpiada')
         .replace('{score}', String(certificate.score));
     }
-    return `"${certificate.olympiadTitle}" musobaqasida faol va munosib ishtirok etib, ${certificate.score} ball to'plagani uchun minnatdorchilik bilan taqdirlanadi.`;
+    return `"${certificate.olympiadTitle || 'Olimpiada'}" fan musobaqasida faol va munosib ishtirok etib, ${certificate.score} ball to'plagani uchun minnatdorchilik bilan taqdirlanadi.`;
   };
 
   // QR Code verification URL
