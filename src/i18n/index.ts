@@ -5,8 +5,6 @@ import uz from './locales/uz.json';
 import ru from './locales/ru.json';
 import en from './locales/en.json';
 
-const savedLanguage = localStorage.getItem('next_olymp_lang') || 'uz';
-
 i18n
   .use(initReactI18next)
   .init({
@@ -15,10 +13,10 @@ i18n
       ru: { translation: ru },
       en: { translation: en },
     },
-    lng: savedLanguage,
+    lng: 'uz',
     fallbackLng: 'uz',
     interpolation: {
-      escapeValue: false, // React already escapes values
+      escapeValue: false,
     },
   });
 

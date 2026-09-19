@@ -1,8 +1,6 @@
 import { create } from 'zustand';
 import { PackageItem, INITIAL_PACKAGES } from '../data/initialPackages';
 
-const STORAGE_KEY = 'next_olymp_packages_v1';
-
 interface PackageStore {
   packages: PackageItem[];
   addPackage: (pkg: Omit<PackageItem, 'id' | 'createdAt' | 'sotilganSoni' | 'jamiTushum'>) => void;
@@ -12,23 +10,8 @@ interface PackageStore {
   resetPackages: () => void;
 }
 
-const loadPackagesFromStorage = (): PackageItem[] => {
-  try {
-    const stored = localStorage.getItem(STORAGE_KEY);
-    if (stored !== null) {
-      const parsed = JSON.parse(stored);
-      if (Array.isArray(parsed)) {
-        return parsed;
-      }
-    }
-  } catch (error) {
-    console.error('Error loading packages from localStorage:', error);
-  }
-  return INITIAL_PACKAGES;
-};
-
 export const usePackageStore = create<PackageStore>((set, get) => ({
-  packages: loadPackagesFromStorage(),
+  packages: INITIAL_PACKAGES,
 
   addPackage: (newPkg) => {
     const current = get().packages;
@@ -41,12 +24,11 @@ export const usePackageStore = create<PackageStore>((set, get) => ({
       id,
       sotilganSoni: 0,
       jamiTushum: 0,
-      createdAt: today
+      createdAt: today,
     };
 
     const updatedList = [packageItem, ...current];
     set({ packages: updatedList });
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(updatedList));
   },
 
   updatePackage: (id, updated) => {
@@ -58,13 +40,11 @@ export const usePackageStore = create<PackageStore>((set, get) => ({
     });
 
     set({ packages: updatedList });
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(updatedList));
   },
 
   deletePackage: (id) => {
     const updatedList = get().packages.filter((p) => p.id !== id);
     set({ packages: updatedList });
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(updatedList));
   },
 
   togglePackageStatus: (id) => {
@@ -77,11 +57,9 @@ export const usePackageStore = create<PackageStore>((set, get) => ({
     });
 
     set({ packages: updatedList });
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(updatedList));
   },
 
   resetPackages: () => {
     set({ packages: INITIAL_PACKAGES });
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(INITIAL_PACKAGES));
-  }
+  },
 }));

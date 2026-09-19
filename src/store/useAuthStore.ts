@@ -64,6 +64,14 @@ export const useAuthStore = create<AuthState>((set) => ({
       if (!state.user) return state;
       const updated = { ...state.user, ...updatedData };
       localStorage.setItem('next_olymp_user', JSON.stringify(updated));
+
+      // Sync to MySQL API
+      fetch('/api/users.php', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updated),
+      }).catch((e) => console.warn('User API update warning:', e));
+
       return { user: updated };
     });
   }

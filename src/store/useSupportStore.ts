@@ -1,44 +1,24 @@
 import { create } from 'zustand';
 import { SupportTicket, TicketMessage, INITIAL_TICKETS } from '../data/initialSupport';
 
-const STORAGE_KEY_TICKETS = 'next_olymp_support_v2';
-
 interface SupportStore {
   tickets: SupportTicket[];
   selectedTicketId: string | null;
-  
   setSelectedTicketId: (id: string | null) => void;
-  
   addMessageToTicket: (
     ticketId: string,
     text: string,
     sender?: 'admin',
     attachments?: { name: string; size: string; type: string }[]
   ) => void;
-
   updateTicketStatus: (ticketId: string, status: SupportTicket['status']) => void;
   closeTicket: (ticketId: string) => void;
   deleteTicket: (ticketId: string) => void;
   resetTickets: () => void;
 }
 
-const loadTicketsFromStorage = (): SupportTicket[] => {
-  try {
-    const stored = localStorage.getItem(STORAGE_KEY_TICKETS);
-    if (stored) {
-      const parsed = JSON.parse(stored);
-      if (Array.isArray(parsed)) {
-        return parsed;
-      }
-    }
-  } catch (error) {
-    console.error('Error loading support tickets from localStorage:', error);
-  }
-  return [];
-};
-
 export const useSupportStore = create<SupportStore>((set, get) => ({
-  tickets: loadTicketsFromStorage(),
+  tickets: INITIAL_TICKETS,
   selectedTicketId: null,
 
   setSelectedTicketId: (id) => set({ selectedTicketId: id }),
@@ -46,7 +26,9 @@ export const useSupportStore = create<SupportStore>((set, get) => ({
   addMessageToTicket: (ticketId, text, _sender = 'admin', attachments) => {
     const currentTickets = get().tickets;
     const now = new Date();
-    const timestampStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')} ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+    const timestampStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(
+      now.getDate()
+    ).padStart(2, '0')} ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
 
     const newMessage: TicketMessage = {
       id: `msg-${Date.now()}`,
@@ -54,36 +36,27 @@ export const useSupportStore = create<SupportStore>((set, get) => ({
       senderName: 'EGA Support (Admin)',
       text,
       timestamp: timestampStr,
-      attachments
+      attachments,
     };
 
     const updatedTickets = currentTickets.map((ticket) => {
       if (ticket.id === ticketId) {
         return {
           ...ticket,
+          messages: [...ticket.messages, newMessage],
           status: 'jarayonda' as const,
-          updatedAt: timestampStr,
-          messages: [...ticket.messages, newMessage]
+          lastUpdated: timestampStr,
         };
       }
       return ticket;
     });
 
     set({ tickets: updatedTickets });
-    localStorage.setItem(STORAGE_KEY_TICKETS, JSON.stringify(updatedTickets));
   },
 
   updateTicketStatus: (ticketId, status) => {
-    const currentTickets = get().tickets;
-    const updatedTickets = currentTickets.map((t) => {
-      if (t.id === ticketId) {
-        return { ...t, status };
-      }
-      return t;
-    });
-
+    const updatedTickets = get().tickets.map((t) => (t.id === ticketId ? { ...t, status } : t));
     set({ tickets: updatedTickets });
-    localStorage.setItem(STORAGE_KEY_TICKETS, JSON.stringify(updatedTickets));
   },
 
   closeTicket: (ticketId) => {
@@ -92,13 +65,13 @@ export const useSupportStore = create<SupportStore>((set, get) => ({
 
   deleteTicket: (ticketId) => {
     const updated = get().tickets.filter((t) => t.id !== ticketId);
-    const nextSelected = get().selectedTicketId === ticketId ? (updated[0]?.id || null) : get().selectedTicketId;
-    set({ tickets: updated, selectedTicketId: nextSelected });
-    localStorage.setItem(STORAGE_KEY_TICKETS, JSON.stringify(updated));
+    set({
+      tickets: updated,
+      selectedTicketId: get().selectedTicketId === ticketId ? null : get().selectedTicketId,
+    });
   },
 
   resetTickets: () => {
-    set({ tickets: INITIAL_TICKETS, selectedTicketId: INITIAL_TICKETS[0]?.id || null });
-    localStorage.setItem(STORAGE_KEY_TICKETS, JSON.stringify(INITIAL_TICKETS));
-  }
+    set({ tickets: INITIAL_TICKETS, selectedTicketId: null });
+  },
 }));

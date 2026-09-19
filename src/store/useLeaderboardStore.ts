@@ -1,11 +1,9 @@
 import { create } from 'zustand';
 import { LeaderboardUserEntry, INITIAL_LEADERBOARD_ENTRIES } from '../data/initialLeaderboard';
 
-const STORAGE_KEY = 'next_olymp_leaderboard_prod_v1';
-const DELETED_USERS_KEY = 'next_olymp_deleted_user_ids';
-
 interface LeaderboardStore {
   entries: LeaderboardUserEntry[];
+  fetchFromApi: () => Promise<void>;
   addOrUpdateUserScore: (data: {
     userId: string;
     userName: string;
@@ -22,260 +20,177 @@ interface LeaderboardStore {
   resetLeaderboard: () => void;
 }
 
-const getDeletedUserIds = (): Set<string> => {
-  try {
-    const saved = localStorage.getItem(DELETED_USERS_KEY);
-    if (saved) {
-      const parsed = JSON.parse(saved);
-      if (Array.isArray(parsed)) return new Set(parsed);
-    }
-  } catch {}
-  return new Set<string>();
+const calculateRanks = (list: LeaderboardUserEntry[]): LeaderboardUserEntry[] => {
+  // Sort descending by totalXP
+  const sorted = [...list].sort((a, b) => b.totalXP - a.totalXP);
+  return sorted.map((item, index) => ({
+    ...item,
+    nationalRank: index + 1,
+    regionRank: index + 1,
+    districtRank: index + 1,
+  }));
 };
 
-const loadLeaderboardFromStorage = (): LeaderboardUserEntry[] => {
-  const map = new Map<string, LeaderboardUserEntry>();
-  const deletedIds = getDeletedUserIds();
+export const useLeaderboardStore = create<LeaderboardStore>((set, get) => ({
+  entries: calculateRanks(INITIAL_LEADERBOARD_ENTRIES),
 
-  try {
-    const stored = localStorage.getItem(STORAGE_KEY);
-    if (stored) {
-      const parsed = JSON.parse(stored);
-      if (Array.isArray(parsed)) {
-        parsed.forEach((e: LeaderboardUserEntry) => {
-          if (
-            e &&
-            e.userId &&
-            !deletedIds.has(e.userId) &&
-            !deletedIds.has(e.id) &&
-            !e.userId.includes('admin') &&
-            !e.userName?.toLowerCase().includes('admin')
-          ) {
-            map.set(e.userId, e);
-          }
-        });
-      }
-    }
-  } catch (error) {
-    console.error('Error loading leaderboard from localStorage:', error);
-  }
+  fetchFromApi: async () => {
+    try {
+      const res = await fetch('/api/users.php');
+      if (res.ok) {
+        const json = await res.json();
+        const usersList = Array.isArray(json)
+          ? json
+          : json.status === 'success' && Array.isArray(json.data)
+          ? json.data
+          : null;
 
-  // Scan all real submissions from localStorage
-  try {
-    for (let i = 0; i < localStorage.length; i++) {
-      const key = localStorage.key(i);
-      if (key && key.startsWith('submission_completed_') && !key.includes('_att_')) {
-        const val = localStorage.getItem(key);
-        if (val) {
-          const sub = JSON.parse(val);
-          if (
-            sub &&
-            sub.userId &&
-            !deletedIds.has(sub.userId) &&
-            !sub.userId.includes('admin') &&
-            !sub.userName?.toLowerCase().includes('admin')
-          ) {
-            const score = Number(sub.score) || 0;
-            const xp = score * 10;
-            const pct = sub.percentage || 0;
-            const existing = map.get(sub.userId);
-
-            if (existing) {
-              existing.baseScore = Math.max(existing.baseScore, score);
-              existing.totalXP = Math.max(existing.totalXP, xp);
-              existing.accuracyRate = Math.max(existing.accuracyRate, pct);
-              if (sub.userName) existing.userName = sub.userName;
-              if (sub.region) existing.region = sub.region;
-              if (sub.school) existing.school = sub.school;
-              if (sub.grade) existing.grade = sub.grade;
-            } else {
-              map.set(sub.userId, {
-                id: `LB-${sub.userId}`,
-                userId: sub.userId,
-                userName: sub.userName || 'Ishtirokchi',
-                avatarUrl: `https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150&auto=format&fit=crop&q=80`,
-                region: sub.region || 'Toshkent shahri',
-                district: 'Yunusobod tumani',
-                school: sub.school || 'Prezident maktabi',
-                grade: sub.grade || 9,
+        if (usersList && usersList.length > 0) {
+          const apiEntries: LeaderboardUserEntry[] = usersList
+            .filter((u: any) => u && u.id && u.role !== 'admin' && !u.id.includes('admin'))
+            .map((u: any, idx: number) => {
+              const score = Number(u.score) || 0;
+              const xp = score * 10;
+              return {
+                id: `LB-${u.id}`,
+                userId: u.id,
+                userName: u.fullName || u.name || 'Ishtirokchi',
+                avatarUrl:
+                  u.avatarUrl ||
+                  `https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150&auto=format&fit=crop&q=80`,
+                region: u.region || 'Toshkent shahri',
+                district: u.district || 'Yunusobod tumani',
+                school: u.school || 'Prezident maktabi',
+                grade: u.grade || 9,
                 baseScore: score,
                 bonusPoints: 0,
                 cheatingPenalty: 0,
                 totalXP: xp,
-                nationalRank: 1,
-                regionRank: 1,
-                districtRank: 1,
-                testsCompletedCount: 1,
-                accuracyRate: pct,
-                lastActive: sub.completedAt ? new Date(sub.completedAt).toLocaleString() : new Date().toLocaleString(),
-              });
-            }
+                nationalRank: idx + 1,
+                regionRank: idx + 1,
+                districtRank: idx + 1,
+                testsCompletedCount: score > 0 ? 1 : 0,
+                accuracyRate: score > 0 ? Math.min(100, Math.round((score / 100) * 100)) : 0,
+                lastActive: new Date().toLocaleDateString(),
+              };
+            });
+
+          if (apiEntries.length > 0) {
+            set({ entries: calculateRanks(apiEntries) });
           }
         }
       }
+    } catch (e) {
+      console.warn('Leaderboard API fetch warning:', e);
     }
-  } catch (e) {
-    console.error('Error scanning submissions for leaderboard:', e);
-  }
-
-  const entries = Array.from(map.values()).filter(
-    (e) => !deletedIds.has(e.userId) && !e.userId.includes('admin') && !e.userName?.toLowerCase().includes('admin')
-  );
-  if (entries.length === 0 && INITIAL_LEADERBOARD_ENTRIES.length > 0) {
-    return INITIAL_LEADERBOARD_ENTRIES.filter((e) => !deletedIds.has(e.userId) && !e.userId.includes('admin'));
-  }
-  return entries;
-};
-
-// Re-calculate ranks for all scopes (Respublika, Viloyat, Tuman)
-export const recalculateRanks = (list: LeaderboardUserEntry[]): LeaderboardUserEntry[] => {
-  // Sort descending by totalXP
-  const sorted = [...list].sort((a, b) => b.totalXP - a.totalXP);
-
-  // Map National Ranks
-  const updated = sorted.map((entry, idx) => ({
-    ...entry,
-    nationalRank: idx + 1
-  }));
-
-  // Map Region Ranks
-  const regionMap: Record<string, LeaderboardUserEntry[]> = {};
-  updated.forEach((e) => {
-    if (!regionMap[e.region]) regionMap[e.region] = [];
-    regionMap[e.region].push(e);
-  });
-
-  Object.values(regionMap).forEach((regionList) => {
-    regionList.sort((a, b) => b.totalXP - a.totalXP);
-    regionList.forEach((item, rIdx) => {
-      item.regionRank = rIdx + 1;
-    });
-  });
-
-  // Map District Ranks
-  const districtMap: Record<string, LeaderboardUserEntry[]> = {};
-  updated.forEach((e) => {
-    const key = `${e.region}_${e.district}`;
-    if (!districtMap[key]) districtMap[key] = [];
-    districtMap[key].push(e);
-  });
-
-  Object.values(districtMap).forEach((distList) => {
-    distList.sort((a, b) => b.totalXP - a.totalXP);
-    distList.forEach((item, dIdx) => {
-      item.districtRank = dIdx + 1;
-    });
-  });
-
-  return updated;
-};
-
-export const useLeaderboardStore = create<LeaderboardStore>((set, get) => ({
-  entries: recalculateRanks(loadLeaderboardFromStorage()),
+  },
 
   addOrUpdateUserScore: (data) => {
-    const current = get().entries;
-    const existingIndex = current.findIndex(
-      (e) => e.userId === data.userId || e.userName.toLowerCase() === data.userName.toLowerCase()
-    );
+    const { entries } = get();
+    const existingIndex = entries.findIndex((e) => e.userId === data.userId);
+    const addedXP = (data.score || 0) * 10;
 
     let updatedList: LeaderboardUserEntry[];
 
     if (existingIndex >= 0) {
-      const existing = current[existingIndex];
-      const newBase = existing.baseScore + data.score;
-      const newTotal = Math.max(0, newBase + existing.bonusPoints - existing.cheatingPenalty);
-      const updatedEntry: LeaderboardUserEntry = {
-        ...existing,
-        baseScore: newBase,
-        totalXP: newTotal,
-        testsCompletedCount: existing.testsCompletedCount + 1,
-        lastActive: new Date().toISOString().replace('T', ' ').slice(0, 16),
-      };
-      updatedList = [...current];
-      updatedList[existingIndex] = updatedEntry;
+      updatedList = entries.map((entry, idx) => {
+        if (idx === existingIndex) {
+          const newBaseScore = Math.max(entry.baseScore, data.score);
+          const newXP = Math.max(entry.totalXP, addedXP);
+          return {
+            ...entry,
+            userName: data.userName || entry.userName,
+            baseScore: newBaseScore,
+            totalXP: newXP + entry.bonusPoints - entry.cheatingPenalty,
+            region: data.region || entry.region,
+            school: data.school || entry.school,
+            grade: data.grade || entry.grade,
+            avatarUrl: data.avatarUrl || entry.avatarUrl,
+            testsCompletedCount: entry.testsCompletedCount + 1,
+            lastActive: new Date().toLocaleDateString(),
+          };
+        }
+        return entry;
+      });
     } else {
       const newEntry: LeaderboardUserEntry = {
-        id: `LB-${Date.now()}`,
+        id: `LB-${data.userId}`,
         userId: data.userId,
         userName: data.userName,
-        avatarUrl: data.avatarUrl || '',
+        avatarUrl:
+          data.avatarUrl ||
+          `https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150&auto=format&fit=crop&q=80`,
         region: data.region || 'Toshkent shahri',
         district: data.district || 'Yunusobod tumani',
-        school: data.school || 'Maktab',
+        school: data.school || 'Prezident maktabi',
         grade: data.grade || 9,
         baseScore: data.score,
         bonusPoints: 0,
         cheatingPenalty: 0,
-        totalXP: data.score,
-        nationalRank: 1,
+        totalXP: addedXP,
+        nationalRank: entries.length + 1,
         regionRank: 1,
         districtRank: 1,
         testsCompletedCount: 1,
-        accuracyRate: 92,
-        lastActive: new Date().toISOString().replace('T', ' ').slice(0, 16)
+        accuracyRate: Math.min(100, Math.round((data.score / 100) * 100)),
+        lastActive: new Date().toLocaleDateString(),
       };
-      updatedList = [newEntry, ...current];
+      updatedList = [...entries, newEntry];
     }
 
-    const ranked = recalculateRanks(updatedList);
-    set({ entries: ranked });
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(ranked));
+    set({ entries: calculateRanks(updatedList) });
   },
 
   applyCheatingPenalty: (userId, penaltyXP) => {
-    const current = get().entries;
-    const updated = current.map((item) => {
-      if (item.userId === userId || item.id === userId) {
-        const newPenalty = (item.cheatingPenalty || 0) + penaltyXP;
-        const totalXP = Math.max(0, item.baseScore + item.bonusPoints - newPenalty);
+    const { entries } = get();
+    const updated = entries.map((e) => {
+      if (e.userId === userId) {
+        const newPenalty = e.cheatingPenalty + penaltyXP;
+        const newTotalXP = Math.max(0, e.baseScore * 10 + e.bonusPoints - newPenalty);
         return {
-          ...item,
+          ...e,
           cheatingPenalty: newPenalty,
-          totalXP
+          totalXP: newTotalXP,
         };
       }
-      return item;
+      return e;
     });
 
-    const ranked = recalculateRanks(updated);
-    set({ entries: ranked });
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(ranked));
+    set({ entries: calculateRanks(updated) });
   },
 
   awardBonusPoints: (userId, bonusXP) => {
-    const current = get().entries;
-    const updated = current.map((item) => {
-      if (item.userId === userId || item.id === userId) {
-        const newBonus = (item.bonusPoints || 0) + bonusXP;
-        const totalXP = Math.max(0, item.baseScore + newBonus - item.cheatingPenalty);
+    const { entries } = get();
+    const updated = entries.map((e) => {
+      if (e.userId === userId) {
+        const newBonus = e.bonusPoints + bonusXP;
+        const newTotalXP = Math.max(0, e.baseScore * 10 + newBonus - e.cheatingPenalty);
         return {
-          ...item,
+          ...e,
           bonusPoints: newBonus,
-          totalXP
+          totalXP: newTotalXP,
         };
       }
-      return item;
+      return e;
     });
 
-    const ranked = recalculateRanks(updated);
-    set({ entries: ranked });
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(ranked));
+    set({ entries: calculateRanks(updated) });
   },
 
   removeUser: (userId) => {
-    const current = get().entries;
-    const updated = current.filter(
-      (item) => item.userId !== userId && item.id !== userId && item.id !== `LB-${userId}`
-    );
-    const ranked = recalculateRanks(updated);
-    set({ entries: ranked });
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(ranked));
+    const { entries } = get();
+    const filtered = entries.filter((e) => e.userId !== userId && e.id !== userId);
+    set({ entries: calculateRanks(filtered) });
   },
 
   resetLeaderboard: () => {
-    const ranked = recalculateRanks(INITIAL_LEADERBOARD_ENTRIES);
-    set({ entries: ranked });
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(ranked));
-  }
+    set({ entries: calculateRanks(INITIAL_LEADERBOARD_ENTRIES) });
+  },
 }));
+
+// Auto-fetch on app load
+if (typeof window !== 'undefined') {
+  setTimeout(() => {
+    useLeaderboardStore.getState().fetchFromApi();
+  }, 150);
+}

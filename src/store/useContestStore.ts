@@ -223,18 +223,6 @@ export const useContestStore = create<ContestState>((set, get) => ({
         status: 'pending'
       };
 
-      const anticheatKey = `anticheat_logs_${olympiadId}`;
-      const existingStr = localStorage.getItem(anticheatKey);
-      let list: any[] = [];
-      if (existingStr) {
-        try {
-          list = JSON.parse(existingStr);
-          if (!Array.isArray(list)) list = [];
-        } catch {}
-      }
-      list.unshift(formattedLog);
-      localStorage.setItem(anticheatKey, JSON.stringify(list));
-
       // Sync incident & snapshot to MySQL API
       fetch('/api/anticheat.php', {
         method: 'POST',

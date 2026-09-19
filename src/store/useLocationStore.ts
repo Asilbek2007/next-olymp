@@ -5,7 +5,7 @@ import {
   MaktabItem,
   INITIAL_VILOYATLAR,
   INITIAL_TUMANLAR,
-  INITIAL_MAKTABLAR
+  INITIAL_MAKTABLAR,
 } from '../data/initialLocations';
 
 interface LocationState {
@@ -28,224 +28,190 @@ interface LocationState {
   resetToDefaults: () => void;
 }
 
-const STORAGE_KEY = 'next_olymp_locations_v2';
+export const useLocationStore = create<LocationState>((set, get) => ({
+  viloyatlar: INITIAL_VILOYATLAR,
+  tumanlar: INITIAL_TUMANLAR,
+  maktablar: INITIAL_MAKTABLAR,
 
-const getInitialData = () => {
-  try {
-    const saved = localStorage.getItem(STORAGE_KEY);
-    if (saved) {
-      const parsed = JSON.parse(saved);
-      if (parsed.viloyatlar && parsed.tumanlar && parsed.maktablar) {
-        return parsed;
+  addViloyat: ({ nomi, kod }) => {
+    const { viloyatlar, tumanlar, maktablar } = get();
+    const newViloyat: ViloyatItem = {
+      id: `v-${Date.now()}`,
+      nomi: nomi.trim(),
+      kod: kod.trim().toUpperCase(),
+      tumanlarSoni: 0,
+      maktablarSoni: 0,
+    };
+    set({
+      viloyatlar: [newViloyat, ...viloyatlar],
+      tumanlar,
+      maktablar,
+    });
+  },
+
+  updateViloyat: (id, { nomi, kod }) => {
+    const { viloyatlar, tumanlar, maktablar } = get();
+    const oldVil = viloyatlar.find((v) => v.id === id);
+    const oldName = oldVil ? oldVil.nomi : '';
+
+    const updatedViloyatlar = viloyatlar.map((v) => {
+      if (v.id === id) {
+        return { ...v, nomi: nomi.trim(), kod: kod.trim().toUpperCase() };
       }
-    }
-  } catch (e) {
-    console.error('Failed to load locations from localStorage', e);
-  }
-  return {
-    viloyatlar: INITIAL_VILOYATLAR,
-    tumanlar: INITIAL_TUMANLAR,
-    maktablar: INITIAL_MAKTABLAR
-  };
-};
+      return v;
+    });
 
-const initial = getInitialData();
+    const updatedTumanlar = tumanlar.map((t) => {
+      if (oldName && t.viloyatNomi.toLowerCase() === oldName.toLowerCase()) {
+        return { ...t, viloyatNomi: nomi.trim() };
+      }
+      return t;
+    });
 
-export const useLocationStore = create<LocationState>((set, get) => {
-  const saveState = (newState: { viloyatlar: ViloyatItem[]; tumanlar: TumanItem[]; maktablar: MaktabItem[] }) => {
-    try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(newState));
-    } catch (e) {
-      console.error('Failed to save locations to localStorage', e);
-    }
-  };
+    const updatedMaktablar = maktablar.map((m) => {
+      if (oldName && m.viloyatNomi.toLowerCase() === oldName.toLowerCase()) {
+        return { ...m, viloyatNomi: nomi.trim() };
+      }
+      return m;
+    });
 
-  return {
-    viloyatlar: initial.viloyatlar,
-    tumanlar: initial.tumanlar,
-    maktablar: initial.maktablar,
+    set({
+      viloyatlar: updatedViloyatlar,
+      tumanlar: updatedTumanlar,
+      maktablar: updatedMaktablar,
+    });
+  },
 
-    addViloyat: ({ nomi, kod }) => {
-      const { viloyatlar, tumanlar, maktablar } = get();
-      const newViloyat: ViloyatItem = {
-        id: `v-${Date.now()}`,
-        nomi: nomi.trim(),
-        kod: kod.trim() || `${viloyatlar.length + 1}`,
-        tumanlarSoni: 0,
-        maktablarSoni: 0
-      };
-      const updatedViloyatlar = [newViloyat, ...viloyatlar];
-      const newState = { viloyatlar: updatedViloyatlar, tumanlar, maktablar };
-      set(newState);
-      saveState(newState);
-    },
+  deleteViloyat: (id) => {
+    const { viloyatlar, tumanlar, maktablar } = get();
+    const updatedViloyatlar = viloyatlar.filter((v) => v.id !== id);
+    set({ viloyatlar: updatedViloyatlar, tumanlar, maktablar });
+  },
 
-    updateViloyat: (id, { nomi, kod }) => {
-      const { viloyatlar, tumanlar, maktablar } = get();
-      const oldViloyat = viloyatlar.find(v => v.id === id);
-      const oldName = oldViloyat ? oldViloyat.nomi : '';
+  addTuman: ({ nomi, viloyatNomi, kod }) => {
+    const { viloyatlar, tumanlar, maktablar } = get();
+    const newTuman: TumanItem = {
+      id: `t-${Date.now()}`,
+      nomi: nomi.trim(),
+      viloyatNomi: viloyatNomi.trim(),
+      kod: kod.trim().toUpperCase(),
+      maktablarSoni: 0,
+    };
+    const updatedTumanlar = [newTuman, ...tumanlar];
 
-      const updatedViloyatlar = viloyatlar.map(v => {
-        if (v.id === id) {
-          return { ...v, nomi: nomi.trim(), kod: kod.trim() };
-        }
-        return v;
-      });
+    const updatedViloyatlar = viloyatlar.map((v) => {
+      if (v.nomi.toLowerCase() === viloyatNomi.trim().toLowerCase()) {
+        return { ...v, tumanlarSoni: v.tumanlarSoni + 1 };
+      }
+      return v;
+    });
 
-      // Update references in tumanlar and maktablar if name changed
-      const updatedTumanlar = tumanlar.map(t => {
-        if (oldName && t.viloyatNomi.toLowerCase() === oldName.toLowerCase()) {
-          return { ...t, viloyatNomi: nomi.trim() };
-        }
-        return t;
-      });
+    set({
+      viloyatlar: updatedViloyatlar,
+      tumanlar: updatedTumanlar,
+      maktablar,
+    });
+  },
 
-      const updatedMaktablar = maktablar.map(m => {
-        if (oldName && m.viloyatNomi.toLowerCase() === oldName.toLowerCase()) {
-          return { ...m, viloyatNomi: nomi.trim() };
-        }
-        return m;
-      });
+  updateTuman: (id, { nomi, viloyatNomi, kod }) => {
+    const { viloyatlar, tumanlar, maktablar } = get();
+    const oldTuman = tumanlar.find((t) => t.id === id);
+    const oldName = oldTuman ? oldTuman.nomi : '';
 
-      const newState = { viloyatlar: updatedViloyatlar, tumanlar: updatedTumanlar, maktablar: updatedMaktablar };
-      set(newState);
-      saveState(newState);
-    },
+    const updatedTumanlar = tumanlar.map((t) => {
+      if (t.id === id) {
+        return { ...t, nomi: nomi.trim(), viloyatNomi: viloyatNomi.trim(), kod: kod.trim() };
+      }
+      return t;
+    });
 
-    deleteViloyat: (id) => {
-      const { viloyatlar, tumanlar, maktablar } = get();
-      const updatedViloyatlar = viloyatlar.filter(v => v.id !== id);
-      const newState = { viloyatlar: updatedViloyatlar, tumanlar, maktablar };
-      set(newState);
-      saveState(newState);
-    },
+    const updatedMaktablar = maktablar.map((m) => {
+      if (oldName && m.tumanNomi.toLowerCase() === oldName.toLowerCase()) {
+        return { ...m, tumanNomi: nomi.trim(), viloyatNomi: viloyatNomi.trim() };
+      }
+      return m;
+    });
 
-    addTuman: ({ nomi, viloyatNomi, kod }) => {
-      const { viloyatlar, tumanlar, maktablar } = get();
-      const newTuman: TumanItem = {
-        id: `t-${Date.now()}`,
-        nomi: nomi.trim(),
-        viloyatNomi: viloyatNomi.trim(),
-        kod: kod.trim() || `${tumanlar.length + 100}`,
-        maktablarSoni: 0
-      };
-      const updatedTumanlar = [newTuman, ...tumanlar];
+    set({
+      viloyatlar,
+      tumanlar: updatedTumanlar,
+      maktablar: updatedMaktablar,
+    });
+  },
 
-      // Update viloyat tumanlar count
-      const updatedViloyatlar = viloyatlar.map(v => {
-        if (v.nomi.toLowerCase() === viloyatNomi.trim().toLowerCase()) {
-          return { ...v, tumanlarSoni: v.tumanlarSoni + 1 };
-        }
-        return v;
-      });
+  deleteTuman: (id) => {
+    const { viloyatlar, tumanlar, maktablar } = get();
+    const updatedTumanlar = tumanlar.filter((t) => t.id !== id);
+    set({ viloyatlar, tumanlar: updatedTumanlar, maktablar });
+  },
 
-      const newState = { viloyatlar: updatedViloyatlar, tumanlar: updatedTumanlar, maktablar };
-      set(newState);
-      saveState(newState);
-    },
+  addMaktab: ({ nomi, turi, noyobKod, viloyatNomi, tumanNomi }) => {
+    const { viloyatlar, tumanlar, maktablar } = get();
+    const newMaktab: MaktabItem = {
+      id: `m-${Date.now()}`,
+      nomi: nomi.trim(),
+      turi: turi || 'public',
+      noyobKod: noyobKod.trim() || `${Math.floor(10000 + Math.random() * 90000)}`,
+      viloyatNomi: viloyatNomi.trim(),
+      tumanNomi: tumanNomi.trim(),
+    };
+    const updatedMaktablar = [newMaktab, ...maktablar];
 
-    updateTuman: (id, { nomi, viloyatNomi, kod }) => {
-      const { viloyatlar, tumanlar, maktablar } = get();
-      const oldTuman = tumanlar.find(t => t.id === id);
-      const oldName = oldTuman ? oldTuman.nomi : '';
+    const updatedViloyatlar = viloyatlar.map((v) => {
+      if (v.nomi.toLowerCase() === viloyatNomi.trim().toLowerCase()) {
+        return { ...v, maktablarSoni: v.maktablarSoni + 1 };
+      }
+      return v;
+    });
 
-      const updatedTumanlar = tumanlar.map(t => {
-        if (t.id === id) {
-          return { ...t, nomi: nomi.trim(), viloyatNomi: viloyatNomi.trim(), kod: kod.trim() };
-        }
-        return t;
-      });
+    const updatedTumanlar = tumanlar.map((t) => {
+      if (t.nomi.toLowerCase() === tumanNomi.trim().toLowerCase()) {
+        return { ...t, maktablarSoni: t.maktablarSoni + 1 };
+      }
+      return t;
+    });
 
-      // Update maktablar references
-      const updatedMaktablar = maktablar.map(m => {
-        if (oldName && m.tumanNomi.toLowerCase() === oldName.toLowerCase()) {
-          return { ...m, tumanNomi: nomi.trim(), viloyatNomi: viloyatNomi.trim() };
-        }
-        return m;
-      });
+    set({
+      viloyatlar: updatedViloyatlar,
+      tumanlar: updatedTumanlar,
+      maktablar: updatedMaktablar,
+    });
+  },
 
-      const newState = { viloyatlar, tumanlar: updatedTumanlar, maktablar: updatedMaktablar };
-      set(newState);
-      saveState(newState);
-    },
+  updateMaktab: (id, { nomi, turi, noyobKod, viloyatNomi, tumanNomi }) => {
+    const { viloyatlar, tumanlar, maktablar } = get();
+    const updatedMaktablar = maktablar.map((m) => {
+      if (m.id === id) {
+        return {
+          ...m,
+          nomi: nomi.trim(),
+          turi: turi || 'public',
+          noyobKod: noyobKod.trim(),
+          viloyatNomi: viloyatNomi.trim(),
+          tumanNomi: tumanNomi.trim(),
+        };
+      }
+      return m;
+    });
 
-    deleteTuman: (id) => {
-      const { viloyatlar, tumanlar, maktablar } = get();
-      const updatedTumanlar = tumanlar.filter(t => t.id !== id);
-      const newState = { viloyatlar, tumanlar: updatedTumanlar, maktablar };
-      set(newState);
-      saveState(newState);
-    },
+    set({
+      viloyatlar,
+      tumanlar,
+      maktablar: updatedMaktablar,
+    });
+  },
 
-    addMaktab: ({ nomi, turi, noyobKod, viloyatNomi, tumanNomi }) => {
-      const { viloyatlar, tumanlar, maktablar } = get();
-      const newMaktab: MaktabItem = {
-        id: `m-${Date.now()}`,
-        nomi: nomi.trim(),
-        turi: turi || 'public',
-        noyobKod: noyobKod.trim() || `${Math.floor(10000 + Math.random() * 90000)}`,
-        viloyatNomi: viloyatNomi.trim(),
-        tumanNomi: tumanNomi.trim()
-      };
-      const updatedMaktablar = [newMaktab, ...maktablar];
+  deleteMaktab: (id) => {
+    const { viloyatlar, tumanlar, maktablar } = get();
+    const updatedMaktablar = maktablar.filter((m) => m.id !== id);
+    set({ viloyatlar, tumanlar, maktablar: updatedMaktablar });
+  },
 
-      // Update counts
-      const updatedViloyatlar = viloyatlar.map(v => {
-        if (v.nomi.toLowerCase() === viloyatNomi.trim().toLowerCase()) {
-          return { ...v, maktablarSoni: v.maktablarSoni + 1 };
-        }
-        return v;
-      });
-
-      const updatedTumanlar = tumanlar.map(t => {
-        if (t.nomi.toLowerCase() === tumanNomi.trim().toLowerCase()) {
-          return { ...t, maktablarSoni: t.maktablarSoni + 1 };
-        }
-        return t;
-      });
-
-      const newState = { viloyatlar: updatedViloyatlar, tumanlar: updatedTumanlar, maktablar: updatedMaktablar };
-      set(newState);
-      saveState(newState);
-    },
-
-    updateMaktab: (id, { nomi, turi, noyobKod, viloyatNomi, tumanNomi }) => {
-      const { viloyatlar, tumanlar, maktablar } = get();
-      const updatedMaktablar = maktablar.map(m => {
-        if (m.id === id) {
-          return {
-            ...m,
-            nomi: nomi.trim(),
-            turi: turi || 'public',
-            noyobKod: noyobKod.trim(),
-            viloyatNomi: viloyatNomi.trim(),
-            tumanNomi: tumanNomi.trim()
-          };
-        }
-        return m;
-      });
-
-      const newState = { viloyatlar, tumanlar, maktablar: updatedMaktablar };
-      set(newState);
-      saveState(newState);
-    },
-
-    deleteMaktab: (id) => {
-      const { viloyatlar, tumanlar, maktablar } = get();
-      const updatedMaktablar = maktablar.filter(m => m.id !== id);
-      const newState = { viloyatlar, tumanlar, maktablar: updatedMaktablar };
-      set(newState);
-      saveState(newState);
-    },
-
-    resetToDefaults: () => {
-      const newState = {
-        viloyatlar: INITIAL_VILOYATLAR,
-        tumanlar: INITIAL_TUMANLAR,
-        maktablar: INITIAL_MAKTABLAR
-      };
-      set(newState);
-      saveState(newState);
-    }
-  };
-});
+  resetToDefaults: () => {
+    set({
+      viloyatlar: INITIAL_VILOYATLAR,
+      tumanlar: INITIAL_TUMANLAR,
+      maktablar: INITIAL_MAKTABLAR,
+    });
+  },
+}));

@@ -402,7 +402,7 @@ export const RegisterPage: React.FC = () => {
         phone: phone.trim(),
         gender,
         password,
-        role,
+        role: (role === 'admin' ? 'student' : role) as 'student' | 'teacher',
         grade,
         region,
         district,
