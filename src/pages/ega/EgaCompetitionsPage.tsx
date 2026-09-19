@@ -79,37 +79,46 @@ export const EgaCompetitionsPage: React.FC = () => {
 
   // 5 Stat Calculations
   const totalCount = olympiads.length;
-  const openCount = useMemo(() => olympiads.filter((o) => o.status === 'ochiq').length, [olympiads]);
-  const closedCount = useMemo(() => olympiads.filter((o) => o.status === 'yopiq').length, [olympiads]);
-  const totalRevenueSum = useMemo(() => olympiads.reduce((sum, o) => sum + o.totalRevenue, 0), [olympiads]);
-  const totalPaidCountSum = useMemo(() => olympiads.reduce((sum, o) => sum + o.paidCount, 0), [olympiads]);
+  const openCount = useMemo(() => olympiads.filter((o) => (o?.status || 'ochiq') === 'ochiq').length, [olympiads]);
+  const closedCount = useMemo(() => olympiads.filter((o) => o?.status === 'yopiq').length, [olympiads]);
+  const totalRevenueSum = useMemo(() => olympiads.reduce((sum, o) => sum + (o?.totalRevenue || 0), 0), [olympiads]);
+  const totalPaidCountSum = useMemo(() => olympiads.reduce((sum, o) => sum + (o?.paidCount || 0), 0), [olympiads]);
 
   // Filtered & Sorted List (Pinned on top)
   const filteredOlympiads = useMemo(() => {
     const list = olympiads.filter((o) => {
-      const matchesSearch =
-        o.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        o.subject.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        o.id.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        (o.location && o.location.toLowerCase().includes(searchTerm.toLowerCase()));
+      if (!o) return false;
+      const title = (o.title || '').toLowerCase();
+      const subject = (o.subject || '').toLowerCase();
+      const id = (o.id || '').toLowerCase();
+      const location = (o.location || '').toLowerCase();
+      const query = searchTerm.toLowerCase();
 
-      const matchesFormat = formatFilter === 'all' || o.format === formatFilter;
-      const matchesStatus = statusFilter === 'all' || o.status === statusFilter;
+      const matchesSearch =
+        title.includes(query) ||
+        subject.includes(query) ||
+        id.includes(query) ||
+        location.includes(query);
+
+      const oFormat = o.format || 'online';
+      const oStatus = o.status || 'ochiq';
+      const matchesFormat = formatFilter === 'all' || oFormat === formatFilter;
+      const matchesStatus = statusFilter === 'all' || oStatus === statusFilter;
 
       return matchesSearch && matchesFormat && matchesStatus;
     });
 
     // Pinned first, then by ID
     return list.sort((a, b) => {
-      if (a.isPinned && !b.isPinned) return -1;
-      if (!a.isPinned && b.isPinned) return 1;
+      if (a?.isPinned && !b?.isPinned) return -1;
+      if (!a?.isPinned && b?.isPinned) return 1;
       return 0;
     });
   }, [olympiads, searchTerm, formatFilter, statusFilter]);
 
   // Format currency
   const formatUZS = (val: number) => {
-    if (val === 0) return t('Bepul');
+    if (!val || val === 0) return t('Bepul');
     return `${val.toLocaleString()} UZS`;
   };
 
@@ -117,18 +126,18 @@ export const EgaCompetitionsPage: React.FC = () => {
   const handleExportExcel = () => {
     const exportData = filteredOlympiads.map((o, idx) => ({
       '№': idx + 1,
-      [t('ID')]: o.id,
-      [t('Olimpiada Nomi')]: o.title,
-      [t('Fan')]: t(o.subject),
-      [t('Formati')]: o.format.toUpperCase(),
-      [t('Narxi')]: o.price === 0 ? t('Bepul') : `${o.price} UZS`,
-      [t('Holati')]: o.status === 'ochiq' ? t('Ochiq (Faol)') : t('Yopiq'),
-      [t('Ro\'yxatdan o\'tganlar')]: o.registeredCount,
-      [t('Topshirganlar')]: o.submittedCount,
-      [t('To\'lov qilganlar')]: o.paidCount,
-      [t('Jami tushum')]: `${o.totalRevenue} UZS`,
-      [t('Boshlanish vaqti')]: o.startDate,
-      [t('Tugash vaqti')]: o.endDate,
+      [t('ID')]: o.id || '',
+      [t('Olimpiada Nomi')]: o.title || '',
+      [t('Fan')]: t(o.subject || ''),
+      [t('Formati')]: (o.format || 'online').toUpperCase(),
+      [t('Narxi')]: !o.price || o.price === 0 ? t('Bepul') : `${o.price} UZS`,
+      [t('Holati')]: (o.status || 'ochiq') === 'ochiq' ? t('Ochiq (Faol)') : t('Yopiq'),
+      [t('Ro\'yxatdan o\'tganlar')]: o.registeredCount || 0,
+      [t('Topshirganlar')]: o.submittedCount || 0,
+      [t('To\'lov qilganlar')]: o.paidCount || 0,
+      [t('Jami tushum')]: `${o.totalRevenue || 0} UZS`,
+      [t('Boshlanish vaqti')]: o.startDate || '',
+      [t('Tugash vaqti')]: o.endDate || '',
       [t('Manzil (Offline)')]: o.location || '-'
     }));
 

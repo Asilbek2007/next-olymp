@@ -166,6 +166,31 @@ export const EgaSecurityPage: React.FC = () => {
   const [blockModalReason, setBlockModalReason] = useState('');
   const [blockModalPermanent, setBlockModalPermanent] = useState(false);
 
+  // Sync with real server logs & system stats from /api/logs.php
+  useEffect(() => {
+    let isMounted = true;
+    const fetchRealLogs = async () => {
+      try {
+        const res = await fetch('/api/logs.php');
+        if (res.ok) {
+          const json = await res.json();
+          if (isMounted && json.status === 'success' && Array.isArray(json.data) && json.data.length > 0) {
+            useSecurityStore.setState({ accessLogs: json.data });
+          }
+        }
+      } catch (err) {
+        console.warn('Real server logs fetch warning:', err);
+      }
+    };
+
+    fetchRealLogs();
+    const logInterval = setInterval(fetchRealLogs, 5000);
+    return () => {
+      isMounted = false;
+      clearInterval(logInterval);
+    };
+  }, []);
+
   // Sync with adminMonitoringService for realistic system stats
   useEffect(() => {
     let isMounted = true;
