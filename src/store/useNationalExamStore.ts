@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { NationalExamItem, INITIAL_NATIONAL_EXAMS } from '../data/initialNationalExams';
 
-const STORAGE_KEY = 'next_olymp_national_exams_v1';
+const STORAGE_KEY = 'next_olymp_national_exams_v2';
 
 interface NationalExamStore {
   exams: NationalExamItem[];
@@ -25,7 +25,7 @@ const loadExamsFromStorage = (): NationalExamItem[] => {
   } catch (error) {
     console.error('Error loading national exams from localStorage:', error);
   }
-  return INITIAL_NATIONAL_EXAMS;
+  return [];
 };
 
 export const useNationalExamStore = create<NationalExamStore>((set, get) => ({
