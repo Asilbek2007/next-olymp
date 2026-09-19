@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate, Navigate } from 'react-router-dom';
-import { ShieldCheck, Lock, Mail, ArrowRight, AlertCircle, KeyRound, Server, Eye, EyeOff, Sparkles } from 'lucide-react';
+import { ShieldCheck, Lock, Mail, ArrowRight, AlertCircle, KeyRound, Eye, EyeOff } from 'lucide-react';
 import { Button } from '../../components/common/Button';
 import { useAuth } from '../../hooks/useAuth';
 import { adminAuthService } from '../../services/adminAuthService';
@@ -14,20 +14,10 @@ export const EgaLoginPage: React.FC = () => {
     return <Navigate to="/ega" replace />;
   }
 
-  // Pre-configured default admin credentials from .env or fallback
-  const defaultEmail = import.meta.env.VITE_ADMIN_EMAIL || 'admin@nextolymp.uz';
-  const defaultKey = import.meta.env.VITE_ADMIN_KEY || 'admin123';
-
-  const [email, setEmail] = useState(defaultEmail);
-  const [password, setPassword] = useState(defaultKey);
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
-
-  const fillDefaultCredentials = () => {
-    setEmail(defaultEmail);
-    setPassword(defaultKey);
-    setError('');
-  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -37,14 +27,14 @@ export const EgaLoginPage: React.FC = () => {
     const trimmedPass = password.trim();
 
     if (!trimmedEmail || !trimmedPass) {
-      setError("Iltimos, Admin Email va Master Key maydonlarini to'liq to'ldiring.");
+      setError("Iltimos, Admin Email va Parolni to'liq to'ldiring.");
       return;
     }
 
     try {
       const adminRes = adminAuthService.createAdminSession(trimmedEmail, trimmedPass);
       if (!adminRes.success) {
-        setError(adminRes.error || "Noto'g'ri Admin Email yoki Master Key kiritildi. Standart: admin@nextolymp.uz / admin123");
+        setError(adminRes.error || "Noto'g'ri Admin Email yoki Parol kiritildi.");
         return;
       }
 
@@ -56,7 +46,7 @@ export const EgaLoginPage: React.FC = () => {
       // Redirect seamlessly to /ega control panel
       navigate('/ega', { replace: true });
     } catch (err: any) {
-      const msg = err?.message || "Noto'g'ri Admin Email yoki Master Key kiritildi. Standart: admin@nextolymp.uz / admin123";
+      const msg = err?.message || "Noto'g'ri Admin Email yoki Parol kiritildi.";
       setError(msg);
     }
   };
@@ -75,32 +65,6 @@ export const EgaLoginPage: React.FC = () => {
             </p>
           </div>
           <p className="text-xs text-slate-400">Tizim administratorlari uchun maxsus himoyalangan portal</p>
-        </div>
-
-        {/* Server & Security Status Pill */}
-        <div className="flex items-center justify-center gap-2 py-1.5 px-3 rounded-xl bg-blue-950/60 border border-blue-800/40 text-[11px] text-cyan-300">
-          <Server className="w-3.5 h-3.5 text-cyan-400" />
-          <span>Uzcloud 1024 MiB RAM · SSL Encrypted</span>
-        </div>
-
-        {/* Quick Credentials Info Box with 1-Click Auto Fill */}
-        <div className="p-3 rounded-xl bg-blue-900/25 border border-cyan-500/30 flex items-center justify-between gap-2 text-xs">
-          <div className="space-y-0.5">
-            <div className="flex items-center gap-1.5 text-cyan-300 font-semibold text-[11px]">
-              <Sparkles className="w-3.5 h-3.5 text-cyan-400" />
-              <span>Standart Admin hisobi:</span>
-            </div>
-            <div className="text-[11px] text-slate-300 font-mono">
-              <span className="text-white font-medium">{defaultEmail}</span> / <span className="text-cyan-300">{defaultKey}</span>
-            </div>
-          </div>
-          <button
-            type="button"
-            onClick={fillDefaultCredentials}
-            className="px-2.5 py-1.5 rounded-lg bg-cyan-500/20 hover:bg-cyan-500/30 text-cyan-300 hover:text-cyan-200 border border-cyan-500/40 text-[11px] font-semibold transition-all shrink-0 cursor-pointer"
-          >
-            To'ldirish
-          </button>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
