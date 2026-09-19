@@ -78,21 +78,21 @@ export const EgaCompetitionsPage: React.FC = () => {
   const [newLocation, setNewLocation] = useState('');
 
   // 5 Stat Calculations
-  const totalCount = olympiads.length;
-  const openCount = useMemo(() => olympiads.filter((o) => (o?.status || 'ochiq') === 'ochiq').length, [olympiads]);
-  const closedCount = useMemo(() => olympiads.filter((o) => o?.status === 'yopiq').length, [olympiads]);
-  const totalRevenueSum = useMemo(() => olympiads.reduce((sum, o) => sum + (o?.totalRevenue || 0), 0), [olympiads]);
-  const totalPaidCountSum = useMemo(() => olympiads.reduce((sum, o) => sum + (o?.paidCount || 0), 0), [olympiads]);
+  const totalCount = olympiads?.length || 0;
+  const openCount = useMemo(() => (olympiads || []).filter((o) => (o?.status || 'ochiq') === 'ochiq').length, [olympiads]);
+  const closedCount = useMemo(() => (olympiads || []).filter((o) => o?.status === 'yopiq').length, [olympiads]);
+  const totalRevenueSum = useMemo(() => (olympiads || []).reduce((sum, o) => sum + (Number(o?.totalRevenue) || 0), 0), [olympiads]);
+  const totalPaidCountSum = useMemo(() => (olympiads || []).reduce((sum, o) => sum + (Number(o?.paidCount) || 0), 0), [olympiads]);
 
   // Filtered & Sorted List (Pinned on top)
   const filteredOlympiads = useMemo(() => {
-    const list = olympiads.filter((o) => {
+    const list = (olympiads || []).filter((o) => {
       if (!o) return false;
       const title = (o.title || '').toLowerCase();
       const subject = (o.subject || '').toLowerCase();
       const id = (o.id || '').toLowerCase();
       const location = (o.location || '').toLowerCase();
-      const query = searchTerm.toLowerCase();
+      const query = (searchTerm || '').toLowerCase();
 
       const matchesSearch =
         title.includes(query) ||
@@ -117,9 +117,10 @@ export const EgaCompetitionsPage: React.FC = () => {
   }, [olympiads, searchTerm, formatFilter, statusFilter]);
 
   // Format currency
-  const formatUZS = (val: number) => {
-    if (!val || val === 0) return t('Bepul');
-    return `${val.toLocaleString()} UZS`;
+  const formatUZS = (val?: number) => {
+    const num = Number(val || 0);
+    if (!num || num === 0) return t('Bepul');
+    return `${num.toLocaleString()} UZS`;
   };
 
   // Export to Excel
@@ -504,15 +505,15 @@ export const EgaCompetitionsPage: React.FC = () => {
                     <div className={clsx("p-2.5 rounded-xl border grid grid-cols-2 gap-2 text-[11px]", isDark ? "bg-[#091024] border-[#182A4D]" : "bg-slate-50 border-slate-200")}>
                       <div>
                         <div className="text-[9px] text-slate-400 uppercase font-semibold">{t("Ro'yxatdan o'tganlar")}</div>
-                        <div className="font-bold font-mono text-cyan-400 mt-0.5">{item.registeredCount.toLocaleString()} kishi</div>
+                        <div className="font-bold font-mono text-cyan-400 mt-0.5">{(item.registeredCount || 0).toLocaleString()} kishi</div>
                       </div>
                       <div>
                         <div className="text-[9px] text-slate-400 uppercase font-semibold">{t("Topshirganlar")}</div>
-                        <div className="font-bold font-mono text-emerald-400 mt-0.5">{item.submittedCount.toLocaleString()} kishi</div>
+                        <div className="font-bold font-mono text-emerald-400 mt-0.5">{(item.submittedCount || 0).toLocaleString()} kishi</div>
                       </div>
                       <div>
                         <div className="text-[9px] text-slate-400 uppercase font-semibold">{t("To'laganlar")}</div>
-                        <div className="font-bold font-mono text-purple-300 mt-0.5">{item.paidCount.toLocaleString()} kishi</div>
+                        <div className="font-bold font-mono text-purple-300 mt-0.5">{(item.paidCount || 0).toLocaleString()} kishi</div>
                       </div>
                       <div>
                         <div className="text-[9px] text-slate-400 uppercase font-semibold">{t("Jami Tushum")}</div>
@@ -524,7 +525,7 @@ export const EgaCompetitionsPage: React.FC = () => {
                     <div className="flex items-center justify-between pt-2 border-t border-[#182A4D] gap-2">
                       <div className="text-[10px] text-slate-400 font-mono flex items-center gap-1">
                         <Clock className="w-3 h-3 text-slate-500" />
-                        {item.startDate.split(' ')[0]}
+                        {item.startDate ? String(item.startDate).split(' ')[0] : '2025-10-01'}
                       </div>
 
                       <div className="flex items-center gap-1.5">
@@ -602,24 +603,24 @@ export const EgaCompetitionsPage: React.FC = () => {
                           {item.isPinned && <Pin className="w-3 h-3 text-amber-400 shrink-0" />}
                           <span>{item.title}</span>
                         </div>
-                        <div className="text-[10px] text-slate-400 font-mono">{t(item.subject)} · {item.startDate}</div>
+                        <div className="text-[10px] text-slate-400 font-mono">{t(item.subject || '')} · {item.startDate || '-'}</div>
                       </td>
                       <td className="py-3 px-3 whitespace-nowrap">
                         <span className={clsx("px-2 py-0.5 rounded text-[10px] font-bold border uppercase", item.format === 'online' ? "bg-blue-500/20 text-blue-300 border-blue-500/40" : "bg-purple-500/20 text-purple-300 border-purple-500/40")}>
-                          {item.format}
+                          {item.format || 'online'}
                         </span>
                       </td>
                       <td className="py-3 px-3 font-mono font-bold text-amber-400 whitespace-nowrap">
                         {formatUZS(item.price)}
                       </td>
                       <td className="py-3 px-3 font-mono font-bold text-cyan-400 whitespace-nowrap">
-                        {item.registeredCount.toLocaleString()} kishi
+                        {(item.registeredCount || 0).toLocaleString()} kishi
                       </td>
                       <td className="py-3 px-3 font-mono font-bold text-emerald-400 whitespace-nowrap">
-                        {item.submittedCount.toLocaleString()} kishi
+                        {(item.submittedCount || 0).toLocaleString()} kishi
                       </td>
                       <td className="py-3 px-3 font-mono font-bold text-blue-400 whitespace-nowrap">
-                        {item.paidCount.toLocaleString()} kishi
+                        {(item.paidCount || 0).toLocaleString()} kishi
                       </td>
                       <td className="py-3 px-3 font-mono font-bold text-amber-300 whitespace-nowrap">
                         {formatUZS(item.totalRevenue)}
