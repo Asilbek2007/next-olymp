@@ -300,13 +300,14 @@ export const ContestParticipatePage: React.FC = () => {
             }
           }
 
-          // 2. High-Accuracy Biometric Color & Head Presence Heuristic
+          // 2. High-Accuracy Biometric & Texture Variance Heuristic (Detects Hand Covering & Missing Face)
           const frameData = ctx.getImageData(0, 0, 160, 120).data;
           let totalLuminance = 0;
           let centerSkinPixels = 0;
           let totalCenterPixels = 0;
+          let totalEdgeGradient = 0;
 
-          // Define center region where head/face MUST be located (x: 25%..75%, y: 15%..85%)
+          // Define center region where head/face MUST be located (x: 40..120, y: 18..102)
           const minX = 40, maxX = 120;
           const minY = 18, maxY = 102;
 
@@ -318,6 +319,15 @@ export const ContestParticipatePage: React.FC = () => {
               const b = frameData[i + 2];
               const lum = (r + g + b) / 3;
               totalLuminance += lum;
+
+              // Simple horizontal edge gradient to detect facial features (eyes, nose, mouth)
+              if (x < 159) {
+                const rNext = frameData[i + 4];
+                const gNext = frameData[i + 5];
+                const bNext = frameData[i + 6];
+                const lumNext = (rNext + gNext + bNext) / 3;
+                totalEdgeGradient += Math.abs(lum - lumNext);
+              }
 
               if (x >= minX && x <= maxX && y >= minY && y <= maxY) {
                 totalCenterPixels++;
@@ -341,15 +351,26 @@ export const ContestParticipatePage: React.FC = () => {
 
           const avgLuminance = totalLuminance / (160 * 120);
           const centerSkinRatio = totalCenterPixels > 0 ? centerSkinPixels / totalCenterPixels : 0;
+          const avgEdgeGradient = totalEdgeGradient / (160 * 120);
 
-          // If camera is covered (black screen) OR user's head is not present in the center (< 4% skin pixels)
-          if (avgLuminance < 10 || centerSkinRatio < 0.04) {
+          // DETECTION CRITERIA:
+          // 1. Camera covered / Pitch black: avgLuminance < 12
+          // 2. Hand pressed / Lens blocked: avgEdgeGradient < 2.5 (no facial contrast/eyes/mouth, completely flat blur) OR (centerSkinRatio > 0.88 && avgEdgeGradient < 3.2)
+          // 3. Head absent / Left frame: centerSkinRatio < 0.05
+          const isCameraCovered = avgLuminance < 12 || avgEdgeGradient < 2.2 || (centerSkinRatio > 0.88 && avgEdgeGradient < 3.5);
+          const isFaceMissing = centerSkinRatio < 0.05;
+
+          if (isCameraCovered || isFaceMissing) {
             missingFaceTicks++;
-            if (missingFaceTicks >= 2) {
+            if (missingFaceTicks >= 1) {
               const snap = captureSnapshot();
+              const reasonMsg = isCameraCovered
+                ? 'Kamera ob\'ektivi qo\'l yoki boshqa narsa bilan to\'sib qo\'yildi! Kamerani yopmang.'
+                : 'Kadrda yuz aniqlanmadi yoki bosh kadrni tark etdi! Kamera to\'g\'risida o\'tiring.';
+              
               useContestStore.getState().recordGuardViolation(
                 'NO_FACE_DETECTED',
-                'Kadrda yuz aniqlanmadi yoki bosh kadrni tark etdi! Iltimos, kamera to\'g\'risida o\'tiring.',
+                reasonMsg,
                 3,
                 snap
               );
