@@ -72,6 +72,8 @@ interface SecurityState {
   updateAlertStatus: (id: string, status: SecurityAlert['status']) => void;
   setLiveMode: (v: boolean) => void;
   addAccessLog: (log: AccessLog) => void;
+  setTrafficData: (data: TrafficDataPoint[]) => void;
+  setBlockedIPs: (ips: BlockedIP[]) => void;
   clearLogs: () => void;
   toggleDefense: (key: keyof DefenseStatus) => void;
   setAutoDefend: (v: boolean) => void;
@@ -205,6 +207,10 @@ export const useSecurityStore = create<SecurityState>()(
       },
 
       setLiveMode: (v) => set({ liveMode: v }),
+
+      setTrafficData: (data) => set({ trafficData: data }),
+
+      setBlockedIPs: (ips) => set({ blockedIPs: ips }),
 
       addAccessLog: (log) => {
         const current = get().accessLogs;

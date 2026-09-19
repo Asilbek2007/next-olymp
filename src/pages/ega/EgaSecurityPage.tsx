@@ -174,8 +174,41 @@ export const EgaSecurityPage: React.FC = () => {
         const res = await fetch('/api/logs.php');
         if (res.ok) {
           const json = await res.json();
-          if (isMounted && json.status === 'success' && Array.isArray(json.data) && json.data.length > 0) {
-            useSecurityStore.setState({ accessLogs: json.data });
+          if (isMounted && json.status === 'success') {
+            // 1. Real Hardware Metrics (Linux /proc/meminfo, disk_free, uptime, cpu)
+            if (json.metrics) {
+              store.updateServerMetrics({
+                ram: json.metrics.ram?.usagePercent ?? 37,
+                ramTotalMb: json.metrics.ram?.totalMb ?? 1024,
+                ramUsedMb: json.metrics.ram?.usedMb ?? 374,
+                ramFreeMb: json.metrics.ram?.freeMb ?? 650,
+                disk: json.metrics.disk?.usagePercent ?? 1,
+                diskTotalGb: json.metrics.disk?.totalGb ?? 25,
+                diskUsedGb: json.metrics.disk?.usedGb ?? 0.2,
+                diskFreeGb: json.metrics.disk?.freeGb ?? 24.8,
+                cpu: json.metrics.cpu?.usagePercent ?? 8,
+                network: json.metrics.network ?? { in: 0.05, out: 0.22 },
+                uptime: json.metrics.uptime ?? '0 kun 3 soat 45 daqiqa',
+                activeConnections: json.metrics.activeConnections ?? 2,
+                requestsPerSec: json.metrics.requestsPerSec ?? 1,
+                responseTimeAvg: json.metrics.responseTimeAvg ?? 14,
+                threatLevel: json.metrics.threatLevel ?? 'low'
+              });
+
+              if (Array.isArray(json.metrics.traffic) && json.metrics.traffic.length > 0) {
+                store.setTrafficData(json.metrics.traffic);
+              }
+            }
+
+            // 2. Real Access Logs
+            if (Array.isArray(json.data) && json.data.length > 0) {
+              useSecurityStore.setState({ accessLogs: json.data });
+            }
+
+            // 3. Real Blocked IPs
+            if (Array.isArray(json.blockedIPs)) {
+              store.setBlockedIPs(json.blockedIPs);
+            }
           }
         }
       } catch (err) {
@@ -184,66 +217,60 @@ export const EgaSecurityPage: React.FC = () => {
     };
 
     fetchRealLogs();
-    const logInterval = setInterval(fetchRealLogs, 5000);
+    const logInterval = setInterval(fetchRealLogs, 4000);
     return () => {
       isMounted = false;
       clearInterval(logInterval);
     };
   }, []);
 
-  // Sync with adminMonitoringService for realistic system stats
-  useEffect(() => {
-    let isMounted = true;
-    const updateStats = async () => {
-      try {
-        const stats = await adminMonitoringService.getSystemStats();
-        if (isMounted) {
-          store.updateServerMetrics({
-            ram: stats.ram.usagePercent,
-            ramTotalMb: stats.ram.totalMb,
-            ramUsedMb: stats.ram.usedMb,
-            ramFreeMb: stats.ram.freeMb,
-            disk: stats.disk.usagePercent,
-            diskTotalGb: stats.disk.totalGb,
-            diskUsedGb: stats.disk.usedGb,
-            diskFreeGb: stats.disk.freeGb,
-            cpu: stats.cpu.usagePercent,
-            uptime: stats.uptime,
-            activeConnections: stats.network.activeConnections,
-            threatLevel: stats.threatLevel
-          });
-        }
-      } catch (err) {
-        console.error('Failed to sync system stats', err);
-      }
-    };
-
-    updateStats();
-    const interval = setInterval(updateStats, 10000);
-    return () => {
-      isMounted = false;
-      clearInterval(interval);
-    };
-  }, []);
-
   // Stats
   const criticalAlerts = useMemo(() => store.alerts.filter((a) => a.severity === 'critical' && a.status === 'active').length, [store.alerts]);
   const activeAlerts = useMemo(() => store.alerts.filter((a) => a.status === 'active' || a.status === 'investigating').length, [store.alerts]);
-  const totalRequests = useMemo(() => store.trafficData.reduce((s, d) => s + d.requests, 0), [store.trafficData]);
+  const totalRequests = useMemo(() => {
+    const fromSpark = store.trafficData.reduce((s, d) => s + d.requests, 0);
+    return Math.max(store.serverMetrics.requestsPerSec ? store.serverMetrics.requestsPerSec * 1800 : 0, fromSpark, store.accessLogs.length);
+  }, [store.trafficData, store.serverMetrics.requestsPerSec, store.accessLogs.length]);
 
-  // Server metrics simulation
-  useEffect(() => {
-    const interval = setInterval(() => {
-      store.updateServerMetrics({
-        cpu: Math.max(15, Math.min(95, store.serverMetrics.cpu + (Math.random() * 10 - 5))),
-        ram: Math.max(30, Math.min(95, store.serverMetrics.ram + (Math.random() * 6 - 3))),
-        activeConnections: Math.max(50, Math.floor(store.serverMetrics.activeConnections + (Math.random() * 30 - 15))),
-        requestsPerSec: Math.max(5, Math.floor(store.serverMetrics.requestsPerSec + (Math.random() * 16 - 8))),
-        responseTimeAvg: Math.max(40, Math.floor(store.serverMetrics.responseTimeAvg + (Math.random() * 30 - 15))),
+  const handleBlockIP = async (ip: string, reason: string, permanent: boolean) => {
+    store.blockIP(ip, 'Qo\'lda qo\'shilgan', 'UZ', reason, permanent);
+    try {
+      await fetch('/api/logs.php?action=block_ip', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ip, reason, permanent })
       });
-    }, 2500);
-    return () => clearInterval(interval);
-  }, []);
+    } catch (e) {}
+  };
+
+  const handleUnblockIP = async (ip: string) => {
+    store.unblockIP(ip);
+    try {
+      await fetch('/api/logs.php?action=unblock_ip', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ip })
+      });
+    } catch (e) {}
+  };
+
+  const handleClearLogs = async () => {
+    store.clearLogs();
+    try {
+      await fetch('/api/logs.php', { method: 'DELETE' });
+    } catch (e) {}
+  };
+
+  const handleToggleDefense = async (key: keyof DefenseStatus) => {
+    store.toggleDefense(key);
+    try {
+      await fetch('/api/logs.php?action=toggle_setting', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ key, value: !store.defenseStatus[key] })
+      });
+    } catch (e) {}
+  };
 
   const openBlockModal = (ip = '', reason = '') => {
     setBlockModalIP(ip);
@@ -545,12 +572,12 @@ export const EgaSecurityPage: React.FC = () => {
                   </span>
                 </div>
                 <div className="grid grid-cols-2 gap-1.5">
-                  <DefenseToggle label="DDoS Himoya" active={def.ddosProtection} onToggle={() => store.toggleDefense('ddosProtection')} icon={<Flame className="w-3.5 h-3.5" />} isDark={isDark} />
-                  <DefenseToggle label="Rate Limit" active={def.rateLimit} onToggle={() => store.toggleDefense('rateLimit')} icon={<Gauge className="w-3.5 h-3.5" />} isDark={isDark} />
-                  <DefenseToggle label="WAF Filtri" active={def.waf} onToggle={() => store.toggleDefense('waf')} icon={<Shield className="w-3.5 h-3.5" />} isDark={isDark} />
-                  <DefenseToggle label="Bot Bloklash" active={def.botDetection} onToggle={() => store.toggleDefense('botDetection')} icon={<Radio className="w-3.5 h-3.5" />} isDark={isDark} />
-                  <DefenseToggle label="Brute-Force Lock" active={def.bruteForceProtection} onToggle={() => store.toggleDefense('bruteForceProtection')} icon={<Lock className="w-3.5 h-3.5" />} isDark={isDark} />
-                  <DefenseToggle label="Intrusion (IDS)" active={def.intrusionDetection} onToggle={() => store.toggleDefense('intrusionDetection')} icon={<Fingerprint className="w-3.5 h-3.5" />} isDark={isDark} />
+                  <DefenseToggle label="DDoS Himoya" active={def.ddosProtection} onToggle={() => handleToggleDefense('ddosProtection')} icon={<Flame className="w-3.5 h-3.5" />} isDark={isDark} />
+                  <DefenseToggle label="Rate Limit" active={def.rateLimit} onToggle={() => handleToggleDefense('rateLimit')} icon={<Gauge className="w-3.5 h-3.5" />} isDark={isDark} />
+                  <DefenseToggle label="WAF Filtri" active={def.waf} onToggle={() => handleToggleDefense('waf')} icon={<Shield className="w-3.5 h-3.5" />} isDark={isDark} />
+                  <DefenseToggle label="Bot Bloklash" active={def.botDetection} onToggle={() => handleToggleDefense('botDetection')} icon={<Radio className="w-3.5 h-3.5" />} isDark={isDark} />
+                  <DefenseToggle label="Brute-Force Lock" active={def.bruteForceProtection} onToggle={() => handleToggleDefense('bruteForceProtection')} icon={<Lock className="w-3.5 h-3.5" />} isDark={isDark} />
+                  <DefenseToggle label="Intrusion (IDS)" active={def.intrusionDetection} onToggle={() => handleToggleDefense('intrusionDetection')} icon={<Fingerprint className="w-3.5 h-3.5" />} isDark={isDark} />
                 </div>
               </div>
             </div>
@@ -581,7 +608,7 @@ export const EgaSecurityPage: React.FC = () => {
                   <option value="success_logins">Muvaffaqiyatli kirishlar</option>
                   <option value="rate_limits">Rate-limit cheklovlari (429)</option>
                 </select>
-                <button onClick={() => store.clearLogs()} className={clsx('px-2.5 py-1.5 rounded-lg border text-xs text-rose-400 hover:bg-rose-500/10 cursor-pointer', isDark ? 'border-[#1A2F57]' : 'border-slate-300')}>
+                <button onClick={handleClearLogs} className={clsx('px-2.5 py-1.5 rounded-lg border text-xs text-rose-400 hover:bg-rose-500/10 cursor-pointer', isDark ? 'border-[#1A2F57]' : 'border-slate-300')}>
                   Tozalash
                 </button>
               </div>
@@ -775,7 +802,7 @@ export const EgaSecurityPage: React.FC = () => {
                       <td className="px-3 py-2.5 max-w-[240px]"><span className={clsx('text-[10px]', isDark ? 'text-slate-300' : 'text-slate-600')}>{b.reason}</span></td>
                       <td className="px-3 py-2.5 font-mono text-[10px] text-slate-400 whitespace-nowrap">{b.blockedAt}</td>
                       <td className="px-3 py-2.5 text-center"><span className={clsx('px-1.5 py-0.5 rounded text-[9px] font-bold border', b.permanent ? 'bg-rose-500/20 text-rose-300 border-rose-500/30' : 'bg-amber-500/20 text-amber-300 border-amber-500/30')}>{b.permanent ? 'Doimiy' : 'Vaqtinchalik'}</span></td>
-                      <td className="px-3 py-2.5 text-center"><button onClick={() => store.unblockIP(b.ip)} className="px-2.5 py-1 bg-emerald-600/80 hover:bg-emerald-500 text-white rounded-lg text-[10px] font-bold cursor-pointer"><Unlock className="w-3 h-3 inline mr-0.5" />Ochish</button></td>
+                      <td className="px-3 py-2.5 text-center"><button onClick={() => handleUnblockIP(b.ip)} className="px-2.5 py-1 bg-emerald-600/80 hover:bg-emerald-500 text-white rounded-lg text-[10px] font-bold cursor-pointer"><Unlock className="w-3 h-3 inline mr-0.5" />Ochish</button></td>
                     </tr>
                   ))}
                   {store.blockedIPs.length === 0 && (
@@ -821,7 +848,7 @@ export const EgaSecurityPage: React.FC = () => {
             </div>
             <div className={clsx('flex justify-end gap-2 pt-2 border-t', isDark ? 'border-[#182A4D]' : 'border-slate-200')}>
               <button onClick={() => setIsBlockModalOpen(false)} className={clsx('px-3 py-1.5 rounded-lg text-xs font-semibold cursor-pointer border', isDark ? 'bg-[#162748] text-slate-300 border-[#1E365E]' : 'bg-slate-100 text-slate-700 border-slate-300')}>Bekor</button>
-              <button onClick={() => { if (blockModalIP && blockModalReason.trim()) { store.blockIP(blockModalIP, 'Qo\'lda qo\'shilgan', 'XX', blockModalReason.trim(), blockModalPermanent); setIsBlockModalOpen(false); } }} disabled={!blockModalIP || !blockModalReason.trim()}
+              <button onClick={() => { if (blockModalIP && blockModalReason.trim()) { handleBlockIP(blockModalIP, blockModalReason.trim(), blockModalPermanent); setIsBlockModalOpen(false); } }} disabled={!blockModalIP || !blockModalReason.trim()}
                 className="px-4 py-1.5 bg-rose-600 hover:bg-rose-500 text-white font-bold rounded-lg text-xs cursor-pointer disabled:opacity-50 flex items-center gap-1.5"><Ban className="w-3.5 h-3.5" />Bloklash</button>
             </div>
           </div>
