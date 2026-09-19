@@ -1,8 +1,10 @@
 import { create } from 'zustand';
 import { NationalExamItem } from '../data/initialNationalExams';
+import { apiClient } from '../services/api';
 
 interface NationalExamStore {
   exams: NationalExamItem[];
+  loading: boolean;
   fetchFromApi: () => Promise<void>;
   addExam: (item: Omit<NationalExamItem, 'id' | 'registeredCount' | 'submittedCount' | 'paidCount' | 'totalRevenue'>) => NationalExamItem;
   updateExam: (id: string, updated: Partial<NationalExamItem>) => void;
@@ -12,43 +14,19 @@ interface NationalExamStore {
   resetExams: () => void;
 }
 
-// Background sync helpers
-const syncExamToApi = async (exam: NationalExamItem) => {
-  try {
-    await fetch('/api/national-exams.php', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(exam)
-    });
-  } catch (e) {
-    console.warn('National Exam API sync error:', e);
-  }
-};
-
-const deleteExamFromApi = async (id: string) => {
-  try {
-    await fetch(`/api/national-exams.php?id=${encodeURIComponent(id)}`, {
-      method: 'DELETE'
-    });
-  } catch (e) {
-    console.warn('National Exam API delete error:', e);
-  }
-};
-
 export const useNationalExamStore = create<NationalExamStore>((set, get) => ({
   exams: [],
+  loading: false,
 
   fetchFromApi: async () => {
+    set({ loading: true });
     try {
-      const res = await fetch('/api/national-exams.php');
-      if (res.ok) {
-        const json = await res.json();
-        if (json.status === 'success' && Array.isArray(json.data)) {
-          set({ exams: json.data });
-        }
-      }
+      const json = await apiClient.get('/national-exams.php');
+      const data = Array.isArray(json) ? json : (json?.data || []);
+      set({ exams: data, loading: false });
     } catch (err) {
       console.warn('Could not fetch national exams from MySQL API:', err);
+      set({ loading: false });
     }
   },
 
@@ -70,14 +48,14 @@ export const useNationalExamStore = create<NationalExamStore>((set, get) => ({
       aThreshold: newItem.aThreshold || 65,
       specType: newItem.specType || 'spec_1',
       durationMinutes: newItem.durationMinutes || 150,
-      totalQuestions: newItem.questions ? newItem.questions.length : 0
+      totalQuestions: newItem.questions ? newItem.questions.length : 0,
     };
 
     const updated = [exam, ...current];
     set({ exams: updated });
 
-    // Save directly to MySQL
-    syncExamToApi(exam);
+    // Save directly to MySQL via apiClient
+    apiClient.post('/national-exams.php', exam).catch((e) => console.warn('National Exam API sync error:', e));
 
     return exam;
   },
@@ -88,7 +66,7 @@ export const useNationalExamStore = create<NationalExamStore>((set, get) => ({
 
     const target = updated.find((e) => e.id === id);
     if (target) {
-      syncExamToApi(target);
+      apiClient.post('/national-exams.php', target).catch((e) => console.warn('National Exam API sync error:', e));
     }
   },
 
@@ -96,8 +74,10 @@ export const useNationalExamStore = create<NationalExamStore>((set, get) => ({
     const updated = get().exams.filter((e) => e.id !== id);
     set({ exams: updated });
 
-    // Delete from MySQL
-    deleteExamFromApi(id);
+    // Delete from MySQL via apiClient
+    apiClient.delete(`/national-exams.php?id=${encodeURIComponent(id)}`).catch((e) =>
+      console.warn('National Exam API delete error:', e)
+    );
   },
 
   togglePinExam: (id) => {
@@ -106,7 +86,7 @@ export const useNationalExamStore = create<NationalExamStore>((set, get) => ({
 
     const target = updated.find((e) => e.id === id);
     if (target) {
-      syncExamToApi(target);
+      apiClient.post('/national-exams.php', target).catch((e) => console.warn('National Exam API sync error:', e));
     }
   },
 
@@ -118,13 +98,13 @@ export const useNationalExamStore = create<NationalExamStore>((set, get) => ({
 
     const target = updated.find((e) => e.id === id);
     if (target) {
-      syncExamToApi(target);
+      apiClient.post('/national-exams.php', target).catch((e) => console.warn('National Exam API sync error:', e));
     }
   },
 
   resetExams: () => {
     set({ exams: [] });
-  }
+  },
 }));
 
 // Auto-fetch on app load

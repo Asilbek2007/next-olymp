@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { Database, Play, CheckCircle2, Copy, Check, ExternalLink, Code2, RefreshCw } from 'lucide-react';
+import { Database, Play, Copy, Check, ExternalLink, Code2, RefreshCw } from 'lucide-react';
+import { apiClient } from '../../services/api';
 
 interface Endpoint {
   id: string;
@@ -14,103 +15,105 @@ interface Endpoint {
 
 const ENDPOINTS: Endpoint[] = [
   {
-    id: 'users_get',
-    method: 'GET',
-    path: '/api/users.php',
-    category: 'Foydalanuvchilar (Users)',
-    title: 'Barcha foydalanuvchilar ro\'yxatini olish',
-    description: 'MySQL users jadvalidan barcha foydalanuvchilar ma\'lumotlarini JSON massiv holida qaytaradi.',
-    defaultParams: '',
-  },
-  {
-    id: 'users_post',
+    id: 'auth_post',
     method: 'POST',
-    path: '/api/users.php',
-    category: 'Foydalanuvchilar (Users)',
-    title: 'Foydalanuvchi yaratish yoki ballini yangilash',
-    description: 'Yangi foydalanuvchi ma\'lumotlarini yoki natijasini MySQL bazasiga saqlaydi.',
+    path: '/auth.php',
+    category: '1. Avtorizatsiya (Auth)',
+    title: 'Tizimga kirish (Login) / Ro\'yxatdan o\'tish (Register)',
+    description: 'MySQL users jadvalidan foydalanuvchini tekshiradi yoki yangi hisob ochadi va JWT token qaytaradi.',
     defaultBody: JSON.stringify({
-      fullName: 'Jasur Aliyev',
-      email: 'jasur@nextolymp.uz',
-      phone: '+998901234567',
-      role: 'student',
-      grade: 9,
-      region: 'Toshkent shahri',
-      district: 'Yunusobod',
-      school: '72-maktab'
+      action: 'login',
+      email: 'user@nextolymp.uz',
+      password: 'password123'
     }, null, 2)
   },
   {
     id: 'olympiads_get',
     method: 'GET',
-    path: '/api/olympiads.php',
-    category: 'Olimpiadalar (Olympiads)',
-    title: 'Barcha olimpiadalar ro\'yxatini olish',
-    description: 'MySQL olympiads va questions jadvallaridagi barcha musobaqalar va ularga biriktirilgan savollarni qaytaradi.',
+    path: '/olympiads.php',
+    category: '2. Olimpiadalar (Olympiads)',
+    title: 'Olimpiadalar va savollar ro\'yxatini olish',
+    description: 'MySQL olympiads jadvalidan barcha musobaqalar va biriktirilgan savollarni qaytaradi.',
     defaultParams: '',
   },
   {
     id: 'olympiads_post',
     method: 'POST',
-    path: '/api/olympiads.php',
-    category: 'Olimpiadalar (Olympiads)',
+    path: '/olympiads.php',
+    category: '2. Olimpiadalar (Olympiads)',
     title: 'Olimpiada yaratish yoki tahrirlash',
-    description: 'Yangi olimpiada va uning barcha savollarini MySQL bazasiga yozadi.',
+    description: 'Yangi olimpiada ma\'lumotlarini MySQL olympiads jadvaliga yozadi.',
     defaultBody: JSON.stringify({
-      id: 'OLY-101',
       title: 'Matematika Respublika Olimpiadasi',
-      subject: 'math',
-      durationMinutes: 60,
-      maxScore: 100,
-      isFree: true,
-      questions: [
-        {
-          content: '2 + 2 = ?',
-          options: ['3', '4', '5', '6'],
-          correctAnswer: 'B',
-          points: 4
-        }
-      ]
+      category: 'math',
+      duration_minutes: 60,
+      price: 0
     }, null, 2)
   },
   {
-    id: 'national_exams_get',
+    id: 'submissions_post',
+    method: 'POST',
+    path: '/submissions.php',
+    category: '3. Natijalar va Rasch Modeli (Submissions)',
+    title: 'Test topshirish va Rasch bali (theta) hisoblash',
+    description: 'Javoblarni qabul qilib, Rasch modeli (theta) bo\'yicha baholaydi va submissions jadvaliga saqlaydi.',
+    defaultBody: JSON.stringify({
+      user_id: 1,
+      olympiad_id: 1,
+      score: 85,
+      total_questions: 25,
+      answers: { "1": "A", "2": "C", "3": "B" }
+    }, null, 2)
+  },
+  {
+    id: 'leaderboard_get',
     method: 'GET',
-    path: '/api/national-exams.php',
-    category: 'Milliy Sertifikat (National Exams)',
-    title: 'Milliy sertifikat imtihonlarini olish',
-    description: 'MySQL national_exams jadvalidagi barcha rasmiy sertifikat imtihonlarini qaytaradi.',
+    path: '/leaderboard.php',
+    category: '4. Jonli Reyting (Leaderboard)',
+    title: 'Jonli reyting (Respublika, viloyat va maktablar kesimida)',
+    description: 'MySQL foydalanuvchilarining to\'plagan ballari bo\'yicha respublika reytingini qaytaradi.',
     defaultParams: '',
   },
   {
-    id: 'submit_post',
+    id: 'security_get',
+    method: 'GET',
+    path: '/security.php',
+    category: '5. Kiberxavfsizlik (Security Logs)',
+    title: 'Anti-Cheat va kiberxavfsizlik jurnali (Grafiklar)',
+    description: 'Barcha qayd etilgan qoidabuzarliklar va statistikani qaytaradi.',
+    defaultParams: '',
+  },
+  {
+    id: 'security_post',
     method: 'POST',
-    path: '/api/submit.php',
-    category: 'Natijalar (Submissions)',
-    title: 'Test natijalarini topshirish (Submit)',
-    description: 'Foydalanuvchi ishlagan javoblarni, ballni va vaqtni MySQL submissions jadvaliga saqlaydi.',
+    path: '/security.php',
+    category: '5. Kiberxavfsizlik (Security Logs)',
+    title: 'Qoidabuzarlik hodisasini qayd etish',
+    description: 'Oynani almashtirish (tab_switch) yoki boshqa shubhali harakatni MySQL security_logs ga yozadi.',
     defaultBody: JSON.stringify({
-      userId: 'usr_test_1',
-      userName: 'Jasur Aliyev',
-      olympiadId: 'OLY-101',
-      olympiadTitle: 'Matematika Olimpiadasi',
-      score: 88,
-      maxScore: 100,
-      timeSpentMinutes: 45,
-      answers: { q1: 'B', q2: 'C' }
+      user_id: 1,
+      event_type: 'tab_switch',
+      details: 'Brauzer oynasidan chiqib boshqa ilovaga o\'tdi',
+      severity: 'medium'
     }, null, 2)
   },
   {
-    id: 'auth_login',
-    method: 'POST',
-    path: '/api/auth.php?action=login',
-    category: 'Avtorizatsiya (Auth)',
-    title: 'MySQL orqali kirish (Login)',
-    description: 'Email va parol orqali MySQL users jadvalidan foydalanuvchini tekshiradi va JWT token qaytaradi.',
-    defaultBody: JSON.stringify({
-      email: 'user@nextolymp.uz',
-      password: 'mypassword123'
-    }, null, 2)
+    id: 'payments_get',
+    method: 'GET',
+    path: '/payments.php',
+    category: '6. To\'lovlar (Payments)',
+    title: 'To\'lovlar ro\'yxati va tranzaksiyalar',
+    description: 'Click, Payme va Uzum orqali amalga oshirilgan to\'lovlar ro\'yxatini qaytaradi.',
+    defaultParams: '',
+  },
+  {
+    id: 'notifications_get',
+    method: 'GET',
+    path: '/notifications.php',
+    category: '7. Xabarnomalar (Notifications)',
+    title: 'Tizim xabarnomalarini olish',
+    description: 'Foydalanuvchilarga chiqariladigan tizim xabarnomalari ro\'yxati.',
+    defaultParams: '',
   }
 ];
 
@@ -138,31 +141,22 @@ export const SwaggerPage: React.FC = () => {
 
     try {
       const url = queryParams ? `${selectedEndpoint.path}?${queryParams}` : selectedEndpoint.path;
-      const options: RequestInit = {
-        method: selectedEndpoint.method,
-        headers: {
-          'Content-Type': 'application/json',
-          'Accept': 'application/json'
-        }
-      };
+      let data: any;
 
-      if (selectedEndpoint.method !== 'GET' && requestBody.trim()) {
-        options.body = requestBody;
+      if (selectedEndpoint.method === 'GET') {
+        data = await apiClient.get(url);
+      } else if (selectedEndpoint.method === 'POST') {
+        const bodyObj = requestBody.trim() ? JSON.parse(requestBody) : {};
+        data = await apiClient.post(url, bodyObj);
+      } else {
+        data = await apiClient.delete(url);
       }
 
-      const res = await fetch(url, options);
-      setResponseStatus(res.status);
-      const text = await res.text();
-
-      try {
-        const json = JSON.parse(text);
-        setResponseData(JSON.stringify(json, null, 2));
-      } catch {
-        setResponseData(text);
-      }
+      setResponseStatus(200);
+      setResponseData(JSON.stringify(data, null, 2));
     } catch (err: any) {
-      setResponseStatus(500);
-      setResponseData(JSON.stringify({ error: err.message || 'Tarmoq xatosi' }, null, 2));
+      setResponseStatus(400);
+      setResponseData(JSON.stringify({ status: 'error', message: err.message || 'Xatolik yuz berdi' }, null, 2));
     } finally {
       setLoading(false);
     }
@@ -199,12 +193,12 @@ export const SwaggerPage: React.FC = () => {
           </div>
           <div>
             <div className="flex items-center gap-2">
-              <h1 className="text-base font-bold text-white tracking-tight">NextOlymp REST API Explorer</h1>
+              <h1 className="text-base font-bold text-white tracking-tight">NextOlymp Unified API Explorer</h1>
               <span className="px-2 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
                 MySQL Live
               </span>
               <span className="px-2 py-0.5 rounded-full text-[11px] font-semibold bg-indigo-500/20 text-indigo-400 border border-indigo-500/30">
-                OpenAPI 3.0
+                7 Ta Modul
               </span>
             </div>
             <p className="text-xs text-slate-400 mt-0.5">
@@ -240,7 +234,7 @@ export const SwaggerPage: React.FC = () => {
         {/* Left Column: Endpoints Menu */}
         <div className="lg:col-span-4 space-y-2">
           <div className="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-3 px-1">
-            Mavjud Endpointlar ({ENDPOINTS.length})
+            Yagona Backend API Modullari ({ENDPOINTS.length})
           </div>
 
           <div className="space-y-2">
@@ -264,7 +258,7 @@ export const SwaggerPage: React.FC = () => {
                     >
                       {ep.method}
                     </span>
-                    <span className="text-xs font-mono text-slate-300 truncate">{ep.path}</span>
+                    <span className="text-xs font-mono text-slate-300 truncate">/api{ep.path}</span>
                   </div>
                   <div className="text-xs text-slate-200 font-medium">{ep.title}</div>
                   <div className="text-[11px] text-slate-400 truncate">{ep.category}</div>
@@ -287,7 +281,7 @@ export const SwaggerPage: React.FC = () => {
                 >
                   {selectedEndpoint.method}
                 </span>
-                <span className="text-sm font-mono text-white font-semibold">{selectedEndpoint.path}</span>
+                <span className="text-sm font-mono text-white font-semibold">/api{selectedEndpoint.path}</span>
               </div>
               <button
                 onClick={handleExecute}
@@ -304,7 +298,7 @@ export const SwaggerPage: React.FC = () => {
               <p className="text-xs text-slate-400 mt-1 leading-relaxed">{selectedEndpoint.description}</p>
             </div>
 
-            {/* Request Body (For POST/PUT) */}
+            {/* Request Body (For POST) */}
             {selectedEndpoint.method !== 'GET' && (
               <div className="space-y-1.5">
                 <div className="text-xs font-semibold text-slate-300">Request Body (JSON):</div>
@@ -331,7 +325,7 @@ export const SwaggerPage: React.FC = () => {
                         : 'bg-rose-500/20 text-rose-400 border-rose-500/30'
                     }`}
                   >
-                    {responseStatus} {responseStatus === 200 ? 'OK' : 'Response'}
+                    {responseStatus} {responseStatus === 200 ? 'OK' : 'Error'}
                   </span>
                 )}
               </div>

@@ -1,0 +1,51 @@
+<?php
+// ==========================================================
+// NextOlymp — Notifications API (Xabarnomalar)
+// Fayl: api/notifications.php
+// ==========================================================
+
+require_once __DIR__ . '/db.php';
+
+$method = $_SERVER['REQUEST_METHOD'];
+
+if ($method === 'GET') {
+    $userId = $_GET['user_id'] ?? null;
+
+    if ($userId) {
+        $stmt = $pdo->prepare("SELECT * FROM notifications WHERE user_id = ? OR user_id IS NULL ORDER BY created_at DESC LIMIT 50");
+        $stmt->execute([$userId]);
+    } else {
+        $stmt = $pdo->query("SELECT * FROM notifications ORDER BY created_at DESC LIMIT 50");
+    }
+
+    $notifications = $stmt->fetchAll();
+    echo json_encode(['status' => 'success', 'data' => $notifications]);
+    exit;
+}
+
+if ($method === 'POST') {
+    $raw = file_get_contents('php://input');
+    $data = json_decode($raw, true);
+
+    if (!$data || empty($data['title']) || empty($data['message'])) {
+        http_response_code(400);
+        echo json_encode(['status' => 'error', 'message' => "title va message talab qilinadi"]);
+        exit;
+    }
+
+    $id = $data['id'] ?? ('notif_' . time() . '_' . rand(100, 999));
+    $userId = $data['user_id'] ?? null;
+    $title = trim($data['title']);
+    $message = trim($data['message']);
+
+    $sql = "INSERT INTO notifications (id, user_id, title, message, is_read) VALUES (?, ?, ?, ?, 0)";
+    $stmt = $pdo->prepare($sql);
+    $stmt->execute([$id, $userId, $title, $message]);
+
+    echo json_encode([
+        'status' => 'success',
+        'message' => 'Xabarnoma muvaffaqiyatli yaratildi',
+        'id' => $id
+    ]);
+    exit;
+}

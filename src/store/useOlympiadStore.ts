@@ -1,8 +1,10 @@
 import { create } from 'zustand';
 import { OlympiadItem } from '../data/initialOlympiads';
+import { apiClient } from '../services/api';
 
 interface OlympiadStore {
   olympiads: OlympiadItem[];
+  loading: boolean;
   fetchFromApi: () => Promise<void>;
   addOlympiad: (item: Omit<OlympiadItem, 'id' | 'registeredCount' | 'submittedCount' | 'paidCount' | 'totalRevenue'>) => OlympiadItem;
   updateOlympiad: (id: string, updated: Partial<OlympiadItem>) => void;
@@ -12,43 +14,19 @@ interface OlympiadStore {
   resetOlympiads: () => void;
 }
 
-// Helper to push to MySQL API in background
-const syncOlympiadToApi = async (item: OlympiadItem) => {
-  try {
-    await fetch('/api/olympiads.php', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(item),
-    });
-  } catch (e) {
-    console.warn('API sync warning:', e);
-  }
-};
-
-const deleteOlympiadFromApi = async (id: string) => {
-  try {
-    await fetch(`/api/olympiads.php?id=${encodeURIComponent(id)}`, {
-      method: 'DELETE',
-    });
-  } catch (e) {
-    console.warn('API delete warning:', e);
-  }
-};
-
 export const useOlympiadStore = create<OlympiadStore>((set, get) => ({
   olympiads: [],
+  loading: false,
 
   fetchFromApi: async () => {
+    set({ loading: true });
     try {
-      const res = await fetch('/api/olympiads.php');
-      if (res.ok) {
-        const json = await res.json();
-        if (json.status === 'success' && Array.isArray(json.data)) {
-          set({ olympiads: json.data });
-        }
-      }
+      const json = await apiClient.get('/olympiads.php');
+      const data = Array.isArray(json) ? json : (json?.data || []);
+      set({ olympiads: data, loading: false });
     } catch (err) {
-      console.warn('Could not fetch from MySQL API:', err);
+      console.warn('Could not fetch olympiads from MySQL API:', err);
+      set({ loading: false });
     }
   },
 
@@ -64,14 +42,14 @@ export const useOlympiadStore = create<OlympiadStore>((set, get) => ({
       registeredCount: 0,
       submittedCount: 0,
       paidCount: 0,
-      totalRevenue: 0
+      totalRevenue: 0,
     };
 
     const updated = [olympiad, ...current];
     set({ olympiads: updated });
 
-    // Save directly to MySQL
-    syncOlympiadToApi(olympiad);
+    // Save directly to MySQL via apiClient
+    apiClient.post('/olympiads.php', olympiad).catch((e) => console.warn('API sync warning:', e));
 
     return olympiad;
   },
@@ -82,7 +60,7 @@ export const useOlympiadStore = create<OlympiadStore>((set, get) => ({
 
     const itemToSync = updated.find((o) => o.id === id);
     if (itemToSync) {
-      syncOlympiadToApi(itemToSync);
+      apiClient.post('/olympiads.php', itemToSync).catch((e) => console.warn('API sync warning:', e));
     }
   },
 
@@ -90,8 +68,8 @@ export const useOlympiadStore = create<OlympiadStore>((set, get) => ({
     const updated = get().olympiads.filter((o) => o.id !== id);
     set({ olympiads: updated });
 
-    // Delete from MySQL
-    deleteOlympiadFromApi(id);
+    // Delete from MySQL via apiClient
+    apiClient.delete(`/olympiads.php?id=${encodeURIComponent(id)}`).catch((e) => console.warn('API delete warning:', e));
   },
 
   togglePinOlympiad: (id) => {
@@ -100,7 +78,7 @@ export const useOlympiadStore = create<OlympiadStore>((set, get) => ({
 
     const itemToSync = updated.find((o) => o.id === id);
     if (itemToSync) {
-      syncOlympiadToApi(itemToSync);
+      apiClient.post('/olympiads.php', itemToSync).catch((e) => console.warn('API sync warning:', e));
     }
   },
 
@@ -117,13 +95,13 @@ export const useOlympiadStore = create<OlympiadStore>((set, get) => ({
 
     const itemToSync = updated.find((o) => o.id === id);
     if (itemToSync) {
-      syncOlympiadToApi(itemToSync);
+      apiClient.post('/olympiads.php', itemToSync).catch((e) => console.warn('API sync warning:', e));
     }
   },
 
   resetOlympiads: () => {
     set({ olympiads: [] });
-  }
+  },
 }));
 
 // Auto-sync on app load

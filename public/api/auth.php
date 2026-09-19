@@ -1,12 +1,32 @@
 <?php
 // ==========================================================
-// NextOlymp — Authentication API (Real MySQL Login & Register)
+// NextOlymp — Authentication API (api/auth.php)
+// Login, Register, Profile info using MySQL
 // ==========================================================
 
-require_once __DIR__ . '/config.php';
+require_once __DIR__ . '/db.php';
 
 $action = $_GET['action'] ?? ($_POST['action'] ?? '');
 $method = $_SERVER['REQUEST_METHOD'];
+
+if ($method === 'GET') {
+    // Return profile by ID or token
+    $id = $_GET['id'] ?? null;
+    if ($id) {
+        $stmt = $pdo->prepare("SELECT id, full_name, fullName, phone, email, role, region, district, school, grade, score, created_at, createdAt FROM users WHERE id = ?");
+        $stmt->execute([$id]);
+        $user = $stmt->fetch();
+        if ($user) {
+            echo json_encode(['status' => 'success', 'user' => $user]);
+        } else {
+            http_response_code(404);
+            echo json_encode(['status' => 'error', 'message' => 'Foydalanuvchi topilmadi']);
+        }
+    } else {
+        echo json_encode(['status' => 'success', 'message' => 'Auth API faol']);
+    }
+    exit;
+}
 
 if ($method === 'POST') {
     $raw = file_get_contents('php://input');
@@ -14,20 +34,18 @@ if ($method === 'POST') {
     $action = $data['action'] ?? $action;
 
     // ─────────────────────────────────────────────────────────
-    // 1. REGISTER USER (Store permanently in MySQL database)
+    // 1. REGISTER USER
     // ─────────────────────────────────────────────────────────
     if ($action === 'register') {
         $email = trim($data['email'] ?? '');
-        $fullName = trim($data['fullName'] ?? '');
+        $fullName = trim($data['fullName'] ?? ($data['full_name'] ?? ''));
         $password = trim($data['password'] ?? 'password123');
         $phone = trim($data['phone'] ?? '');
         $role = $data['role'] ?? 'student';
-        $gender = $data['gender'] ?? 'male';
-        $grade = isset($data['grade']) ? (int)$data['grade'] : null;
+        $grade = isset($data['grade']) ? (int)$data['grade'] : 9;
         $region = $data['region'] ?? 'Toshkent shahri';
-        $district = $data['district'] ?? null;
+        $district = $data['district'] ?? '';
         $school = $data['school'] ?? 'Maktab';
-        $parentConsent = !empty($data['parentConsent']) ? 1 : 1;
         $createdAt = date('Y-m-d H:i:s');
         $id = $data['id'] ?? ('usr_' . time() . '_' . rand(100, 999));
 
@@ -37,119 +55,116 @@ if ($method === 'POST') {
             exit;
         }
 
-        // Check if email already registered
-        $checkStmt = $pdo->prepare("SELECT `id` FROM `users` WHERE LOWER(`email`) = LOWER(?)");
-        $checkStmt->execute([$email]);
+        // Check duplicate email or phone
+        $checkStmt = $pdo->prepare("SELECT id FROM users WHERE LOWER(email) = LOWER(?) OR (phone != '' AND phone = ?)");
+        $checkStmt->execute([$email, $phone]);
         if ($checkStmt->fetch()) {
             http_response_code(400);
-            echo json_encode(['status' => 'error', 'message' => "Ushbu elektron pochta ({$email}) bilan allaqachon hisob ochilgan. Iltimos, tizimga kiring!"]);
+            echo json_encode(['status' => 'error', 'message' => "Ushbu elektron pochta yoki telefon bilan allaqachon hisob mavjud!"]);
             exit;
         }
 
-        // Hash password or store securely
-        $avatarUrl = $gender === 'female'
-            ? 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=150&auto=format&fit=crop&q=80'
-            : 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150&auto=format&fit=crop&q=80';
+        $passwordHash = password_hash($password, PASSWORD_BCRYPT);
+        $avatarUrl = 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150&auto=format&fit=crop&q=80';
 
-        $insertSql = "INSERT INTO `users` (
-            `id`, `email`, `phone`, `password`, `fullName`, `role`, `gender`,
-            `grade`, `region`, `district`, `school`, `avatarUrl`, `parentConsent`, `createdAt`
+        $insertSql = "INSERT INTO users (
+            id, full_name, fullName, phone, email, password_hash, password,
+            role, grade, region, district, school, avatar_url, avatarUrl, created_at, createdAt
         ) VALUES (
-            ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
+            ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
         )";
 
         $stmt = $pdo->prepare($insertSql);
         $stmt->execute([
-            $id, $email, $phone, $password, $fullName, $role, $gender,
-            $grade, $region, $district, $school, $avatarUrl, $parentConsent, $createdAt
+            $id, $fullName, $fullName, $phone, $email, $passwordHash, $password,
+            $role, $grade, $region, $district, $school, $avatarUrl, $avatarUrl, $createdAt, $createdAt
         ]);
 
-        $userPayload = [
-            'id' => $id,
-            'email' => $email,
-            'phone' => $phone,
-            'fullName' => $fullName,
-            'role' => $role,
-            'gender' => $gender,
-            'grade' => $grade,
-            'region' => $region,
-            'district' => $district,
-            'school' => $school,
-            'avatarUrl' => $avatarUrl,
-            'parentConsent' => (bool)$parentConsent,
-            'createdAt' => $createdAt
-        ];
-
-        $token = 'jwt_mysql_' . $id . '_' . bin2hex(random_bytes(16));
+        $token = 'jwt_' . md5($id . time()) . '_' . bin2hex(random_bytes(16));
 
         echo json_encode([
             'status' => 'success',
-            'message' => 'Foydalanuvchi muvaffaqiyatli ro\'yxatdan o\'tdi',
-            'user' => $userPayload,
-            'token' => $token
+            'message' => 'Muvaffaqiyatli ro\'yxatdan o\'tdingiz!',
+            'token' => $token,
+            'user' => [
+                'id' => $id,
+                'email' => $email,
+                'phone' => $phone,
+                'fullName' => $fullName,
+                'full_name' => $fullName,
+                'role' => $role,
+                'grade' => $grade,
+                'region' => $region,
+                'district' => $district,
+                'school' => $school,
+                'avatarUrl' => $avatarUrl,
+                'createdAt' => $createdAt
+            ]
         ]);
         exit;
     }
 
     // ─────────────────────────────────────────────────────────
-    // 2. LOGIN USER (Verify from MySQL database)
+    // 2. LOGIN USER
     // ─────────────────────────────────────────────────────────
     if ($action === 'login') {
-        $email = trim($data['email'] ?? '');
+        $emailOrPhone = trim($data['email'] ?? ($data['phone'] ?? ''));
         $password = trim($data['password'] ?? '');
 
-        if (empty($email) || empty($password)) {
+        if (empty($emailOrPhone) || empty($password)) {
             http_response_code(400);
-            echo json_encode(['status' => 'error', 'message' => 'Email va parol kiritilishi shart!']);
+            echo json_encode(['status' => 'error', 'message' => 'Email/Telefon va parol kiritilishi shart!']);
             exit;
         }
 
-        $stmt = $pdo->prepare("SELECT * FROM `users` WHERE LOWER(`email`) = LOWER(?)");
-        $stmt->execute([$email]);
+        $stmt = $pdo->prepare("SELECT * FROM users WHERE LOWER(email) = LOWER(?) OR phone = ? LIMIT 1");
+        $stmt->execute([$emailOrPhone, $emailOrPhone]);
         $user = $stmt->fetch();
 
         if (!$user) {
             http_response_code(401);
-            echo json_encode(['status' => 'error', 'message' => 'Login yoki parol xato! (Foydalanuvchi topilmadi)']);
+            echo json_encode(['status' => 'error', 'message' => 'Bunday foydalanuvchi topilmadi!']);
             exit;
         }
 
         // Verify password
-        if (!empty($user['password']) && $user['password'] !== $password) {
+        $passMatch = false;
+        if (!empty($user['password_hash']) && password_verify($password, $user['password_hash'])) {
+            $passMatch = true;
+        } elseif (!empty($user['password']) && $user['password'] === $password) {
+            $passMatch = true;
+        }
+
+        if (!$passMatch) {
             http_response_code(401);
-            echo json_encode(['status' => 'error', 'message' => 'Login yoki parol xato!']);
+            echo json_encode(['status' => 'error', 'message' => 'Kiritilgan parol noto\'g\'ri!']);
             exit;
         }
 
-        $userPayload = [
-            'id' => $user['id'],
-            'email' => $user['email'],
-            'phone' => $user['phone'],
-            'fullName' => $user['fullName'],
-            'role' => $user['role'],
-            'gender' => $user['gender'],
-            'grade' => $user['grade'] !== null ? (int)$user['grade'] : null,
-            'region' => $user['region'],
-            'district' => $user['district'],
-            'school' => $user['school'],
-            'avatarUrl' => $user['avatarUrl'],
-            'parentConsent' => (bool)$user['parentConsent'],
-            'createdAt' => $user['createdAt']
-        ];
-
-        $token = 'jwt_mysql_' . $user['id'] . '_' . bin2hex(random_bytes(16));
+        $token = 'jwt_' . md5($user['id'] . time()) . '_' . bin2hex(random_bytes(16));
 
         echo json_encode([
             'status' => 'success',
-            'message' => 'Tizimga muvaffaqiyatli kirildi',
-            'user' => $userPayload,
-            'token' => $token
+            'message' => 'Tizimga muvaffaqiyatli kirdingiz!',
+            'token' => $token,
+            'user' => [
+                'id' => $user['id'],
+                'email' => $user['email'],
+                'phone' => $user['phone'],
+                'fullName' => $user['full_name'] ?? $user['fullName'],
+                'role' => $user['role'],
+                'grade' => (int)($user['grade'] ?? 9),
+                'region' => $user['region'],
+                'district' => $user['district'],
+                'school' => $user['school'],
+                'score' => (int)($user['score'] ?? 0),
+                'avatarUrl' => $user['avatar_url'] ?? $user['avatarUrl']
+            ]
         ]);
         exit;
     }
-}
 
-// Default response
-http_response_code(400);
-echo json_encode(['status' => 'error', 'message' => 'Invalid action or request method']);
-exit;
+    http_response_code(400);
+    echo json_encode(['status' => 'error', 'message' => 'Noma\'lum action']);
+    exit;
+}

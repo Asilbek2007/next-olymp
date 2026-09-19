@@ -1,34 +1,93 @@
-import axios from 'axios';
+// ==========================================================
+// NextOlymp — Central API Client
+// Fayl: src/services/api.ts
+// ==========================================================
 
-// Base Axios Client - framework agnostic for future React Native reuse
-export const apiClient = axios.create({
-  baseURL: 'https://api.nextolymp.uz/v1',
-  timeout: 10000,
-  headers: {
-    'Content-Type': 'application/json',
-  },
-});
+const BASE_URL = '/api';
 
-// Request interceptor to attach JWT Token
-apiClient.interceptors.request.use(
-  (config) => {
-    const token = localStorage.getItem('next_olymp_jwt');
-    if (token && config.headers) {
-      config.headers.Authorization = `Bearer ${token}`;
+export const apiClient = {
+  async get<T = any>(endpoint: string): Promise<T> {
+    const cleanEndpoint = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
+    const res = await fetch(`${BASE_URL}${cleanEndpoint}`, {
+      headers: {
+        'Accept': 'application/json'
+      }
+    });
+    if (!res.ok) {
+      const errText = await res.text();
+      let errMsg = `Xatolik: ${res.status}`;
+      try {
+        const parsed = JSON.parse(errText);
+        if (parsed.message) errMsg = parsed.message;
+      } catch {}
+      throw new Error(errMsg);
     }
-    return config;
+    return res.json();
   },
-  (error) => Promise.reject(error)
-);
 
-// Response interceptor for token refresh handling
-apiClient.interceptors.response.use(
-  (response) => response,
-  (error) => {
-    if (error.response?.status === 401) {
-      // Clear token & dispatch logout event if necessary
-      localStorage.removeItem('next_olymp_jwt');
+  async post<T = any>(endpoint: string, data?: any): Promise<T> {
+    const cleanEndpoint = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
+    const res = await fetch(`${BASE_URL}${cleanEndpoint}`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json'
+      },
+      body: data !== undefined ? JSON.stringify(data) : undefined,
+    });
+    if (!res.ok) {
+      const errText = await res.text();
+      let errMsg = `Xatolik: ${res.status}`;
+      try {
+        const parsed = JSON.parse(errText);
+        if (parsed.message) errMsg = parsed.message;
+      } catch {}
+      throw new Error(errMsg);
     }
-    return Promise.reject(error);
+    return res.json();
+  },
+
+  async put<T = any>(endpoint: string, data?: any): Promise<T> {
+    const cleanEndpoint = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
+    const res = await fetch(`${BASE_URL}${cleanEndpoint}`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json'
+      },
+      body: data !== undefined ? JSON.stringify(data) : undefined,
+    });
+    if (!res.ok) {
+      const errText = await res.text();
+      let errMsg = `Xatolik: ${res.status}`;
+      try {
+        const parsed = JSON.parse(errText);
+        if (parsed.message) errMsg = parsed.message;
+      } catch {}
+      throw new Error(errMsg);
+    }
+    return res.json();
+  },
+
+  async delete<T = any>(endpoint: string): Promise<T> {
+    const cleanEndpoint = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
+    const res = await fetch(`${BASE_URL}${cleanEndpoint}`, {
+      method: 'DELETE',
+      headers: {
+        'Accept': 'application/json'
+      }
+    });
+    if (!res.ok) {
+      const errText = await res.text();
+      let errMsg = `Xatolik: ${res.status}`;
+      try {
+        const parsed = JSON.parse(errText);
+        if (parsed.message) errMsg = parsed.message;
+      } catch {}
+      throw new Error(errMsg);
+    }
+    return res.json();
   }
-);
+};
+
+export default apiClient;

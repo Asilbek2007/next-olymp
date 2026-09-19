@@ -40,160 +40,133 @@ function initNextOlympTables($pdo) {
         // 1. Users
         "CREATE TABLE IF NOT EXISTS `users` (
             `id` VARCHAR(64) PRIMARY KEY,
-            `email` VARCHAR(191) NOT NULL UNIQUE,
+            `full_name` VARCHAR(150) NOT NULL,
+            `fullName` VARCHAR(255) DEFAULT NULL,
             `phone` VARCHAR(64) DEFAULT NULL,
+            `email` VARCHAR(191) DEFAULT NULL,
+            `password_hash` VARCHAR(255) DEFAULT NULL,
             `password` VARCHAR(255) DEFAULT NULL,
-            `fullName` VARCHAR(255) NOT NULL,
-            `name` VARCHAR(255) DEFAULT NULL,
-            `score` INT DEFAULT 0,
             `role` ENUM('student', 'teacher', 'admin') DEFAULT 'student',
-            `gender` ENUM('male', 'female') DEFAULT 'male',
-            `grade` INT DEFAULT NULL,
-            `region` VARCHAR(255) DEFAULT NULL,
-            `district` VARCHAR(255) DEFAULT NULL,
-            `school` VARCHAR(255) DEFAULT NULL,
+            `region` VARCHAR(100) DEFAULT '',
+            `district` VARCHAR(100) DEFAULT '',
+            `school` VARCHAR(150) DEFAULT '',
+            `grade` INT DEFAULT 9,
+            `score` INT DEFAULT 0,
+            `avatar_url` TEXT DEFAULT NULL,
             `avatarUrl` TEXT DEFAULT NULL,
-            `parentConsent` TINYINT(1) DEFAULT 1,
-            `createdAt` VARCHAR(64) NOT NULL,
-            `updatedAt` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+            `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            `createdAt` VARCHAR(64) DEFAULT NULL,
+            `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;",
 
         // 2. Olympiads
         "CREATE TABLE IF NOT EXISTS `olympiads` (
             `id` VARCHAR(64) PRIMARY KEY,
             `title` VARCHAR(255) NOT NULL,
-            `subject` VARCHAR(64) NOT NULL,
+            `category` VARCHAR(100) DEFAULT 'math',
+            `subject` VARCHAR(64) DEFAULT 'math',
             `description` TEXT DEFAULT NULL,
-            `startDate` VARCHAR(64) NOT NULL,
-            `endDate` VARCHAR(64) NOT NULL,
+            `start_time` DATETIME DEFAULT CURRENT_TIMESTAMP,
+            `end_time` DATETIME DEFAULT CURRENT_TIMESTAMP,
+            `startDate` VARCHAR(64) DEFAULT NULL,
+            `endDate` VARCHAR(64) DEFAULT NULL,
+            `duration_minutes` INT DEFAULT 60,
             `durationMinutes` INT DEFAULT 60,
-            `totalQuestions` INT DEFAULT 25,
+            `price` DECIMAL(10, 2) DEFAULT 0.00,
+            `status` VARCHAR(32) DEFAULT 'active',
+            `max_score` INT DEFAULT 100,
             `maxScore` INT DEFAULT 100,
-            `registeredCount` INT DEFAULT 0,
-            `retakeAllowed` TINYINT(1) DEFAULT 0,
-            `maxRetakeAttempts` INT DEFAULT 2,
-            `targetGrades` TEXT DEFAULT NULL,
-            `allowedLanguages` TEXT DEFAULT NULL,
-            `isFree` TINYINT(1) DEFAULT 1,
-            `price` INT DEFAULT 0,
-            `status` VARCHAR(32) DEFAULT 'ochiq',
-            `organizer` VARCHAR(255) DEFAULT 'Next Olymp Hakamlar Hay\'ati',
-            `antiCheatConfig` TEXT DEFAULT NULL,
-            `createdAt` VARCHAR(64) NOT NULL,
-            `updatedAt` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+            `total_questions` INT DEFAULT 25,
+            `totalQuestions` INT DEFAULT 25,
+            `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            `createdAt` VARCHAR(64) DEFAULT NULL,
+            `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;",
 
         // 3. Questions
         "CREATE TABLE IF NOT EXISTS `questions` (
             `id` VARCHAR(64) PRIMARY KEY,
-            `olympiadId` VARCHAR(64) NOT NULL,
-            `roundId` VARCHAR(64) DEFAULT 'r1',
-            `type` VARCHAR(32) DEFAULT 'multiple_choice',
-            `content` TEXT NOT NULL,
-            `imageUrl` LONGTEXT DEFAULT NULL,
+            `olympiad_id` VARCHAR(64) NOT NULL,
+            `olympiadId` VARCHAR(64) DEFAULT NULL,
+            `question_text` TEXT NOT NULL,
+            `content` TEXT DEFAULT NULL,
+            `option_a` VARCHAR(255) DEFAULT '',
+            `option_b` VARCHAR(255) DEFAULT '',
+            `option_c` VARCHAR(255) DEFAULT '',
+            `option_d` VARCHAR(255) DEFAULT '',
             `options` LONGTEXT DEFAULT NULL,
-            `optionImages` LONGTEXT DEFAULT NULL,
+            `correct_option` CHAR(1) DEFAULT 'A',
             `correctAnswer` VARCHAR(255) DEFAULT 'A',
+            `difficulty_level` DECIMAL(4, 2) DEFAULT 0.00,
             `points` INT DEFAULT 4,
             `orderNum` INT DEFAULT 1,
-            INDEX (`olympiadId`),
-            FOREIGN KEY (`olympiadId`) REFERENCES `olympiads`(`id`) ON DELETE CASCADE
+            INDEX (`olympiad_id`)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;",
 
-        // 4. National Exams (Milliy Sertifikat)
-        "CREATE TABLE IF NOT EXISTS `national_exams` (
-            `id` VARCHAR(64) PRIMARY KEY,
-            `title` VARCHAR(255) NOT NULL,
-            `subject` VARCHAR(64) NOT NULL,
-            `description` TEXT DEFAULT NULL,
-            `specType` VARCHAR(64) DEFAULT 'spec_1',
-            `durationMinutes` INT DEFAULT 150,
-            `maxScore` INT DEFAULT 75,
-            `aThreshold` INT DEFAULT 65,
-            `calculationMethod` VARCHAR(32) DEFAULT 'rasch',
-            `totalQuestions` INT DEFAULT 45,
-            `registeredCount` INT DEFAULT 0,
-            `submittedCount` INT DEFAULT 0,
-            `paidCount` INT DEFAULT 0,
-            `totalRevenue` INT DEFAULT 0,
-            `isPinned` TINYINT(1) DEFAULT 0,
-            `status` VARCHAR(32) DEFAULT 'ochiq',
-            `questions` LONGTEXT DEFAULT NULL,
-            `createdAt` VARCHAR(64) NOT NULL,
-            `updatedAt` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
-        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;",
-
-        // 5. Submissions
+        // 4. Submissions
         "CREATE TABLE IF NOT EXISTS `submissions` (
             `id` VARCHAR(64) PRIMARY KEY,
-            `userId` VARCHAR(64) NOT NULL,
-            `userName` VARCHAR(255) NOT NULL,
-            `olympiadId` VARCHAR(64) NOT NULL,
-            `olympiadTitle` VARCHAR(255) NOT NULL,
+            `user_id` VARCHAR(64) NOT NULL,
+            `userId` VARCHAR(64) DEFAULT NULL,
+            `userName` VARCHAR(255) DEFAULT NULL,
+            `olympiad_id` VARCHAR(64) NOT NULL,
+            `olympiadId` VARCHAR(64) DEFAULT NULL,
+            `olympiadTitle` VARCHAR(255) DEFAULT NULL,
             `score` INT DEFAULT 0,
+            `total_questions` INT DEFAULT 0,
             `maxScore` INT DEFAULT 100,
             `percentage` INT DEFAULT 0,
-            `rank` INT DEFAULT 1,
+            `rasch_theta` DECIMAL(5, 2) DEFAULT 0.00,
+            `answers_json` LONGTEXT DEFAULT NULL,
             `answers` LONGTEXT DEFAULT NULL,
             `timeSpentMinutes` INT DEFAULT 0,
-            `completedAt` VARCHAR(64) NOT NULL,
-            `status` VARCHAR(32) DEFAULT 'published',
-            INDEX (`userId`),
-            INDEX (`olympiadId`)
+            `status` VARCHAR(32) DEFAULT 'completed',
+            `started_at` DATETIME DEFAULT CURRENT_TIMESTAMP,
+            `submitted_at` DATETIME DEFAULT CURRENT_TIMESTAMP,
+            `completedAt` VARCHAR(64) DEFAULT NULL,
+            INDEX (`user_id`),
+            INDEX (`olympiad_id`)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;",
 
-        // 6. Anti Cheat Logs
-        "CREATE TABLE IF NOT EXISTS `anti_cheat_logs` (
+        // 5. Security Logs
+        "CREATE TABLE IF NOT EXISTS `security_logs` (
             `id` VARCHAR(64) PRIMARY KEY,
-            `studentId` VARCHAR(64) NOT NULL,
-            `studentName` VARCHAR(255) NOT NULL,
-            `studentEmail` VARCHAR(191) DEFAULT NULL,
-            `studentPhone` VARCHAR(64) DEFAULT NULL,
-            `olympiadId` VARCHAR(64) NOT NULL,
-            `olympiadTitle` VARCHAR(255) NOT NULL,
-            `eventType` VARCHAR(64) NOT NULL,
+            `user_id` VARCHAR(64) DEFAULT NULL,
+            `studentId` VARCHAR(64) DEFAULT NULL,
+            `studentName` VARCHAR(255) DEFAULT NULL,
+            `ip_address` VARCHAR(45) NOT NULL,
+            `event_type` VARCHAR(100) NOT NULL,
             `details` TEXT DEFAULT NULL,
-            `severity` VARCHAR(32) DEFAULT 'O\'rta',
-            `timestamp` VARCHAR(64) NOT NULL,
-            `snapshotUrl` LONGTEXT DEFAULT NULL,
-            `ipAddress` VARCHAR(64) DEFAULT NULL,
-            `status` VARCHAR(32) DEFAULT 'pending',
-            INDEX (`studentId`),
-            INDEX (`olympiadId`)
+            `severity` VARCHAR(32) DEFAULT 'medium',
+            `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;",
 
-        // 7. Certificates
-        "CREATE TABLE IF NOT EXISTS `certificates` (
+        // 6. Payments
+        "CREATE TABLE IF NOT EXISTS `payments` (
             `id` VARCHAR(64) PRIMARY KEY,
-            `userId` VARCHAR(64) NOT NULL,
-            `userName` VARCHAR(255) NOT NULL,
-            `olympiadId` VARCHAR(64) NOT NULL,
-            `olympiadTitle` VARCHAR(255) NOT NULL,
-            `certificateCode` VARCHAR(64) NOT NULL UNIQUE,
-            `score` INT DEFAULT 0,
-            `rank` INT DEFAULT 1,
-            `issueDate` VARCHAR(64) NOT NULL,
-            INDEX (`userId`),
-            INDEX (`certificateCode`)
+            `user_id` VARCHAR(64) NOT NULL,
+            `olympiad_id` VARCHAR(64) NOT NULL,
+            `amount` DECIMAL(10, 2) NOT NULL,
+            `provider` ENUM('click', 'payme', 'uzum') NOT NULL,
+            `status` ENUM('pending', 'paid', 'failed') DEFAULT 'pending',
+            `transaction_id` VARCHAR(100) NULL,
+            `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;",
+
+        // 7. Notifications
+        "CREATE TABLE IF NOT EXISTS `notifications` (
+            `id` VARCHAR(64) PRIMARY KEY,
+            `user_id` VARCHAR(64) NULL,
+            `title` VARCHAR(255) NOT NULL,
+            `message` TEXT NOT NULL,
+            `is_read` BOOLEAN DEFAULT FALSE,
+            `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;"
     ];
 
     foreach ($sqls as $sql) {
         $pdo->exec($sql);
     }
-
-    // Auto-migration checks
-    try {
-        $pdo->exec("ALTER TABLE `users` ADD COLUMN `password` VARCHAR(255) DEFAULT NULL AFTER `phone`;");
-    } catch (Exception $e) {}
-
-    try {
-        $pdo->exec("ALTER TABLE `users` ADD COLUMN `name` VARCHAR(255) DEFAULT NULL AFTER `fullName`;");
-    } catch (Exception $e) {}
-
-    try {
-        $pdo->exec("ALTER TABLE `users` ADD COLUMN `score` INT DEFAULT 0 AFTER `name`;");
-    } catch (Exception $e) {}
 }
 
 initNextOlympTables($pdo);

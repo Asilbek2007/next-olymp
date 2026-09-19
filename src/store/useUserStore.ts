@@ -1,9 +1,11 @@
 import { create } from 'zustand';
 import { UserItem, INITIAL_USERS } from '../data/initialUsers';
 import { useLeaderboardStore } from './useLeaderboardStore';
+import { apiClient } from '../services/api';
 
 interface UserState {
   users: UserItem[];
+  loading: boolean;
   fetchFromApi: () => Promise<void>;
   addUser: (user: Omit<UserItem, 'id' | 'createdAt' | 'participationCount'>) => void;
   updateUser: (id: string, user: Partial<Omit<UserItem, 'id' | 'createdAt'>>) => void;
@@ -14,42 +16,44 @@ interface UserState {
 
 export const useUserStore = create<UserState>((set, get) => ({
   users: INITIAL_USERS,
+  loading: false,
 
   fetchFromApi: async () => {
+    set({ loading: true });
     try {
-      const res = await fetch('/api/users.php');
-      if (res.ok) {
-        const json = await res.json();
-        const usersList = Array.isArray(json)
-          ? json
-          : json.status === 'success' && Array.isArray(json.data)
-          ? json.data
-          : null;
+      const json = await apiClient.get('/users.php');
+      const usersList = Array.isArray(json)
+        ? json
+        : json?.status === 'success' && Array.isArray(json.data)
+        ? json.data
+        : null;
 
-        if (usersList && usersList.length > 0) {
-          const cleanUsers: UserItem[] = usersList
-            .filter((u: any) => u && u.id && u.role !== 'admin' && !u.id.includes('admin'))
-            .map((u: any) => ({
-              id: u.id,
-              fullName: u.fullName || u.name || 'Ishtirokchi',
-              gender: u.gender || 'male',
-              phone: u.phone || '+998 90 123 45 67',
-              role: u.role === 'teacher' ? 'teacher' : 'student',
-              package: u.package || 'Bepul',
-              status: u.status || 'active',
-              region: u.region || 'Toshkent shahri',
-              district: u.district || 'Yunusobod tumani',
-              school: u.school || 'Prezident maktabi',
-              grade: u.grade || 9,
-              createdAt: u.createdAt ? u.createdAt.split(' ')[0].split('T')[0] : new Date().toISOString().split('T')[0],
-              participationCount: u.participationCount || 0,
-            }));
+      if (usersList && usersList.length > 0) {
+        const cleanUsers: UserItem[] = usersList
+          .filter((u: any) => u && u.id && u.role !== 'admin' && !u.id.includes('admin'))
+          .map((u: any) => ({
+            id: u.id,
+            fullName: u.fullName || u.full_name || u.name || 'Ishtirokchi',
+            gender: u.gender || 'male',
+            phone: u.phone || '+998 90 123 45 67',
+            role: u.role === 'teacher' ? 'teacher' : 'student',
+            package: u.package || 'Bepul',
+            status: u.status || 'active',
+            region: u.region || 'Toshkent shahri',
+            district: u.district || 'Yunusobod tumani',
+            school: u.school || 'Prezident maktabi',
+            grade: u.grade || 9,
+            createdAt: u.createdAt ? u.createdAt.split(' ')[0].split('T')[0] : (u.created_at ? u.created_at.split(' ')[0] : new Date().toISOString().split('T')[0]),
+            participationCount: u.participationCount || 0,
+          }));
 
-          set({ users: cleanUsers });
-        }
+        set({ users: cleanUsers, loading: false });
+      } else {
+        set({ loading: false });
       }
     } catch (e) {
       console.warn('User API fetch warning:', e);
+      set({ loading: false });
     }
   },
 
@@ -65,12 +69,8 @@ export const useUserStore = create<UserState>((set, get) => ({
     const updated = [newUser, ...users];
     set({ users: updated });
 
-    // Save directly to MySQL API
-    fetch('/api/users.php', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(newUser),
-    }).catch((e) => console.warn('User API sync warning:', e));
+    // Save directly to MySQL API via apiClient
+    apiClient.post('/users.php', newUser).catch((e) => console.warn('User API sync warning:', e));
   },
 
   updateUser: (id, userData) => {
@@ -80,11 +80,7 @@ export const useUserStore = create<UserState>((set, get) => ({
 
     const target = updated.find((u) => u.id === id);
     if (target) {
-      fetch('/api/users.php', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(target),
-      }).catch((e) => console.warn('User API sync warning:', e));
+      apiClient.post('/users.php', target).catch((e) => console.warn('User API sync warning:', e));
     }
   },
 
@@ -93,10 +89,8 @@ export const useUserStore = create<UserState>((set, get) => ({
     const updated = users.filter((u) => u.id !== id);
     set({ users: updated });
 
-    // Delete from MySQL API
-    fetch(`/api/users.php?id=${encodeURIComponent(id)}`, {
-      method: 'DELETE',
-    }).catch((e) => console.warn('User API delete warning:', e));
+    // Delete from MySQL API via apiClient
+    apiClient.delete(`/users.php?id=${encodeURIComponent(id)}`).catch((e) => console.warn('User API delete warning:', e));
 
     try {
       useLeaderboardStore.getState().removeUser(id);
@@ -115,11 +109,7 @@ export const useUserStore = create<UserState>((set, get) => ({
 
     const target = updated.find((u) => u.id === id);
     if (target) {
-      fetch('/api/users.php', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(target),
-      }).catch((e) => console.warn('User API sync warning:', e));
+      apiClient.post('/users.php', target).catch((e) => console.warn('User API sync warning:', e));
     }
   },
 

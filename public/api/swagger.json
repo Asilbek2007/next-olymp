@@ -2,109 +2,22 @@
   "openapi": "3.0.3",
   "info": {
     "title": "NextOlymp REST API",
-    "description": "NextOlymp onlayn olimpiada va milliy sertifikat platformasi uchun rasmiy MySQL REST API hujjatlari. Barcha endpointlar to'g'ridan-to'g'ri serverdagi MySQL ma'lumotlar bazasi bilan ishlaydi.",
+    "description": "NextOlymp onlayn olimpiada va milliy sertifikat platformasi uchun rasmiy MySQL REST API spetsifikatsiyasi.",
     "version": "1.0.0",
     "contact": {
-      "name": "NextOlymp Developer Team",
+      "name": "NextOlymp Dev Team",
       "url": "https://nextolymp.uz"
     }
   },
   "servers": [
-    {
-      "url": "https://nextolymp.uz",
-      "description": "Production Server"
-    },
-    {
-      "url": "",
-      "description": "Joriy Server (Nisbiy manzil)"
-    }
+    { "url": "https://nextolymp.uz", "description": "Production Server" },
+    { "url": "", "description": "Local / Current Host" }
   ],
   "paths": {
-    "/api/users.php": {
-      "get": {
-        "summary": "Barcha foydalanuvchilar ro'yxatini olish",
-        "description": "MySQL bazasidagi barcha ro'yxatdan o'tgan foydalanuvchilar yoki berilgan ID bo'yicha bitta foydalanuvchini qaytaradi.",
-        "tags": ["Foydalanuvchilar (Users)"],
-        "parameters": [
-          {
-            "name": "id",
-            "in": "query",
-            "required": false,
-            "description": "Muayyan foydalanuvchi IDsi",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Foydalanuvchilar ro'yxati (JSON massiv)"
-          }
-        }
-      },
-      "post": {
-        "summary": "Foydalanuvchi yaratish yoki yangilash",
-        "description": "Yangi foydalanuvchi profilini yoki natijasini MySQL bazasiga saqlaydi.",
-        "tags": ["Foydalanuvchilar (Users)"],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "properties": {
-                  "fullName": { "type": "string", "example": "Alisher Navoiy" },
-                  "email": { "type": "string", "example": "alisher@example.uz" },
-                  "phone": { "type": "string", "example": "+998901234567" },
-                  "role": { "type": "string", "enum": ["student", "teacher", "admin"], "example": "student" },
-                  "grade": { "type": "integer", "example": 9 },
-                  "region": { "type": "string", "example": "Toshkent shahri" },
-                  "district": { "type": "string", "example": "Yunusobod" },
-                  "school": { "type": "string", "example": "72-maktab" }
-                }
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Muvaffaqiyatli saqlandi"
-          }
-        }
-      },
-      "delete": {
-        "summary": "Foydalanuvchini o'chirish",
-        "tags": ["Foydalanuvchilar (Users)"],
-        "parameters": [
-          {
-            "name": "id",
-            "in": "query",
-            "required": true,
-            "description": "O'chirilishi kerak bo'lgan foydalanuvchi IDsi",
-            "schema": { "type": "string" }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Foydalanuvchi o'chirildi"
-          }
-        }
-      }
-    },
     "/api/auth.php": {
       "post": {
-        "summary": "Kirish (Login) yoki Ro'yxatdan o'tish (Register)",
-        "description": "Foydalanuvchini MySQL bazasidan tekshirib tizimga kiritadi yoki yangi foydalanuvchi ochadi.",
-        "tags": ["Avtorizatsiya (Auth)"],
-        "parameters": [
-          {
-            "name": "action",
-            "in": "query",
-            "required": false,
-            "description": "login yoki register (agar bodyda berilmagan bo'lsa)",
-            "schema": { "type": "string", "enum": ["login", "register"] }
-          }
-        ],
+        "summary": "Tizimga kirish (Login) yoki Ro'yxatdan o'tish (Register)",
+        "tags": ["1. Avtorizatsiya (Auth)"],
         "requestBody": {
           "required": true,
           "content": {
@@ -112,7 +25,7 @@
               "schema": {
                 "type": "object",
                 "properties": {
-                  "action": { "type": "string", "example": "login" },
+                  "action": { "type": "string", "enum": ["login", "register"], "example": "login" },
                   "email": { "type": "string", "example": "user@nextolymp.uz" },
                   "password": { "type": "string", "example": "parol123" },
                   "fullName": { "type": "string", "example": "Jasur Aliyev" },
@@ -122,28 +35,18 @@
             }
           }
         },
-        "responses": {
-          "200": {
-            "description": "Foydalanuvchi ma'lumotlari va JWT token"
-          }
-        }
+        "responses": { "200": { "description": "Foydalanuvchi va JWT token" } }
       }
     },
     "/api/olympiads.php": {
       "get": {
-        "summary": "Barcha olimpiadalarni olish",
-        "description": "MySQL bazasidagi barcha olimpiadalar va ularning savollarini qaytaradi.",
-        "tags": ["Olimpiadalar (Olympiads)"],
-        "responses": {
-          "200": {
-            "description": "Olimpiadalar ro'yxati"
-          }
-        }
+        "summary": "Olimpiadalar ro'yxati va savollarini olish",
+        "tags": ["2. Olimpiadalar (Olympiads)"],
+        "responses": { "200": { "description": "Olimpiadalar ro'yxati" } }
       },
       "post": {
         "summary": "Olimpiada yaratish yoki tahrirlash",
-        "description": "Olimpiada va unga biriktirilgan savollarni MySQL bazasiga saqlaydi.",
-        "tags": ["Olimpiadalar (Olympiads)"],
+        "tags": ["2. Olimpiadalar (Olympiads)"],
         "requestBody": {
           "required": true,
           "content": {
@@ -151,180 +54,31 @@
               "schema": {
                 "type": "object",
                 "properties": {
-                  "id": { "type": "string", "example": "OLY-101" },
                   "title": { "type": "string", "example": "Matematika Respublika Olimpiadasi" },
-                  "subject": { "type": "string", "example": "math" },
-                  "durationMinutes": { "type": "integer", "example": 60 },
-                  "maxScore": { "type": "integer", "example": 100 },
-                  "isFree": { "type": "boolean", "example": true },
-                  "questions": {
-                    "type": "array",
-                    "items": {
-                      "type": "object",
-                      "properties": {
-                        "content": { "type": "string", "example": "2 + 2 = ?" },
-                        "options": { "type": "array", "items": { "type": "string" }, "example": ["3", "4", "5", "6"] },
-                        "correctAnswer": { "type": "string", "example": "B" },
-                        "points": { "type": "integer", "example": 4 }
-                      }
-                    }
-                  }
+                  "category": { "type": "string", "example": "math" },
+                  "duration_minutes": { "type": "integer", "example": 60 },
+                  "price": { "type": "number", "example": 0.0 }
                 }
               }
             }
           }
         },
-        "responses": {
-          "200": { "description": "Olimpiada saqlandi" }
-        }
-      },
-      "delete": {
-        "summary": "Olimpiadani o'chirish",
-        "tags": ["Olimpiadalar (Olympiads)"],
-        "parameters": [
-          {
-            "name": "id",
-            "in": "query",
-            "required": true,
-            "description": "Olimpiada IDsi",
-            "schema": { "type": "string" }
-          }
-        ],
-        "responses": {
-          "200": { "description": "Olimpiada o'chirildi" }
-        }
-      }
-    },
-    "/api/national-exams.php": {
-      "get": {
-        "summary": "Milliy sertifikat imtihonlarini olish",
-        "description": "Barcha rasmiy milliy sertifikat imtihonlari va spetsifikatsiyalari ro'yxatini qaytaradi.",
-        "tags": ["Milliy Sertifikat (National Exams)"],
-        "responses": {
-          "200": { "description": "Imtihonlar ro'yxati" }
-        }
-      },
-      "post": {
-        "summary": "Milliy sertifikat imtihonini yaratish/yangilash",
-        "tags": ["Milliy Sertifikat (National Exams)"],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "properties": {
-                  "id": { "type": "string", "example": "NC-101" },
-                  "title": { "type": "string", "example": "Matematika Fanidan Milliy Sertifikat" },
-                  "subject": { "type": "string", "example": "Matematika" },
-                  "durationMinutes": { "type": "integer", "example": 150 },
-                  "maxScore": { "type": "integer", "example": 75 },
-                  "aThreshold": { "type": "integer", "example": 65 },
-                  "calculationMethod": { "type": "string", "example": "rasch" }
-                }
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": { "description": "Imtihon saqlandi" }
-        }
-      },
-      "delete": {
-        "summary": "Milliy sertifikat imtihonini o'chirish",
-        "tags": ["Milliy Sertifikat (National Exams)"],
-        "parameters": [
-          {
-            "name": "id",
-            "in": "query",
-            "required": true,
-            "schema": { "type": "string" }
-          }
-        ],
-        "responses": {
-          "200": { "description": "Imtihon o'chirildi" }
-        }
-      }
-    },
-    "/api/submit.php": {
-      "post": {
-        "summary": "Imtihon yoki Olimpiada natijalarini topshirish (Submit)",
-        "description": "Foydalanuvchi ishlagan javoblarni, ballni va vaqtni MySQL bazasidagi submissions jadvaliga saqlaydi.",
-        "tags": ["Natijalar (Submissions)"],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "properties": {
-                  "userId": { "type": "string", "example": "usr_178983" },
-                  "userName": { "type": "string", "example": "Jasur Aliyev" },
-                  "olympiadId": { "type": "string", "example": "OLY-101" },
-                  "olympiadTitle": { "type": "string", "example": "Matematika Olimpiadasi" },
-                  "score": { "type": "integer", "example": 88 },
-                  "maxScore": { "type": "integer", "example": 100 },
-                  "timeSpentMinutes": { "type": "integer", "example": 45 },
-                  "answers": {
-                    "type": "object",
-                    "example": { "q1": "A", "q2": "C" }
-                  }
-                }
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": { "description": "Natija muvaffaqiyatli saqlandi" }
-        }
-      }
-    },
-    "/api/olympiad/submit": {
-      "post": {
-        "summary": "Olimpiada topshirish (Alias: /api/olympiad/submit)",
-        "description": "/api/submit.php bilan bir xil ishlaydi.",
-        "tags": ["Natijalar (Submissions)"],
-        "responses": {
-          "200": { "description": "Natija muvaffaqiyatli saqlandi" }
-        }
+        "responses": { "200": { "description": "Olimpiada saqlandi" } }
       }
     },
     "/api/submissions.php": {
       "get": {
-        "summary": "Natijalarni olish (Foydalanuvchi yoki Olimpiada bo'yicha)",
-        "tags": ["Natijalar (Submissions)"],
+        "summary": "Topshirilgan test natijalari ro'yxati",
+        "tags": ["3. Natijalar va Rasch Modeli (Submissions)"],
         "parameters": [
-          {
-            "name": "userId",
-            "in": "query",
-            "required": false,
-            "description": "Foydalanuvchi ID",
-            "schema": { "type": "string" }
-          },
-          {
-            "name": "olympiadId",
-            "in": "query",
-            "required": false,
-            "description": "Olimpiada ID",
-            "schema": { "type": "string" }
-          }
+          { "name": "user_id", "in": "query", "schema": { "type": "string" } },
+          { "name": "olympiad_id", "in": "query", "schema": { "type": "string" } }
         ],
-        "responses": {
-          "200": { "description": "Topshirilgan ishlar ro'yxati" }
-        }
-      }
-    },
-    "/api/logs.php": {
-      "get": {
-        "summary": "Anti-cheat va proktoring jurnallarini olish",
-        "tags": ["Xavfsizlik va Proktoring (Anti-Cheat Logs)"],
-        "responses": {
-          "200": { "description": "Qoidabuzarliklar jurnali" }
-        }
+        "responses": { "200": { "description": "Submissions ro'yxati" } }
       },
       "post": {
-        "summary": "Proktoring hodisasini qayd etish",
-        "tags": ["Xavfsizlik va Proktoring (Anti-Cheat Logs)"],
+        "summary": "Test topshirish va Rasch bali (theta) hisoblash",
+        "tags": ["3. Natijalar va Rasch Modeli (Submissions)"],
         "requestBody": {
           "required": true,
           "content": {
@@ -332,20 +86,109 @@
               "schema": {
                 "type": "object",
                 "properties": {
-                  "studentId": { "type": "string", "example": "usr_178" },
-                  "studentName": { "type": "string", "example": "Jasur Aliyev" },
-                  "olympiadId": { "type": "string", "example": "OLY-101" },
-                  "eventType": { "type": "string", "example": "TAB_SWITCH" },
-                  "details": { "type": "string", "example": "Brauzer oynasidan chiqib boshqa ilovaga o'tdi" },
-                  "severity": { "type": "string", "example": "Yuqori" }
+                  "user_id": { "type": "string", "example": "usr_1" },
+                  "olympiad_id": { "type": "string", "example": "1" },
+                  "score": { "type": "integer", "example": 80 },
+                  "total_questions": { "type": "integer", "example": 25 },
+                  "answers": { "type": "object", "example": { "1": "A", "2": "C" } }
                 }
               }
             }
           }
         },
-        "responses": {
-          "200": { "description": "Hodisa MySQL bazasiga yozildi" }
-        }
+        "responses": { "200": { "description": "Natija va Rasch theta saqlandi" } }
+      }
+    },
+    "/api/leaderboard.php": {
+      "get": {
+        "summary": "Jonli reyting (Respublika, viloyat va maktablar kesimida)",
+        "tags": ["4. Jonli Reyting (Leaderboard)"],
+        "parameters": [
+          { "name": "region", "in": "query", "schema": { "type": "string" } }
+        ],
+        "responses": { "200": { "description": "Reyting jadvali" } }
+      }
+    },
+    "/api/security.php": {
+      "get": {
+        "summary": "Kiberxavfsizlik va Anti-Cheat jurnali (Grafiklar uchun)",
+        "tags": ["5. Kiberxavfsizlik (Security)"],
+        "responses": { "200": { "description": "Xavfsizlik loglari va statistikasi" } }
+      },
+      "post": {
+        "summary": "Qoidabuzarlik yoki hodisani qayd etish",
+        "tags": ["5. Kiberxavfsizlik (Security)"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "user_id": { "type": "string", "example": "usr_1" },
+                  "event_type": { "type": "string", "example": "tab_switch" },
+                  "details": { "type": "string", "example": "Boshqa oynaga o'tdi" },
+                  "severity": { "type": "string", "example": "medium" }
+                }
+              }
+            }
+          }
+        },
+        "responses": { "200": { "description": "Hodisa yozildi" } }
+      }
+    },
+    "/api/payments.php": {
+      "get": {
+        "summary": "To'lovlar ro'yxatini olish",
+        "tags": ["6. To'lovlar (Payments)"],
+        "responses": { "200": { "description": "To'lovlar ro'yxati" } }
+      },
+      "post": {
+        "summary": "To'lov qabul qilish (Click, Payme, Uzum)",
+        "tags": ["6. To'lovlar (Payments)"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "user_id": { "type": "string", "example": "usr_1" },
+                  "olympiad_id": { "type": "integer", "example": 1 },
+                  "amount": { "type": "number", "example": 35000 },
+                  "provider": { "type": "string", "enum": ["click", "payme", "uzum"], "example": "payme" }
+                }
+              }
+            }
+          }
+        },
+        "responses": { "200": { "description": "To'lov saqlandi" } }
+      }
+    },
+    "/api/notifications.php": {
+      "get": {
+        "summary": "Foydalanuvchi yoki tizim xabarnomalarini olish",
+        "tags": ["7. Xabarnomalar (Notifications)"],
+        "responses": { "200": { "description": "Xabarnomalar ro'yxati" } }
+      },
+      "post": {
+        "summary": "Yangi xabarnoma jo'natish",
+        "tags": ["7. Xabarnomalar (Notifications)"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "title": { "type": "string", "example": "Olimpiada boshlandi" },
+                  "message": { "type": "string", "example": "Matematika olimpiadasi rasman ochildi!" }
+                }
+              }
+            }
+          }
+        },
+        "responses": { "200": { "description": "Xabarnoma yaratildi" } }
       }
     }
   }
