@@ -188,6 +188,13 @@ export const useUserStore = create<UserState>((set, get) => {
       const updated = [newUser, ...users];
       set({ users: updated });
       saveState(updated);
+
+      // Save to MySQL API
+      fetch('/api/users.php', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(newUser)
+      }).catch((e) => console.warn('User API sync warning:', e));
     },
 
     updateUser: (id, userData) => {
@@ -195,6 +202,15 @@ export const useUserStore = create<UserState>((set, get) => {
       const updated = users.map((u) => (u.id === id ? { ...u, ...userData } : u));
       set({ users: updated });
       saveState(updated);
+
+      const target = updated.find((u) => u.id === id);
+      if (target) {
+        fetch('/api/users.php', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(target)
+        }).catch((e) => console.warn('User API sync warning:', e));
+      }
     },
 
     deleteUser: (id) => {
@@ -202,6 +218,11 @@ export const useUserStore = create<UserState>((set, get) => {
       const updated = users.filter((u) => u.id !== id);
       set({ users: updated });
       saveState(updated);
+
+      // Delete from MySQL API
+      fetch(`/api/users.php?id=${encodeURIComponent(id)}`, {
+        method: 'DELETE'
+      }).catch((e) => console.warn('User API delete warning:', e));
 
       // Permanently record in deleted IDs set
       try {
@@ -250,6 +271,15 @@ export const useUserStore = create<UserState>((set, get) => {
       });
       set({ users: updated });
       saveState(updated);
+
+      const target = updated.find((u) => u.id === id);
+      if (target) {
+        fetch('/api/users.php', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(target)
+        }).catch((e) => console.warn('User API sync warning:', e));
+      }
     },
 
     resetToDefaults: () => {
@@ -258,3 +288,26 @@ export const useUserStore = create<UserState>((set, get) => {
     }
   };
 });
+
+// Auto-sync users from MySQL API on start
+if (typeof window !== 'undefined') {
+  setTimeout(async () => {
+    try {
+      const res = await fetch('/api/users.php');
+      if (res.ok) {
+        const json = await res.json();
+        if (json.status === 'success' && Array.isArray(json.data) && json.data.length > 0) {
+          const deletedIds = getDeletedUserIds();
+          const cleanUsers = json.data.filter((u: any) => u && u.id && !deletedIds.has(u.id));
+          if (cleanUsers.length > 0) {
+            useUserStore.setState({ users: cleanUsers });
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(cleanUsers));
+          }
+        }
+      }
+    } catch (e) {
+      console.warn('Could not fetch users from MySQL API:', e);
+    }
+  }, 200);
+}
+

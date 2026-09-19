@@ -357,6 +357,24 @@ export const submissionService = {
       JSON.stringify({ ...submissionRecord, attemptNumber: currentAttempts })
     );
 
+    // Sync to MySQL API
+    fetch('/api/submissions.php', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        id: `sub_${userId}_${olympiadId}_${Date.now()}`,
+        userId,
+        userName: currentUser?.fullName || 'Ishtirokchi',
+        olympiadId,
+        olympiadTitle: title,
+        score: finalScore,
+        maxScore: finalMaxScore,
+        percentage,
+        timeSpentMinutes: grading.timeSpentMinutes,
+        completedAt: new Date().toISOString()
+      })
+    }).catch((e) => console.warn('Submission API sync warning:', e));
+
     // ── 2. DYNAMIC RANK & CERTIFICATE CALCULATION ──
     const allOlympiadSubs = this.getOlympiadSubmissions(olympiadId);
     // Find how many other participants scored higher than this student

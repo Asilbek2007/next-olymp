@@ -234,6 +234,26 @@ export const useContestStore = create<ContestState>((set, get) => ({
       }
       list.unshift(formattedLog);
       localStorage.setItem(anticheatKey, JSON.stringify(list));
+
+      // Sync incident & snapshot to MySQL API
+      fetch('/api/anticheat.php', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id: newIncident.id,
+          studentId: currentUser?.id || 'usr-student',
+          studentName: currentUser?.fullName || 'Ishtirokchi',
+          studentEmail: currentUser?.email || '',
+          studentPhone: currentUser?.phone || '',
+          olympiadId,
+          olympiadTitle: 'Olimpiada',
+          eventType: typeLabel,
+          details: message,
+          severity: newIncident.severity,
+          snapshotUrl: snapshotUrl,
+          timestamp: new Date().toISOString()
+        })
+      }).catch((e) => console.warn('Anti-cheat API sync warning:', e));
     } catch (e) {
       console.error('Error saving live anticheat log:', e);
     }
