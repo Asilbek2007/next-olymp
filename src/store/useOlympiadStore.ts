@@ -1,7 +1,5 @@
 import { create } from 'zustand';
-import { OlympiadItem, INITIAL_OLYMPIADS } from '../data/initialOlympiads';
-
-const STORAGE_KEY = 'next_olymp_olympiads_v4';
+import { OlympiadItem } from '../data/initialOlympiads';
 
 interface OlympiadStore {
   olympiads: OlympiadItem[];
@@ -13,21 +11,6 @@ interface OlympiadStore {
   toggleOlympiadStatus: (id: string) => void;
   resetOlympiads: () => void;
 }
-
-const loadOlympiadsFromStorage = (): OlympiadItem[] => {
-  try {
-    const stored = localStorage.getItem(STORAGE_KEY);
-    if (stored !== null) {
-      const parsed = JSON.parse(stored);
-      if (Array.isArray(parsed)) {
-        return parsed;
-      }
-    }
-  } catch (error) {
-    console.error('Error loading olympiads from localStorage:', error);
-  }
-  return [];
-};
 
 // Helper to push to MySQL API in background
 const syncOlympiadToApi = async (item: OlympiadItem) => {
@@ -53,7 +36,7 @@ const deleteOlympiadFromApi = async (id: string) => {
 };
 
 export const useOlympiadStore = create<OlympiadStore>((set, get) => ({
-  olympiads: loadOlympiadsFromStorage(),
+  olympiads: [],
 
   fetchFromApi: async () => {
     try {
@@ -62,11 +45,10 @@ export const useOlympiadStore = create<OlympiadStore>((set, get) => ({
         const json = await res.json();
         if (json.status === 'success' && Array.isArray(json.data)) {
           set({ olympiads: json.data });
-          localStorage.setItem(STORAGE_KEY, JSON.stringify(json.data));
         }
       }
     } catch (err) {
-      console.warn('Could not fetch from MySQL API, using local storage:', err);
+      console.warn('Could not fetch from MySQL API:', err);
     }
   },
 
@@ -87,9 +69,8 @@ export const useOlympiadStore = create<OlympiadStore>((set, get) => ({
 
     const updated = [olympiad, ...current];
     set({ olympiads: updated });
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
 
-    // Save to MySQL
+    // Save directly to MySQL
     syncOlympiadToApi(olympiad);
 
     return olympiad;
@@ -98,7 +79,6 @@ export const useOlympiadStore = create<OlympiadStore>((set, get) => ({
   updateOlympiad: (id, updatedFields) => {
     const updated = get().olympiads.map((o) => (o.id === id ? { ...o, ...updatedFields } : o));
     set({ olympiads: updated });
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
 
     const itemToSync = updated.find((o) => o.id === id);
     if (itemToSync) {
@@ -109,7 +89,6 @@ export const useOlympiadStore = create<OlympiadStore>((set, get) => ({
   deleteOlympiad: (id) => {
     const updated = get().olympiads.filter((o) => o.id !== id);
     set({ olympiads: updated });
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
 
     // Delete from MySQL
     deleteOlympiadFromApi(id);
@@ -118,7 +97,6 @@ export const useOlympiadStore = create<OlympiadStore>((set, get) => ({
   togglePinOlympiad: (id) => {
     const updated = get().olympiads.map((o) => (o.id === id ? { ...o, isPinned: !o.isPinned } : o));
     set({ olympiads: updated });
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
 
     const itemToSync = updated.find((o) => o.id === id);
     if (itemToSync) {
@@ -136,7 +114,6 @@ export const useOlympiadStore = create<OlympiadStore>((set, get) => ({
     });
 
     set({ olympiads: updated });
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
 
     const itemToSync = updated.find((o) => o.id === id);
     if (itemToSync) {
@@ -146,7 +123,6 @@ export const useOlympiadStore = create<OlympiadStore>((set, get) => ({
 
   resetOlympiads: () => {
     set({ olympiads: [] });
-    localStorage.setItem(STORAGE_KEY, JSON.stringify([]));
   }
 }));
 
@@ -156,4 +132,3 @@ if (typeof window !== 'undefined') {
     useOlympiadStore.getState().fetchFromApi();
   }, 100);
 }
-

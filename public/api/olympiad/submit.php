@@ -1,6 +1,6 @@
 <?php
 // ==========================================================
-// NextOlymp — Config loader (proxies to db.php)
+// NextOlymp — /api/olympiad/submit.php (Alias to /api/submit.php)
 // ==========================================================
 
-require_once __DIR__ . '/db.php';
+require_once __DIR__ . '/../submit.php';

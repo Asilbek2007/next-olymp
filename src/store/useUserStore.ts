@@ -296,12 +296,12 @@ if (typeof window !== 'undefined') {
       const res = await fetch('/api/users.php');
       if (res.ok) {
         const json = await res.json();
-        if (json.status === 'success' && Array.isArray(json.data) && json.data.length > 0) {
+        const usersList = Array.isArray(json) ? json : (json.status === 'success' && Array.isArray(json.data) ? json.data : null);
+        if (usersList && usersList.length > 0) {
           const deletedIds = getDeletedUserIds();
-          const cleanUsers = json.data.filter((u: any) => u && u.id && !deletedIds.has(u.id));
+          const cleanUsers = usersList.filter((u: any) => u && u.id && !deletedIds.has(u.id));
           if (cleanUsers.length > 0) {
             useUserStore.setState({ users: cleanUsers });
-            localStorage.setItem(STORAGE_KEY, JSON.stringify(cleanUsers));
           }
         }
       }

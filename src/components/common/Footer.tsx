@@ -48,6 +48,11 @@ export const Footer: React.FC = () => {
                   Biz haqimizda
                 </Link>
               </li>
+              <li>
+                <Link to="/swagger" className="text-emerald-400 hover:text-emerald-300 font-medium transition-colors flex items-center gap-1">
+                  <span>REST API (Swagger)</span>
+                </Link>
+              </li>
             </ul>
           </div>
 
