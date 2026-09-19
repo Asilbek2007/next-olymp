@@ -183,6 +183,30 @@ export const EgaSecurityPage: React.FC = () => {
     serverNode: 'UZCLOUD Cloud DC - Toshkent'
   });
 
+  const [diagnostics, setDiagnostics] = useState({
+    osName: 'AlmaLinux / CloudLinux x86_64',
+    kernel: '4.18.0-477.el8.x86_64',
+    hostname: 'hosting.uzcloud.uz',
+    arch: 'x86_64',
+    loadAvg: [0.08, 0.12, 0.15],
+    ports: [
+      { port: 80, name: 'HTTP Web Server', protocol: 'TCP', status: 'Ochiq & Faol', color: 'emerald' },
+      { port: 443, name: 'HTTPS SSL/TLS', protocol: 'TCP', status: 'Ochiq & Himoyalangan', color: 'emerald' },
+      { port: 3306, name: 'MySQL Database', protocol: 'TCP', status: 'Lokal Ulanish Faol', color: 'cyan' },
+      { port: 22, name: 'SSH Shell Access', protocol: 'TCP', status: 'Himoyalangan (Port 22)', color: 'indigo' },
+      { port: 587, name: 'SMTP Mail Relay', protocol: 'TCP', status: 'Faol (Port 587)', color: 'blue' },
+      { port: 21, name: 'FTP File Transfer', protocol: 'TCP', status: 'Faol (Port 21)', color: 'purple' }
+    ],
+    phpVersion: '8.2.x',
+    phpSapi: 'fpm-fcgi',
+    memoryLimit: '512M',
+    maxExecutionTime: '60',
+    uploadMaxFilesize: '64M',
+    totalModulesCount: 48,
+    keyModules: ['pdo_mysql', 'curl', 'openssl', 'mbstring', 'json', 'gd', 'zip', 'zlib'],
+    mysqlVersion: '8.0'
+  });
+
   // Sync with real server logs & system stats from /api/logs.php
   useEffect(() => {
     let isMounted = true;
@@ -233,6 +257,11 @@ export const EgaSecurityPage: React.FC = () => {
             }
             if (json.serverHostStats) {
               setServerHostStats(json.serverHostStats);
+            }
+
+            // 5. Deep System Diagnostics (OS, Kernel, Ports, PHP Modules)
+            if (json.diagnostics) {
+              setDiagnostics(json.diagnostics);
             }
           }
         }
@@ -678,6 +707,110 @@ export const EgaSecurityPage: React.FC = () => {
                   <DefenseToggle label="Bot Bloklash" active={def.botDetection} onToggle={() => handleToggleDefense('botDetection')} icon={<Radio className="w-3.5 h-3.5" />} isDark={isDark} />
                   <DefenseToggle label="Brute-Force Lock" active={def.bruteForceProtection} onToggle={() => handleToggleDefense('bruteForceProtection')} icon={<Lock className="w-3.5 h-3.5" />} isDark={isDark} />
                   <DefenseToggle label="Intrusion (IDS)" active={def.intrusionDetection} onToggle={() => handleToggleDefense('intrusionDetection')} icon={<Fingerprint className="w-3.5 h-3.5" />} isDark={isDark} />
+                </div>
+              </div>
+            </div>
+
+            {/* ── Deep System Diagnostics & Open Ports Section ── */}
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
+              {/* Card 1: OS, Kernel & Load Average */}
+              <div className={clsx('p-4 rounded-xl border space-y-3 shadow-sm', isDark ? 'bg-[#0D1832] border-[#182A4D]' : 'bg-white border-slate-200')}>
+                <div className="flex items-center justify-between pb-2 border-b border-slate-700/20">
+                  <div className="flex items-center gap-2">
+                    <Terminal className="w-4 h-4 text-emerald-400" />
+                    <span className="font-bold text-xs">Operatsion Tizim & Yadro (Kernel)</span>
+                  </div>
+                  <span className="text-[10px] font-mono text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20">
+                    Linux x64
+                  </span>
+                </div>
+
+                <div className="space-y-2 text-[11px]">
+                  <div className="flex items-center justify-between">
+                    <span className="text-slate-400">OS (Tizim):</span>
+                    <span className="font-bold font-mono text-white text-right truncate max-w-[180px]" title={diagnostics.osName}>{diagnostics.osName}</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-slate-400">Kernel (Yadro):</span>
+                    <span className="font-mono text-cyan-300 text-[10px]">{diagnostics.kernel}</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-slate-400">Uptime (Ishlash vaqti):</span>
+                    <span className="font-bold text-emerald-400 font-mono text-[10px]">{m.uptime}</span>
+                  </div>
+                  <div className="flex items-center justify-between pt-1 border-t border-slate-700/20">
+                    <span className="text-slate-400">Load Average (Yuklama):</span>
+                    <span className="font-mono text-amber-300 text-[10px]">
+                      {diagnostics.loadAvg?.[0]} (1m) · {diagnostics.loadAvg?.[1]} (5m) · {diagnostics.loadAvg?.[2]} (15m)
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Card 2: Open Network Ports (netstat -tuln) */}
+              <div className={clsx('p-4 rounded-xl border space-y-3 shadow-sm', isDark ? 'bg-[#0D1832] border-[#182A4D]' : 'bg-white border-slate-200')}>
+                <div className="flex items-center justify-between pb-2 border-b border-slate-700/20">
+                  <div className="flex items-center gap-2">
+                    <Network className="w-4 h-4 text-cyan-400" />
+                    <span className="font-bold text-xs">Ochiq Tarmoq Portlari & Xizmatlar</span>
+                  </div>
+                  <span className="text-[10px] font-mono text-cyan-400 bg-cyan-500/10 px-2 py-0.5 rounded border border-cyan-500/20">
+                    netstat -tuln
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-2 gap-2 text-[10px]">
+                  {diagnostics.ports.map((p) => (
+                    <div key={p.port} className={clsx('p-2 rounded-lg border flex flex-col justify-between', isDark ? 'bg-[#091024] border-[#182A4D]' : 'bg-slate-50 border-slate-200')}>
+                      <div className="flex items-center justify-between">
+                        <span className="font-mono font-black text-white">Port {p.port}</span>
+                        <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                      </div>
+                      <span className="text-slate-400 text-[9px] mt-1">{p.name}</span>
+                      <span className="text-emerald-400 font-bold text-[8px] mt-0.5 uppercase">{p.status}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Card 3: PHP Environment & Active Modules (php -v, php -m) */}
+              <div className={clsx('p-4 rounded-xl border space-y-3 shadow-sm', isDark ? 'bg-[#0D1832] border-[#182A4D]' : 'bg-white border-slate-200')}>
+                <div className="flex items-center justify-between pb-2 border-b border-slate-700/20">
+                  <div className="flex items-center gap-2">
+                    <Database className="w-4 h-4 text-amber-400" />
+                    <span className="font-bold text-xs">PHP & MySQL Dasturiy Muhiti</span>
+                  </div>
+                  <span className="text-[10px] font-mono text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded border border-amber-500/20">
+                    PHP {diagnostics.phpVersion}
+                  </span>
+                </div>
+
+                <div className="space-y-2 text-[10px]">
+                  <div className="flex items-center justify-between">
+                    <span className="text-slate-400">PHP SAPI / Rejim:</span>
+                    <span className="font-mono text-white">{diagnostics.phpSapi}</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-slate-400">Memory Limit / Vaqt:</span>
+                    <span className="font-mono text-cyan-300">{diagnostics.memoryLimit} · {diagnostics.maxExecutionTime}s</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-slate-400">MySQL Versiyasi:</span>
+                    <span className="font-mono text-emerald-400 font-bold">{diagnostics.mysqlVersion}</span>
+                  </div>
+                  <div className="pt-1 border-t border-slate-700/20">
+                    <span className="text-slate-400 block mb-1">Faol PHP Modullari ({diagnostics.totalModulesCount} ta):</span>
+                    <div className="flex flex-wrap gap-1">
+                      {diagnostics.keyModules.map((m) => (
+                        <span key={m} className="px-1.5 py-0.5 rounded text-[8px] font-mono font-bold bg-amber-500/10 text-amber-300 border border-amber-500/20">
+                          {m}
+                        </span>
+                      ))}
+                      <span className="px-1.5 py-0.5 rounded text-[8px] font-mono text-slate-400 bg-slate-800/40">
+                        +{Math.max(0, diagnostics.totalModulesCount - diagnostics.keyModules.length)} boshqa
+                      </span>
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>
