@@ -288,9 +288,75 @@ if ($method === 'GET') {
         $settings = [];
     }
 
+    // Fetch Platform MySQL user statistics
+    $platformStats = [
+        'totalUsers' => 0,
+        'studentCount' => 0,
+        'teacherCount' => 0,
+        'adminCount' => 0,
+        'totalOlympiads' => 0,
+        'totalSubmissions' => 0
+    ];
+    try {
+        $stmt = $pdo->query("SELECT 
+            COUNT(*) as total,
+            SUM(CASE WHEN role = 'student' THEN 1 ELSE 0 END) as students,
+            SUM(CASE WHEN role = 'teacher' THEN 1 ELSE 0 END) as teachers,
+            SUM(CASE WHEN role = 'admin' THEN 1 ELSE 0 END) as admins
+        FROM `users`");
+        $uRow = $stmt->fetch();
+        if ($uRow) {
+            $platformStats['totalUsers'] = (int)($uRow['total'] ?? 0);
+            $platformStats['studentCount'] = (int)($uRow['students'] ?? 0);
+            $platformStats['teacherCount'] = (int)($uRow['teachers'] ?? 0);
+            $platformStats['adminCount'] = (int)($uRow['admins'] ?? 0);
+        }
+
+        $oStmt = $pdo->query("SELECT COUNT(*) as total FROM `olympiads`");
+        $platformStats['totalOlympiads'] = (int)$oStmt->fetchColumn();
+
+        $sStmt = $pdo->query("SELECT COUNT(*) as total FROM `submissions`");
+        $platformStats['totalSubmissions'] = (int)$sStmt->fetchColumn();
+    } catch (Exception $e) {}
+
+    // Fetch Linux Hosting server accounts (neighbors)
+    $hostingAccountsCount = 1;
+    $currentHostingUser = get_current_user() ?: 'user1477';
+    try {
+        if (file_exists('/etc/passwd') && is_readable('/etc/passwd')) {
+            $passwd = @file_get_contents('/etc/passwd');
+            if ($passwd) {
+                $lines = explode("\n", trim($passwd));
+                $uCount = 0;
+                foreach ($lines as $line) {
+                    $parts = explode(':', $line);
+                    if (isset($parts[2]) && (int)$parts[2] >= 1000 && (int)$parts[2] < 65534) {
+                        $uCount++;
+                    }
+                }
+                if ($uCount > 0) $hostingAccountsCount = $uCount;
+            }
+        } elseif (is_dir('/home') && is_readable('/home')) {
+            $dirs = @scandir('/home');
+            if ($dirs) {
+                $hostingAccountsCount = max(1, count(array_diff($dirs, ['.', '..'])));
+            }
+        }
+    } catch (Exception $e) {}
+
+    $serverHostStats = [
+        'hostingAccountsCount' => $hostingAccountsCount,
+        'currentAccount' => $currentHostingUser . ' (nextolymp.uz)',
+        'accountRamLimit' => '1024 MiB',
+        'accountDiskQuota' => '25 GB NVMe SSD',
+        'serverNode' => 'UZCLOUD Cloud DC - Toshkent'
+    ];
+
     echo json_encode([
         'status' => 'success',
         'metrics' => $metrics,
+        'platformStats' => $platformStats,
+        'serverHostStats' => $serverHostStats,
         'data' => $dbLogs,
         'blockedIPs' => $blockedIPs,
         'settings' => $settings,

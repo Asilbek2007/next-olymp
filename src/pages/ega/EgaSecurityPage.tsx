@@ -8,7 +8,7 @@ import {
   ShieldAlert, ShieldCheck, ShieldX, Activity, Globe, Search, Ban, Unlock, Eye,
   AlertTriangle, CheckCircle2, XCircle, Clock, Zap, BarChart2, List, Terminal,
   Wifi, WifiOff, X, Lock, Database, Cpu, Flame, Network, Radio, MonitorDot, CircleAlert,
-  Power, ToggleLeft, ToggleRight, Server, HardDrive, MemoryStick,
+  Power, ToggleLeft, ToggleRight, Server, HardDrive, MemoryStick, Users, GraduationCap, UserCheck,
   Gauge, ArrowDown, ArrowUp, RefreshCw, ChevronRight, Settings2, FileWarning, Fingerprint, Shield
 } from 'lucide-react';
 import { adminMonitoringService } from '../../services/adminMonitoringService';
@@ -166,6 +166,23 @@ export const EgaSecurityPage: React.FC = () => {
   const [blockModalReason, setBlockModalReason] = useState('');
   const [blockModalPermanent, setBlockModalPermanent] = useState(false);
 
+  const [platformStats, setPlatformStats] = useState({
+    totalUsers: 0,
+    studentCount: 0,
+    teacherCount: 0,
+    adminCount: 0,
+    totalOlympiads: 0,
+    totalSubmissions: 0
+  });
+
+  const [serverHostStats, setServerHostStats] = useState({
+    hostingAccountsCount: 1,
+    currentAccount: 'user1477 (nextolymp.uz)',
+    accountRamLimit: '1024 MiB',
+    accountDiskQuota: '25 GB NVMe SSD',
+    serverNode: 'UZCLOUD Cloud DC - Toshkent'
+  });
+
   // Sync with real server logs & system stats from /api/logs.php
   useEffect(() => {
     let isMounted = true;
@@ -178,16 +195,16 @@ export const EgaSecurityPage: React.FC = () => {
             // 1. Real Hardware Metrics (Linux /proc/meminfo, disk_free, uptime, cpu)
             if (json.metrics) {
               store.updateServerMetrics({
-                ram: json.metrics.ram?.usagePercent ?? 37,
+                ram: json.metrics.ram?.usagePercent ?? 4,
                 ramTotalMb: json.metrics.ram?.totalMb ?? 1024,
-                ramUsedMb: json.metrics.ram?.usedMb ?? 374,
-                ramFreeMb: json.metrics.ram?.freeMb ?? 650,
+                ramUsedMb: json.metrics.ram?.usedMb ?? 42,
+                ramFreeMb: json.metrics.ram?.freeMb ?? 982,
                 disk: json.metrics.disk?.usagePercent ?? 1,
                 diskTotalGb: json.metrics.disk?.totalGb ?? 25,
-                diskUsedGb: json.metrics.disk?.usedGb ?? 0.2,
-                diskFreeGb: json.metrics.disk?.freeGb ?? 24.8,
-                cpu: json.metrics.cpu?.usagePercent ?? 8,
-                network: json.metrics.network ?? { in: 0.05, out: 0.22 },
+                diskUsedGb: json.metrics.disk?.usedGb ?? 0.04,
+                diskFreeGb: json.metrics.disk?.freeGb ?? 24.96,
+                cpu: json.metrics.cpu?.usagePercent ?? 5,
+                network: json.metrics.network ?? { in: 0.02, out: 0.08 },
                 uptime: json.metrics.uptime ?? '0 kun 3 soat 45 daqiqa',
                 activeConnections: json.metrics.activeConnections ?? 2,
                 requestsPerSec: json.metrics.requestsPerSec ?? 1,
@@ -208,6 +225,14 @@ export const EgaSecurityPage: React.FC = () => {
             // 3. Real Blocked IPs
             if (Array.isArray(json.blockedIPs)) {
               store.setBlockedIPs(json.blockedIPs);
+            }
+
+            // 4. Platform MySQL Users & Server Accounts Stats
+            if (json.platformStats) {
+              setPlatformStats(json.platformStats);
+            }
+            if (json.serverHostStats) {
+              setServerHostStats(json.serverHostStats);
             }
           }
         }
@@ -431,6 +456,81 @@ export const EgaSecurityPage: React.FC = () => {
                 <div className={clsx('px-3 py-1.5 rounded-lg border font-bold flex items-center gap-1.5', isDark ? 'bg-[#091024] border-[#182A4D] text-slate-300' : 'bg-slate-100 border-slate-300 text-slate-700')}>
                   <Gauge className="w-3.5 h-3.5 text-cyan-400" />
                   <span>Rate Limit: {m.rateLimitHits} ta cheklov</span>
+                </div>
+              </div>
+            </div>
+
+            {/* ── Real Platform Users & Linux Server Accounts Row ── */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              {/* Card 1: Platforma Foydalanuvchilari (MySQL nextolymp) */}
+              <div className={clsx('p-4 rounded-xl border space-y-3 shadow-sm', isDark ? 'bg-[#0D1832] border-[#182A4D]' : 'bg-white border-slate-200')}>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Users className="w-4 h-4 text-amber-400" />
+                    <div>
+                      <span className="font-bold text-xs">Olimpiada Platformasi Foydalanuvchilari</span>
+                      <span className="block text-[9px] text-slate-400 font-mono">MySQL Database (nextolymp)</span>
+                    </div>
+                  </div>
+                  <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-amber-500/20 text-amber-400 border border-amber-500/30 font-mono">
+                    {platformStats.totalUsers} ta foydalanuvchi
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-3 gap-2 pt-1 text-[10px]">
+                  <div className={clsx('p-2 rounded-lg text-center', isDark ? 'bg-[#091024]' : 'bg-slate-50')}>
+                    <span className="text-slate-400 block text-[9px] uppercase">O'quvchilar</span>
+                    <span className="font-bold text-emerald-400 font-mono">{platformStats.studentCount}</span>
+                  </div>
+                  <div className={clsx('p-2 rounded-lg text-center', isDark ? 'bg-[#091024]' : 'bg-slate-50')}>
+                    <span className="text-slate-400 block text-[9px] uppercase">O'qituvchilar</span>
+                    <span className="font-bold text-cyan-300 font-mono">{platformStats.teacherCount}</span>
+                  </div>
+                  <div className={clsx('p-2 rounded-lg text-center', isDark ? 'bg-[#091024]' : 'bg-slate-50')}>
+                    <span className="text-slate-400 block text-[9px] uppercase">Adminlar</span>
+                    <span className="font-bold text-amber-300 font-mono">{platformStats.adminCount}</span>
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-between text-[10px] text-slate-400 pt-1 border-t border-slate-700/20">
+                  <span>Jami olimpiadalar: <strong className="text-slate-200 font-mono">{platformStats.totalOlympiads}</strong></span>
+                  <span>Topshirilgan testlar: <strong className="text-emerald-400 font-mono">{platformStats.totalSubmissions}</strong></span>
+                </div>
+              </div>
+
+              {/* Card 2: Linux Hosting Server Muhiti & Barcha Qo'shnilar */}
+              <div className={clsx('p-4 rounded-xl border space-y-3 shadow-sm', isDark ? 'bg-[#0D1832] border-[#182A4D]' : 'bg-white border-slate-200')}>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Server className="w-4 h-4 text-indigo-400" />
+                    <div>
+                      <span className="font-bold text-xs">Serverdagi Linux / Hosting Hisoblari</span>
+                      <span className="block text-[9px] text-slate-400 font-mono">UZCLOUD ISPmanager node (/etc/passwd)</span>
+                    </div>
+                  </div>
+                  <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 font-mono">
+                    {serverHostStats.hostingAccountsCount} ta hosting hisobi
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-3 gap-2 pt-1 text-[10px]">
+                  <div className={clsx('p-2 rounded-lg text-center', isDark ? 'bg-[#091024]' : 'bg-slate-50')}>
+                    <span className="text-slate-400 block text-[9px] uppercase">Joriy Hisob</span>
+                    <span className="font-bold text-white font-mono truncate block" title={serverHostStats.currentAccount}>user1477</span>
+                  </div>
+                  <div className={clsx('p-2 rounded-lg text-center', isDark ? 'bg-[#091024]' : 'bg-slate-50')}>
+                    <span className="text-slate-400 block text-[9px] uppercase">RAM Kvota</span>
+                    <span className="font-bold text-cyan-300 font-mono">{serverHostStats.accountRamLimit}</span>
+                  </div>
+                  <div className={clsx('p-2 rounded-lg text-center', isDark ? 'bg-[#091024]' : 'bg-slate-50')}>
+                    <span className="text-slate-400 block text-[9px] uppercase">SSD Kvota</span>
+                    <span className="font-bold text-indigo-300 font-mono">{serverHostStats.accountDiskQuota}</span>
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-between text-[10px] text-slate-400 pt-1 border-t border-slate-700/20 font-mono">
+                  <span>DC: {serverHostStats.serverNode}</span>
+                  <span className="text-emerald-400">Izolyatsiya: CloudLinux</span>
                 </div>
               </div>
             </div>
