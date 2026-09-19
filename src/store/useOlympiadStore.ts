@@ -6,6 +6,8 @@ interface OlympiadStore {
   olympiads: OlympiadItem[];
   loading: boolean;
   fetchFromApi: () => Promise<void>;
+  fetchOlympiads: () => Promise<void>;
+  createOlympiad: (data: any) => Promise<void>;
   addOlympiad: (item: Omit<OlympiadItem, 'id' | 'registeredCount' | 'submittedCount' | 'paidCount' | 'totalRevenue'>) => OlympiadItem;
   updateOlympiad: (id: string, updated: Partial<OlympiadItem>) => void;
   deleteOlympiad: (id: string) => void;
@@ -28,6 +30,22 @@ export const useOlympiadStore = create<OlympiadStore>((set, get) => ({
       console.warn('Could not fetch olympiads from MySQL API:', err);
       set({ loading: false });
     }
+  },
+
+  fetchOlympiads: async () => {
+    set({ loading: true });
+    try {
+      const data = await apiClient.get('/olympiads.php');
+      set({ olympiads: Array.isArray(data) ? data : (data?.data || []), loading: false });
+    } catch (e) {
+      set({ loading: false });
+    }
+  },
+
+  createOlympiad: async (data: any) => {
+    await apiClient.post('/olympiads.php', data);
+    const updated = await apiClient.get('/olympiads.php');
+    set({ olympiads: Array.isArray(updated) ? updated : (updated?.data || []) });
   },
 
   addOlympiad: (newItem) => {
