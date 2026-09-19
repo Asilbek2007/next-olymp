@@ -6,8 +6,17 @@
 SET NAMES utf8mb4;
 SET FOREIGN_KEY_CHECKS = 0;
 
+-- Eskirgan yoki mos kelmaydigan jadvallarni tozalab qayta yaratish
+DROP TABLE IF EXISTS `notifications`;
+DROP TABLE IF EXISTS `payments`;
+DROP TABLE IF EXISTS `security_logs`;
+DROP TABLE IF EXISTS `submissions`;
+DROP TABLE IF EXISTS `questions`;
+DROP TABLE IF EXISTS `olympiads`;
+DROP TABLE IF EXISTS `users`;
+
 -- 1. Foydalanuvchilar va rollar
-CREATE TABLE IF NOT EXISTS `users` (
+CREATE TABLE `users` (
     `id` INT AUTO_INCREMENT PRIMARY KEY,
     `full_name` VARCHAR(150) NOT NULL,
     `phone` VARCHAR(30) UNIQUE NOT NULL,
@@ -18,13 +27,14 @@ CREATE TABLE IF NOT EXISTS `users` (
     `district` VARCHAR(100) DEFAULT '',
     `school` VARCHAR(150) DEFAULT '',
     `grade` INT DEFAULT 9,
+    `score` INT DEFAULT 0,
     `avatar_url` TEXT DEFAULT NULL,
     `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- 2. Olimpiadalar va Milliy imtihonlar
-CREATE TABLE IF NOT EXISTS `olympiads` (
+CREATE TABLE `olympiads` (
     `id` INT AUTO_INCREMENT PRIMARY KEY,
     `title` VARCHAR(255) NOT NULL,
     `category` VARCHAR(100) NOT NULL, -- Masalan: 'english', 'math', 'national_exam'
@@ -41,7 +51,7 @@ CREATE TABLE IF NOT EXISTS `olympiads` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- 3. Savollar ombori
-CREATE TABLE IF NOT EXISTS `questions` (
+CREATE TABLE `questions` (
     `id` INT AUTO_INCREMENT PRIMARY KEY,
     `olympiad_id` INT NOT NULL,
     `question_text` TEXT NOT NULL,
@@ -53,11 +63,11 @@ CREATE TABLE IF NOT EXISTS `questions` (
     `difficulty_level` DECIMAL(4, 2) DEFAULT 0.00, -- Rasch modeli qiyinlik darajasi (b_i)
     `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     INDEX (`olympiad_id`),
-    FOREIGN KEY (`olympiad_id`) REFERENCES `olympiads`(`id`) ON DELETE CASCADE
+    CONSTRAINT `fk_questions_olympiad` FOREIGN KEY (`olympiad_id`) REFERENCES `olympiads`(`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- 4. Test topshirish natijalari va Rasch bali
-CREATE TABLE IF NOT EXISTS `submissions` (
+CREATE TABLE `submissions` (
     `id` INT AUTO_INCREMENT PRIMARY KEY,
     `user_id` INT NOT NULL,
     `olympiad_id` INT NOT NULL,
@@ -70,12 +80,12 @@ CREATE TABLE IF NOT EXISTS `submissions` (
     `submitted_at` DATETIME NULL,
     INDEX (`user_id`),
     INDEX (`olympiad_id`),
-    FOREIGN KEY (`user_id`) REFERENCES `users`(`id`) ON DELETE CASCADE,
-    FOREIGN KEY (`olympiad_id`) REFERENCES `olympiads`(`id`) ON DELETE CASCADE
+    CONSTRAINT `fk_submissions_user` FOREIGN KEY (`user_id`) REFERENCES `users`(`id`) ON DELETE CASCADE,
+    CONSTRAINT `fk_submissions_olympiad` FOREIGN KEY (`olympiad_id`) REFERENCES `olympiads`(`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- 5. Kiberxavfsizlik va Anti-Cheat jurnali (Logs)
-CREATE TABLE IF NOT EXISTS `security_logs` (
+CREATE TABLE `security_logs` (
     `id` INT AUTO_INCREMENT PRIMARY KEY,
     `user_id` INT NULL,
     `ip_address` VARCHAR(45) NOT NULL,
@@ -87,7 +97,7 @@ CREATE TABLE IF NOT EXISTS `security_logs` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- 6. To'lovlar (Payme / Click / Uzum)
-CREATE TABLE IF NOT EXISTS `payments` (
+CREATE TABLE `payments` (
     `id` INT AUTO_INCREMENT PRIMARY KEY,
     `user_id` INT NOT NULL,
     `olympiad_id` INT NOT NULL,
@@ -98,12 +108,12 @@ CREATE TABLE IF NOT EXISTS `payments` (
     `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     INDEX (`user_id`),
     INDEX (`olympiad_id`),
-    FOREIGN KEY (`user_id`) REFERENCES `users`(`id`) ON DELETE CASCADE,
-    FOREIGN KEY (`olympiad_id`) REFERENCES `olympiads`(`id`) ON DELETE CASCADE
+    CONSTRAINT `fk_payments_user` FOREIGN KEY (`user_id`) REFERENCES `users`(`id`) ON DELETE CASCADE,
+    CONSTRAINT `fk_payments_olympiad` FOREIGN KEY (`olympiad_id`) REFERENCES `olympiads`(`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- 7. Xabarnomalar (Notifications)
-CREATE TABLE IF NOT EXISTS `notifications` (
+CREATE TABLE `notifications` (
     `id` INT AUTO_INCREMENT PRIMARY KEY,
     `user_id` INT NULL, -- NULL bo'lsa barcha foydalanuvchilar uchun
     `title` VARCHAR(255) NOT NULL,
