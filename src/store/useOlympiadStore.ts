@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { OlympiadItem, INITIAL_OLYMPIADS } from '../data/initialOlympiads';
 
-const STORAGE_KEY = 'next_olymp_olympiads_v3';
+const STORAGE_KEY = 'next_olymp_olympiads_v4';
 
 interface OlympiadStore {
   olympiads: OlympiadItem[];
@@ -26,7 +26,7 @@ const loadOlympiadsFromStorage = (): OlympiadItem[] => {
   } catch (error) {
     console.error('Error loading olympiads from localStorage:', error);
   }
-  return INITIAL_OLYMPIADS;
+  return [];
 };
 
 // Helper to push to MySQL API in background
@@ -61,18 +61,8 @@ export const useOlympiadStore = create<OlympiadStore>((set, get) => ({
       if (res.ok) {
         const json = await res.json();
         if (json.status === 'success' && Array.isArray(json.data)) {
-          // If MySQL has a list of olympiads (even if empty after admin deleted them), reflect it
-          if (localStorage.getItem('next_olymp_olympiads_seeded') === 'true' || json.data.length > 0) {
-            set({ olympiads: json.data });
-            localStorage.setItem(STORAGE_KEY, JSON.stringify(json.data));
-            return;
-          } else {
-            // First time setup only: seed INITIAL_OLYMPIADS
-            localStorage.setItem('next_olymp_olympiads_seeded', 'true');
-            for (const item of INITIAL_OLYMPIADS) {
-              syncOlympiadToApi(item);
-            }
-          }
+          set({ olympiads: json.data });
+          localStorage.setItem(STORAGE_KEY, JSON.stringify(json.data));
         }
       }
     } catch (err) {
@@ -155,11 +145,8 @@ export const useOlympiadStore = create<OlympiadStore>((set, get) => ({
   },
 
   resetOlympiads: () => {
-    set({ olympiads: INITIAL_OLYMPIADS });
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(INITIAL_OLYMPIADS));
-    for (const item of INITIAL_OLYMPIADS) {
-      syncOlympiadToApi(item);
-    }
+    set({ olympiads: [] });
+    localStorage.setItem(STORAGE_KEY, JSON.stringify([]));
   }
 }));
 
