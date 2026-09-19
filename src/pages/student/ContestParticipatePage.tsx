@@ -307,7 +307,7 @@ export const ContestParticipatePage: React.FC = () => {
 
           ctx.drawImage(videoRef.current, 0, 0, 160, 120);
 
-          // 1. Try Native FaceDetector API if supported by browser (Chrome/Edge)
+          // 1. Try Native FaceDetector API if supported by browser (Chrome/Edge/Android)
           if (typeof (window as any).FaceDetector === 'function') {
             try {
               const detector = new (window as any).FaceDetector({ fastMode: true, maxDetectedFaces: 4 });
@@ -315,7 +315,7 @@ export const ContestParticipatePage: React.FC = () => {
 
               if (!faces || faces.length === 0) {
                 missingFaceTicks++;
-                if (missingFaceTicks >= 2) {
+                if (missingFaceTicks >= 1) {
                   const snap = captureSnapshot();
                   useContestStore.getState().recordGuardViolation(
                     'NO_FACE_DETECTED',
@@ -325,9 +325,10 @@ export const ContestParticipatePage: React.FC = () => {
                   );
                   missingFaceTicks = 0;
                 }
+                return;
               } else if (faces.length > 1) {
                 multipleFaceTicks++;
-                if (multipleFaceTicks >= 2) {
+                if (multipleFaceTicks >= 1) {
                   const snap = captureSnapshot();
                   useContestStore.getState().recordGuardViolation(
                     'MULTIPLE_FACES_DETECTED',
@@ -337,26 +338,49 @@ export const ContestParticipatePage: React.FC = () => {
                   );
                   multipleFaceTicks = 0;
                 }
-              } else {
+                return;
+              } else if (faces.length === 1) {
+                // Check if face is properly centered or cut in half / partial
+                const bb = faces[0].boundingBox;
+                const isTooSmall = bb.width < 38 || bb.height < 38;
+                const isCutAtTopOrBottom = bb.y <= 6 || (bb.y + bb.height) >= 114;
+                const isCutAtSides = bb.x <= 6 || (bb.x + bb.width) >= 154;
+
+                if (isTooSmall || isCutAtTopOrBottom || isCutAtSides) {
+                  missingFaceTicks++;
+                  if (missingFaceTicks >= 1) {
+                    const snap = captureSnapshot();
+                    useContestStore.getState().recordGuardViolation(
+                      'HALF_FACE_DETECTED',
+                      'Yuzingiz to\'liq ko\'rinmayapti (yarmi kadrni tark etgan yoki chetda)! Iltimos, butun yuzingizni kameraning markazida to\'liq ko\'rsatib o\'tiring.',
+                      3,
+                      snap
+                    );
+                    missingFaceTicks = 0;
+                  }
+                  return;
+                }
+
                 missingFaceTicks = 0;
                 multipleFaceTicks = 0;
+                return;
               }
-              return;
             } catch {
               // Fallback to biometric heuristic
             }
           }
 
-          // 2. High-Accuracy Biometric & Texture Variance Heuristic (Detects Hand Covering & Missing Face)
+          // 2. High-Accuracy Multi-Zone Biometric & Facial Feature Grid (Detects Half Face, Cut Off, & Covering)
           const frameData = ctx.getImageData(0, 0, 160, 120).data;
           let totalLuminance = 0;
-          let centerSkinPixels = 0;
-          let totalCenterPixels = 0;
+          let totalSkin = 0;
+          let topSkin = 0;
+          let middleSkin = 0;
+          let bottomSkin = 0;
+          let leftSkin = 0;
+          let centerSkin = 0;
+          let rightSkin = 0;
           let totalEdgeGradient = 0;
-
-          // Define center region where head/face MUST be located (x: 40..120, y: 18..102)
-          const minX = 40, maxX = 120;
-          const minY = 18, maxY = 102;
 
           for (let y = 0; y < 120; y++) {
             for (let x = 0; x < 160; x++) {
@@ -376,47 +400,57 @@ export const ContestParticipatePage: React.FC = () => {
                 totalEdgeGradient += Math.abs(lum - lumNext);
               }
 
-              if (x >= minX && x <= maxX && y >= minY && y <= maxY) {
-                totalCenterPixels++;
-                // Standard Human Skin-Tone Biometric Rule (RGB Space)
-                const isSkin =
-                  r > 65 &&
-                  g > 35 &&
-                  b > 20 &&
-                  r > g &&
-                  g >= b * 0.7 &&
-                  (r - g) > 8 &&
-                  (r - b) > 8 &&
-                  (Math.max(r, g, b) - Math.min(r, g, b)) > 12;
+              // Standard Human Skin-Tone Biometric Rule (RGB Space)
+              const isSkin =
+                r > 60 &&
+                g > 30 &&
+                b > 15 &&
+                r > g &&
+                g >= b * 0.65 &&
+                (r - g) > 6 &&
+                (r - b) > 6 &&
+                (Math.max(r, g, b) - Math.min(r, g, b)) > 10;
 
-                if (isSkin) {
-                  centerSkinPixels++;
-                }
+              if (isSkin) {
+                totalSkin++;
+                if (y < 40) topSkin++;
+                else if (y < 80) middleSkin++;
+                else bottomSkin++;
+
+                if (x < 50) leftSkin++;
+                else if (x < 110) centerSkin++;
+                else rightSkin++;
               }
             }
           }
 
           const avgLuminance = totalLuminance / (160 * 120);
-          const centerSkinRatio = totalCenterPixels > 0 ? centerSkinPixels / totalCenterPixels : 0;
           const avgEdgeGradient = totalEdgeGradient / (160 * 120);
 
           // DETECTION CRITERIA:
           // 1. Camera covered / Pitch black: avgLuminance < 12
-          // 2. Hand pressed / Lens blocked: avgEdgeGradient < 2.5 (no facial contrast/eyes/mouth, completely flat blur) OR (centerSkinRatio > 0.88 && avgEdgeGradient < 3.2)
-          // 3. Head absent / Left frame: centerSkinRatio < 0.05
-          const isCameraCovered = avgLuminance < 12 || avgEdgeGradient < 2.2 || (centerSkinRatio > 0.88 && avgEdgeGradient < 3.5);
-          const isFaceMissing = centerSkinRatio < 0.05;
+          const isCameraCovered = avgLuminance < 12 || avgEdgeGradient < 2.0;
+          
+          // 2. Head absent / No face
+          const isFaceMissing = totalSkin < 100 || (centerSkin + middleSkin) < 50;
 
-          if (isCameraCovered || isFaceMissing) {
+          // 3. Half Face / Partial Face / Skewed Position (Forehead only, chin only, or cut off on sides)
+          const isHalfFaceVertical = (topSkin > 120 && bottomSkin < 20 && middleSkin < 60) || (bottomSkin > 120 && topSkin < 20 && middleSkin < 60);
+          const isHalfFaceHorizontal = (leftSkin > 140 && rightSkin < 15 && centerSkin < 50) || (rightSkin > 140 && leftSkin < 15 && centerSkin < 50);
+          const isHalfFace = isHalfFaceVertical || isHalfFaceHorizontal;
+
+          if (isCameraCovered || isFaceMissing || isHalfFace) {
             missingFaceTicks++;
             if (missingFaceTicks >= 1) {
               const snap = captureSnapshot();
               const reasonMsg = isCameraCovered
                 ? 'Kamera ob\'ektivi qo\'l yoki boshqa narsa bilan to\'sib qo\'yildi! Kamerani yopmang.'
-                : 'Kadrda yuz aniqlanmadi yoki bosh kadrni tark etdi! Kamera to\'g\'risida o\'tiring.';
+                : isHalfFace
+                ? 'Yuzingiz to\'liq ko\'rinmayapti (faqat yarmi ko\'rinmoqda)! Iltimos, butun yuzingizni kameraning o\'rtasida to\'liq ko\'rsating.'
+                : 'Kadrda yuz aniqlanmadi yoki bosh kadrni tark etdi! Kamera to\'g\'risida to\'g\'ri o\'tiring.';
               
               useContestStore.getState().recordGuardViolation(
-                'NO_FACE_DETECTED',
+                isHalfFace ? 'HALF_FACE_DETECTED' : 'NO_FACE_DETECTED',
                 reasonMsg,
                 3,
                 snap

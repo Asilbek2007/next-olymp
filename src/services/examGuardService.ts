@@ -173,6 +173,19 @@ export class ExamGuard {
         return;
       }
 
+      // PrintScreen / Screenshot key combo detection
+      if (
+        e.key === 'PrintScreen' ||
+        e.keyCode === 44 ||
+        (isCtrlOrCmd && e.shiftKey && ['S', 's', '3', '4', '5'].includes(e.key)) ||
+        (e.metaKey && e.shiftKey)
+      ) {
+        e.preventDefault();
+        e.stopPropagation();
+        this.recordViolation('CLIPBOARD_ACTION', 'Ekranni rasmga olish (Screenshot / PrintScreen) qat\'iyan taqiqlangan!');
+        return;
+      }
+
       // Alt + Tab or Windows key attempt note
       if (e.altKey && e.key === 'Tab') {
         e.preventDefault();
@@ -181,21 +194,27 @@ export class ExamGuard {
     };
 
     window.addEventListener('keydown', handleKeyDown, true);
+    window.addEventListener('keyup', (e) => {
+      if (e.key === 'PrintScreen' || e.keyCode === 44) {
+        this.recordViolation('CLIPBOARD_ACTION', 'Ekranni rasmga olish (Screenshot / PrintScreen) aniqlandi!');
+      }
+    }, true);
+
     this.cleanupFns.push(() => {
       window.removeEventListener('keydown', handleKeyDown, true);
     });
   }
 
-  // 4. Tab almashtirish yoki boshqa dasturga o'tishni kuzatish (Focus & Visibility)
+  // 4. Tab almashtirish yoki boshqa dasturga o'tishni kuzatish (Focus & Visibility & Mobile Blur)
   private trackTabAndFocus() {
     const handleVisibility = () => {
       if (document.hidden) {
-        this.recordViolation('TAB_SWITCH', "O'quvchi boshqa vkladkaga o'tdi yoki brauzerni yashirdi!");
+        this.recordViolation('TAB_SWITCH', "O'quvchi boshqa ilovaga/vkladkaga o'tdi yoki ekranni rasmga oldi!");
       }
     };
 
     const handleBlur = () => {
-      this.recordViolation('WINDOW_BLUR', "Brauzer oynasidan boshqa dasturga chiqildi (Window Blur)!");
+      this.recordViolation('WINDOW_BLUR', "Brauzer oynasidan chiqildi, bildirishnoma ochildi yoki ekran rasmga olindi (Window Blur)!");
     };
 
     document.addEventListener('visibilitychange', handleVisibility);

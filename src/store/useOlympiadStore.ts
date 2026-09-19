@@ -19,7 +19,7 @@ const loadOlympiadsFromStorage = (): OlympiadItem[] => {
     const stored = localStorage.getItem(STORAGE_KEY);
     if (stored !== null) {
       const parsed = JSON.parse(stored);
-      if (Array.isArray(parsed) && parsed.length > 0) {
+      if (Array.isArray(parsed)) {
         return parsed;
       }
     }
@@ -60,14 +60,18 @@ export const useOlympiadStore = create<OlympiadStore>((set, get) => ({
       const res = await fetch('/api/olympiads.php');
       if (res.ok) {
         const json = await res.json();
-        if (json.status === 'success' && Array.isArray(json.data) && json.data.length > 0) {
-          set({ olympiads: json.data });
-          localStorage.setItem(STORAGE_KEY, JSON.stringify(json.data));
-          return;
-        } else if (json.status === 'success' && Array.isArray(json.data) && json.data.length === 0) {
-          // If database is brand new and empty, seed initial olympiads to MySQL
-          for (const item of INITIAL_OLYMPIADS) {
-            syncOlympiadToApi(item);
+        if (json.status === 'success' && Array.isArray(json.data)) {
+          // If MySQL has a list of olympiads (even if empty after admin deleted them), reflect it
+          if (localStorage.getItem('next_olymp_olympiads_seeded') === 'true' || json.data.length > 0) {
+            set({ olympiads: json.data });
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(json.data));
+            return;
+          } else {
+            // First time setup only: seed INITIAL_OLYMPIADS
+            localStorage.setItem('next_olymp_olympiads_seeded', 'true');
+            for (const item of INITIAL_OLYMPIADS) {
+              syncOlympiadToApi(item);
+            }
           }
         }
       }
