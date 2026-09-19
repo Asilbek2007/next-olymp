@@ -11,8 +11,10 @@ import { QuestionPalette } from '../../components/contest/QuestionPalette';
 import { AntiCheatBanner } from '../../components/contest/AntiCheatBanner';
 import { Button } from '../../components/common/Button';
 import { Modal } from '../../components/common/Modal';
+import { PayxPaymentModal } from '../../components/common/PayxPaymentModal';
 import { useAuthStore } from '../../store/useAuthStore';
 import { useOlympiadStore } from '../../store/useOlympiadStore';
+import { usePaymentStore } from '../../store/usePaymentStore';
 import clsx from 'clsx';
 import {
   ShieldCheck,
@@ -39,7 +41,8 @@ import {
   Flame,
   UserCheck,
   UserPlus,
-  RefreshCw
+  RefreshCw,
+  CreditCard
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { submissionService } from '../../services/submissionService';
@@ -96,6 +99,16 @@ export const ContestParticipatePage: React.FC = () => {
   const canAttempt = isGradeEligible && (attemptsUsed === 0 || (retakeAllowed && attemptsUsed < maxAttempts));
   const isRetake = isGradeEligible && retakeAllowed && attemptsUsed > 0 && attemptsUsed < maxAttempts;
 
+  const olympiadPrice = (olympiad as any)?.price ? Number((olympiad as any).price) : 0;
+  const isFree = Boolean((olympiad as any)?.isFree) || olympiadPrice === 0;
+
+  const [isPaid, setIsPaid] = useState(() => {
+    if (!id || !user?.id) return false;
+    if (isFree) return true;
+    return localStorage.getItem(`paid_olymp_${user.id}_${id}`) === 'true';
+  });
+  const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
+
   const [isRegistered, setIsRegistered] = useState(() => {
     if (!id || !user?.id) return false;
     return localStorage.getItem(`reg_olymp_${user.id}_${id}`) === 'true';
@@ -108,6 +121,13 @@ export const ContestParticipatePage: React.FC = () => {
       alert(`⚠️ Ushbu olimpiada faqat ${targetGrades.join(', ')}-sinflar uchun mo'ljallangan! Sizning sinfingiz: ${studentGrade}-sinf.`);
       return;
     }
+
+    // If paid olympiad and not yet paid, open payment modal
+    if (!isFree && !isPaid) {
+      setIsPaymentModalOpen(true);
+      return;
+    }
+
     setIsRegistering(true);
     setTimeout(() => {
       if (user?.id && id) {
@@ -121,6 +141,33 @@ export const ContestParticipatePage: React.FC = () => {
       confetti({ particleCount: 50, spread: 60 });
       setCurrentStep('exam_briefing');
     }, 400);
+  };
+
+  const handlePaymentSuccess = (txn?: any) => {
+    if (user?.id && id) {
+      localStorage.setItem(`paid_olymp_${user.id}_${id}`, 'true');
+      localStorage.setItem(`reg_olymp_${user.id}_${id}`, 'true');
+      setIsPaid(true);
+      setIsRegistered(true);
+
+      usePaymentStore.getState().addPayment({
+        userName: user.fullName || "O'quvchi",
+        userPhone: user.phone || '+998 90 123 45 67',
+        userRole: 'student',
+        olympiadOrPackage: olympiad?.title || 'Olimpiada ishtiroki',
+        method: txn?.paymentMethod === 'cash' ? 'naqd' : 'karta',
+        amount: olympiadPrice,
+        status: 'muvaffaqiyatli',
+        transactionRef: txn?.id || `PAYX-${Date.now()}`
+      });
+
+      useOlympiadStore.getState().updateOlympiad(id, {
+        registeredCount: (olympiad?.participantsCount || 0) + 1
+      });
+    }
+    setIsPaymentModalOpen(false);
+    confetti({ particleCount: 70, spread: 70 });
+    setCurrentStep('exam_briefing');
   };
 
   const startContest = useContestStore((state) => state.startContest);
@@ -632,14 +679,14 @@ export const ContestParticipatePage: React.FC = () => {
                   </div>
                   <div className="p-3 rounded-xl bg-[#091124] border border-blue-900/40 space-y-1">
                     <div className="text-[10px] text-slate-400 uppercase font-bold">Ishtirok Narxi</div>
-                    <div className="font-bold text-emerald-400 text-sm">
-                      {(olympiad as any)?.price ? `${(olympiad as any).price.toLocaleString()} UZS` : 'BEPUL (Open Access)'}
+                    <div className={clsx("font-bold text-sm font-mono", isFree ? "text-emerald-400" : isPaid ? "text-cyan-300" : "text-amber-400")}>
+                      {isFree ? 'BEPUL (Open Access)' : isPaid ? `${olympiadPrice.toLocaleString()} UZS (To'langan ✓)` : `${olympiadPrice.toLocaleString()} UZS`}
                     </div>
                   </div>
                   <div className="p-3 rounded-xl bg-[#091124] border border-blue-900/40 space-y-1">
                     <div className="text-[10px] text-slate-400 uppercase font-bold">Holati</div>
-                    <div className="font-bold text-cyan-300">
-                      {isRegistered ? 'Ishtirok Tasdiqlangan' : 'Ro\'yxatdan o\'tish zarur'}
+                    <div className={clsx("font-bold text-xs", isRegistered ? "text-emerald-400" : !isFree && !isPaid ? "text-amber-400" : "text-cyan-300")}>
+                      {isRegistered ? 'Ishtirok Tasdiqlangan ✓' : !isFree && !isPaid ? "To'lov qilinmagan" : 'Ro\'yxatdan o\'tish zarur'}
                     </div>
                   </div>
                 </div>
@@ -680,11 +727,25 @@ export const ContestParticipatePage: React.FC = () => {
                       "w-full sm:w-auto text-white font-bold px-8 shadow-lg",
                       !isGradeEligible
                         ? "bg-slate-700 opacity-60 cursor-not-allowed"
+                        : !isFree && !isPaid
+                        ? "bg-gradient-to-r from-emerald-600 via-teal-600 to-indigo-600 hover:from-emerald-500 hover:to-indigo-500 shadow-emerald-500/30 ring-2 ring-emerald-400/30 animate-pulse"
                         : "bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 shadow-blue-500/25"
                     )}
-                    leftIcon={!isGradeEligible ? <AlertTriangle className="w-4 h-4 text-rose-400" /> : <UserPlus className="w-4 h-4" />}
+                    leftIcon={
+                      !isGradeEligible ? (
+                        <AlertTriangle className="w-4 h-4 text-rose-400" />
+                      ) : !isFree && !isPaid ? (
+                        <CreditCard className="w-4 h-4 text-emerald-300" />
+                      ) : (
+                        <UserPlus className="w-4 h-4" />
+                      )
+                    }
                   >
-                    {!isGradeEligible ? "Sinfingizga mos emas" : "Olimpiadaga Ro'yxatdan O'tish 📝"}
+                    {!isGradeEligible
+                      ? "Sinfingizga mos emas"
+                      : !isFree && !isPaid
+                      ? `PayX Bilan To'lov Qilish (${olympiadPrice.toLocaleString()} UZS) 💳`
+                      : "Olimpiadaga Ro'yxatdan O'tish 📝"}
                   </Button>
                 ) : !canAttempt && attemptsUsed > 0 ? (
                   <Link to="/results" className="w-full sm:w-auto">
@@ -1227,6 +1288,16 @@ export const ContestParticipatePage: React.FC = () => {
           </div>
         </div>
       </Modal>
+
+      {/* PayX Merchant Gateway Payment Modal */}
+      <PayxPaymentModal
+        isOpen={isPaymentModalOpen}
+        onClose={() => setIsPaymentModalOpen(false)}
+        amount={olympiadPrice}
+        olympiadTitle={olympiad?.title || 'Olimpiada'}
+        olympiadId={id}
+        onSuccess={handlePaymentSuccess}
+      />
     </div>
   );
 };
