@@ -19,9 +19,10 @@ import { clsx } from 'clsx';
 interface SidebarProps {
   isCollapsed?: boolean;
   onToggleCollapse?: () => void;
+  onCloseMobile?: () => void;
 }
 
-export const Sidebar: React.FC<SidebarProps> = () => {
+export const Sidebar: React.FC<SidebarProps> = ({ onCloseMobile }) => {
   const location = useLocation();
   const { user, logout } = useAuth();
   const [isCollapsed, setIsCollapsed] = useState(false);
@@ -101,6 +102,7 @@ export const Sidebar: React.FC<SidebarProps> = () => {
               <Link
                 key={link.path}
                 to={link.path}
+                onClick={onCloseMobile}
                 title={isCollapsed ? link.label : undefined}
                 className={clsx(
                   "flex items-center gap-3 py-2.5 rounded-lg text-sm font-medium transition-colors duration-150",

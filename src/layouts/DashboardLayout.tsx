@@ -4,7 +4,7 @@ import { Sidebar } from '../components/common/Sidebar';
 import { LanguageSwitcher } from '../components/common/LanguageSwitcher';
 import { Avatar } from '../components/common/Avatar';
 import { useAuth } from '../hooks/useAuth';
-import { User, LogOut, ChevronDown, Award } from 'lucide-react';
+import { User, LogOut, ChevronDown, Award, Menu, X } from 'lucide-react';
 
 interface DashboardLayoutProps {
   children?: React.ReactNode;
@@ -14,6 +14,7 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) =>
   const { user, logout } = useAuth();
   const navigate = useNavigate();
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -39,15 +40,55 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) =>
 
   return (
     <div className="flex h-screen w-screen overflow-hidden bg-[#0B1120] text-[#F1F5F9] font-sans">
-      {/* 260px Unified Dark Sidebar */}
-      <Sidebar />
+      {/* Desktop Sidebar (visible on lg screens) */}
+      <div className="hidden lg:block shrink-0 h-full">
+        <Sidebar />
+      </div>
+
+      {/* Mobile Drawer (visible on mobile / tablet when opened) */}
+      {isMobileMenuOpen && (
+        <div className="fixed inset-0 z-50 lg:hidden flex">
+          {/* Backdrop overlay */}
+          <div
+            className="fixed inset-0 bg-black/80 backdrop-blur-xs transition-opacity"
+            onClick={() => setIsMobileMenuOpen(false)}
+          />
+
+          {/* Slide-over sidebar container */}
+          <div className="relative z-10 w-[280px] max-w-[85vw] h-full bg-[#0B1120] shadow-2xl flex flex-col">
+            <div className="p-3 flex justify-end border-b border-[#1E293B]">
+              <button
+                type="button"
+                onClick={() => setIsMobileMenuOpen(false)}
+                className="w-8 h-8 rounded-lg bg-[#111827] text-slate-400 hover:text-white flex items-center justify-center border border-[#1E293B]"
+                aria-label="Close menu"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="flex-1 overflow-y-auto">
+              <Sidebar onCloseMobile={() => setIsMobileMenuOpen(false)} />
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Main Content Area */}
       <div className="flex-1 flex flex-col h-screen overflow-y-auto min-w-0 bg-[#0B1120] custom-scrollbar">
         {/* Top bar (64px) */}
-        <header className="sticky top-0 z-20 h-16 bg-[#0B1120] border-b border-[#1E293B] px-6 flex items-center justify-between shrink-0">
+        <header className="sticky top-0 z-20 h-16 bg-[#0B1120] border-b border-[#1E293B] px-4 sm:px-6 flex items-center justify-between shrink-0">
           <div className="flex items-center gap-3">
-            <span className="text-sm font-semibold text-[#F1F5F9]">
+            {/* Hamburger button for mobile */}
+            <button
+              type="button"
+              onClick={() => setIsMobileMenuOpen(true)}
+              className="lg:hidden w-9 h-9 rounded-lg bg-[#111827] text-[#94A3B8] hover:text-[#F1F5F9] border border-[#1E293B] flex items-center justify-center transition-colors cursor-pointer"
+              aria-label="Open sidebar menu"
+            >
+              <Menu className="w-5 h-5 text-[#3B82F6]" />
+            </button>
+
+            <span className="text-sm font-semibold text-[#F1F5F9] truncate">
               Next Olymp Dashboard
             </span>
           </div>
@@ -131,7 +172,7 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) =>
         </header>
 
         {/* Dynamic Page Content */}
-        <main className="p-6 md:p-8 max-w-7xl w-full mx-auto flex-1">
+        <main className="p-3 sm:p-5 md:p-8 max-w-7xl w-full mx-auto flex-1">
           {children || <Outlet />}
         </main>
       </div>
