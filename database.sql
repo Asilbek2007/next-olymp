@@ -17,11 +17,13 @@ DROP TABLE IF EXISTS `users`;
 
 -- 1. Foydalanuvchilar va rollar
 CREATE TABLE `users` (
-    `id` INT AUTO_INCREMENT PRIMARY KEY,
+    `id` VARCHAR(64) PRIMARY KEY,
     `full_name` VARCHAR(150) NOT NULL,
+    `fullName` VARCHAR(150) DEFAULT NULL,
     `phone` VARCHAR(30) UNIQUE NOT NULL,
     `email` VARCHAR(191) NULL,
     `password_hash` VARCHAR(255) NOT NULL,
+    `password` VARCHAR(255) DEFAULT NULL,
     `role` ENUM('student', 'teacher', 'admin') DEFAULT 'student',
     `region` VARCHAR(100) DEFAULT '',
     `district` VARCHAR(100) DEFAULT '',
@@ -29,38 +31,59 @@ CREATE TABLE `users` (
     `grade` INT DEFAULT 9,
     `score` INT DEFAULT 0,
     `avatar_url` TEXT DEFAULT NULL,
+    `avatarUrl` TEXT DEFAULT NULL,
     `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- 2. Olimpiadalar va Milliy imtihonlar
 CREATE TABLE `olympiads` (
-    `id` INT AUTO_INCREMENT PRIMARY KEY,
+    `id` VARCHAR(64) PRIMARY KEY,
     `title` VARCHAR(255) NOT NULL,
-    `category` VARCHAR(100) NOT NULL, -- Masalan: 'english', 'math', 'national_exam'
+    `category` VARCHAR(100) DEFAULT 'math',
+    `subject` VARCHAR(100) DEFAULT 'Matematika',
+    `format` VARCHAR(32) DEFAULT 'online',
     `description` TEXT DEFAULT NULL,
-    `start_time` DATETIME NOT NULL,
-    `end_time` DATETIME NOT NULL,
+    `image` TEXT DEFAULT NULL,
+    `start_time` DATETIME DEFAULT CURRENT_TIMESTAMP,
+    `end_time` DATETIME DEFAULT CURRENT_TIMESTAMP,
+    `startDate` VARCHAR(64) DEFAULT NULL,
+    `endDate` VARCHAR(64) DEFAULT NULL,
     `duration_minutes` INT DEFAULT 60,
+    `durationMinutes` INT DEFAULT 60,
     `price` DECIMAL(10, 2) DEFAULT 0.00,
-    `status` ENUM('upcoming', 'active', 'finished') DEFAULT 'upcoming',
+    `status` VARCHAR(32) DEFAULT 'ochiq',
+    `isPinned` BOOLEAN DEFAULT FALSE,
     `max_score` INT DEFAULT 100,
+    `maxScore` INT DEFAULT 100,
     `total_questions` INT DEFAULT 25,
+    `totalQuestions` INT DEFAULT 25,
+    `registeredCount` INT DEFAULT 0,
+    `submittedCount` INT DEFAULT 0,
+    `paidCount` INT DEFAULT 0,
+    `totalRevenue` DECIMAL(10, 2) DEFAULT 0.00,
+    `organizer` VARCHAR(150) DEFAULT 'NextOlymp Kengashi',
     `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- 3. Savollar ombori
 CREATE TABLE `questions` (
-    `id` INT AUTO_INCREMENT PRIMARY KEY,
-    `olympiad_id` INT NOT NULL,
+    `id` VARCHAR(64) PRIMARY KEY,
+    `olympiad_id` VARCHAR(64) NOT NULL,
+    `olympiadId` VARCHAR(64) DEFAULT NULL,
     `question_text` TEXT NOT NULL,
-    `option_a` VARCHAR(255) NOT NULL,
-    `option_b` VARCHAR(255) NOT NULL,
-    `option_c` VARCHAR(255) NOT NULL,
-    `option_d` VARCHAR(255) NOT NULL,
-    `correct_option` CHAR(1) NOT NULL,
+    `content` TEXT DEFAULT NULL,
+    `option_a` VARCHAR(255) DEFAULT '',
+    `option_b` VARCHAR(255) DEFAULT '',
+    `option_c` VARCHAR(255) DEFAULT '',
+    `option_d` VARCHAR(255) DEFAULT '',
+    `options` LONGTEXT DEFAULT NULL,
+    `correct_option` CHAR(1) DEFAULT 'A',
+    `correctAnswer` VARCHAR(32) DEFAULT 'A',
     `difficulty_level` DECIMAL(4, 2) DEFAULT 0.00, -- Rasch modeli qiyinlik darajasi (b_i)
+    `points` INT DEFAULT 4,
+    `orderNum` INT DEFAULT 1,
     `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     INDEX (`olympiad_id`),
     CONSTRAINT `fk_questions_olympiad` FOREIGN KEY (`olympiad_id`) REFERENCES `olympiads`(`id`) ON DELETE CASCADE
@@ -68,14 +91,22 @@ CREATE TABLE `questions` (
 
 -- 4. Test topshirish natijalari va Rasch bali
 CREATE TABLE `submissions` (
-    `id` INT AUTO_INCREMENT PRIMARY KEY,
-    `user_id` INT NOT NULL,
-    `olympiad_id` INT NOT NULL,
+    `id` VARCHAR(64) PRIMARY KEY,
+    `user_id` VARCHAR(64) NOT NULL,
+    `userId` VARCHAR(64) DEFAULT NULL,
+    `userName` VARCHAR(255) DEFAULT NULL,
+    `olympiad_id` VARCHAR(64) NOT NULL,
+    `olympiadId` VARCHAR(64) DEFAULT NULL,
+    `olympiadTitle` VARCHAR(255) DEFAULT NULL,
     `score` INT DEFAULT 0,
-    `total_questions` INT DEFAULT 0,
+    `total_questions` INT DEFAULT 25,
+    `maxScore` INT DEFAULT 100,
+    `percentage` INT DEFAULT 0,
     `rasch_theta` DECIMAL(5, 2) DEFAULT 0.00, -- Rasch modeli qobiliyat darajasi (theta)
     `answers_json` LONGTEXT DEFAULT NULL,
-    `status` ENUM('in_progress', 'completed', 'disqualified') DEFAULT 'in_progress',
+    `answers` LONGTEXT DEFAULT NULL,
+    `timeSpentMinutes` INT DEFAULT 0,
+    `status` VARCHAR(32) DEFAULT 'completed',
     `started_at` DATETIME DEFAULT CURRENT_TIMESTAMP,
     `submitted_at` DATETIME NULL,
     INDEX (`user_id`),
@@ -87,7 +118,9 @@ CREATE TABLE `submissions` (
 -- 5. Kiberxavfsizlik va Anti-Cheat jurnali (Logs)
 CREATE TABLE `security_logs` (
     `id` INT AUTO_INCREMENT PRIMARY KEY,
-    `user_id` INT NULL,
+    `user_id` VARCHAR(64) NULL,
+    `studentId` VARCHAR(64) NULL,
+    `studentName` VARCHAR(255) NULL,
     `ip_address` VARCHAR(45) NOT NULL,
     `event_type` VARCHAR(100) NOT NULL, -- 'tab_switch', 'copy_attempt', 'brute_force', 'rate_limit'
     `details` TEXT NULL,
@@ -99,8 +132,8 @@ CREATE TABLE `security_logs` (
 -- 6. To'lovlar (Payme / Click / Uzum)
 CREATE TABLE `payments` (
     `id` INT AUTO_INCREMENT PRIMARY KEY,
-    `user_id` INT NOT NULL,
-    `olympiad_id` INT NOT NULL,
+    `user_id` VARCHAR(64) NOT NULL,
+    `olympiad_id` VARCHAR(64) NOT NULL,
     `amount` DECIMAL(10, 2) NOT NULL,
     `provider` ENUM('click', 'payme', 'uzum') NOT NULL,
     `status` ENUM('pending', 'paid', 'failed') DEFAULT 'pending',
@@ -115,7 +148,7 @@ CREATE TABLE `payments` (
 -- 7. Xabarnomalar (Notifications)
 CREATE TABLE `notifications` (
     `id` INT AUTO_INCREMENT PRIMARY KEY,
-    `user_id` INT NULL, -- NULL bo'lsa barcha foydalanuvchilar uchun
+    `user_id` VARCHAR(64) NULL, -- NULL bo'lsa barcha foydalanuvchilar uchun
     `title` VARCHAR(255) NOT NULL,
     `message` TEXT NOT NULL,
     `is_read` BOOLEAN DEFAULT FALSE,

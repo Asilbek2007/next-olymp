@@ -1,159 +1,215 @@
 <?php
 // ==========================================================
-// NextOlymp — Olympiads & Questions API
+// NextOlymp — Olympiads & Questions API (api/olympiads.php)
 // ==========================================================
 
-require_once __DIR__ . '/config.php';
+require_once __DIR__ . '/db.php';
 
 $method = $_SERVER['REQUEST_METHOD'];
 
+// ─────────────────────────────────────────────────────────────
+// 1. GET: Fetch all olympiads with attached questions
+// ─────────────────────────────────────────────────────────────
 if ($method === 'GET') {
-    // Return all olympiads with their associated questions
-    $stmt = $pdo->query("SELECT * FROM `olympiads` ORDER BY `createdAt` DESC");
-    $olympiads = $stmt->fetchAll();
+    try {
+        $stmt = $pdo->query("SELECT * FROM `olympiads` ORDER BY `id` DESC");
+        $olympiads = $stmt->fetchAll();
 
-    foreach ($olympiads as &$olymp) {
-        $olymp['targetGrades'] = !empty($olymp['targetGrades']) ? json_decode($olymp['targetGrades'], true) : [5,6,7,8,9,10,11];
-        $olymp['allowedLanguages'] = !empty($olymp['allowedLanguages']) ? json_decode($olymp['allowedLanguages'], true) : ["O'zbek tili", "Rus tili", "Ingliz tili"];
-        $olymp['retakeAllowed'] = (bool)$olymp['retakeAllowed'];
-        $olymp['isFree'] = (bool)$olymp['isFree'];
-        $olymp['durationMinutes'] = (int)$olymp['durationMinutes'];
-        $olymp['totalQuestions'] = (int)$olymp['totalQuestions'];
-        $olymp['maxScore'] = (int)$olymp['maxScore'];
-        $olymp['registeredCount'] = (int)$olymp['registeredCount'];
-        $olymp['maxRetakeAttempts'] = (int)$olymp['maxRetakeAttempts'];
+        foreach ($olympiads as &$olymp) {
+            $olymp['id'] = (string)$olymp['id'];
+            $olymp['title'] = $olymp['title'] ?? 'Olimpiada';
+            $olymp['subject'] = $olymp['subject'] ?? ($olymp['category'] ?? 'Matematika');
+            $olymp['category'] = $olymp['category'] ?? ($olymp['subject'] ?? 'math');
+            $olymp['format'] = $olymp['format'] ?? 'online';
+            $olymp['price'] = (float)($olymp['price'] ?? 0);
+            $olymp['status'] = in_array($olymp['status'] ?? '', ['ochiq', 'yopiq']) ? $olymp['status'] : ($olymp['status'] === 'active' ? 'ochiq' : 'yopiq');
+            $olymp['startDate'] = $olymp['startDate'] ?? ($olymp['start_time'] ?? date('Y-m-d H:i'));
+            $olymp['endDate'] = $olymp['endDate'] ?? ($olymp['end_time'] ?? date('Y-m-d H:i', time() + 7 * 86400));
+            $olymp['durationMinutes'] = (int)($olymp['durationMinutes'] ?? ($olymp['duration_minutes'] ?? 60));
+            $olymp['maxScore'] = (int)($olymp['maxScore'] ?? ($olymp['max_score'] ?? 100));
+            $olymp['totalQuestions'] = (int)($olymp['totalQuestions'] ?? ($olymp['total_questions'] ?? 25));
+            $olymp['registeredCount'] = (int)($olymp['registeredCount'] ?? 0);
+            $olymp['submittedCount'] = (int)($olymp['submittedCount'] ?? 0);
+            $olymp['paidCount'] = (int)($olymp['paidCount'] ?? 0);
+            $olymp['totalRevenue'] = (float)($olymp['totalRevenue'] ?? 0);
+            $olymp['isPinned'] = !empty($olymp['isPinned']);
+            $olymp['description'] = $olymp['description'] ?? '';
+            $olymp['organizer'] = $olymp['organizer'] ?? 'NextOlymp Kengashi';
+            $olymp['image'] = $olymp['image'] ?? 'https://images.unsplash.com/photo-1635070041078-e363dbe005cb?auto=format&fit=crop&w=600&q=80';
 
-        // Fetch questions for this olympiad
-        $qStmt = $pdo->prepare("SELECT * FROM `questions` WHERE `olympiadId` = ? ORDER BY `orderNum` ASC");
-        $qStmt->execute([$olymp['id']]);
-        $questions = $qStmt->fetchAll();
-
-        foreach ($questions as &$q) {
-            $q['options'] = !empty($q['options']) ? json_decode($q['options'], true) : [];
-            $q['optionImages'] = !empty($q['optionImages']) ? json_decode($q['optionImages'], true) : [];
-            $q['points'] = (int)$q['points'];
-            $q['order'] = (int)$q['orderNum'];
+            // Fetch questions
+            try {
+                $qStmt = $pdo->prepare("SELECT * FROM `questions` WHERE `olympiad_id` = ? OR `olympiadId` = ?");
+                $qStmt->execute([$olymp['id'], $olymp['id']]);
+                $rawQuestions = $qStmt->fetchAll();
+                $questions = [];
+                foreach ($rawQuestions as $rq) {
+                    $optArr = !empty($rq['options']) ? (is_string($rq['options']) ? json_decode($rq['options'], true) : $rq['options']) : [$rq['option_a'] ?? '', $rq['option_b'] ?? '', $rq['option_c'] ?? '', $rq['option_d'] ?? ''];
+                    $questions[] = [
+                        'id' => (string)$rq['id'],
+                        'olympiadId' => (string)$olymp['id'],
+                        'question_text' => $rq['question_text'] ?? ($rq['content'] ?? ''),
+                        'text' => $rq['question_text'] ?? ($rq['content'] ?? ''),
+                        'content' => $rq['content'] ?? ($rq['question_text'] ?? ''),
+                        'option_a' => $rq['option_a'] ?? ($optArr[0] ?? ''),
+                        'option_b' => $rq['option_b'] ?? ($optArr[1] ?? ''),
+                        'option_c' => $rq['option_c'] ?? ($optArr[2] ?? ''),
+                        'option_d' => $rq['option_d'] ?? ($optArr[3] ?? ''),
+                        'options' => $optArr,
+                        'correct_option' => $rq['correct_option'] ?? ($rq['correctAnswer'] ?? 'A'),
+                        'correctAnswer' => $rq['correctAnswer'] ?? ($rq['correct_option'] ?? 'A'),
+                        'difficulty_level' => (float)($rq['difficulty_level'] ?? 0.0),
+                        'points' => (int)($rq['points'] ?? 4)
+                    ];
+                }
+                $olymp['questions'] = $questions;
+            } catch (Exception $qe) {
+                $olymp['questions'] = [];
+            }
         }
-        $olymp['questions'] = $questions;
-    }
 
-    echo json_encode(['status' => 'success', 'data' => $olympiads]);
-    exit;
+        echo json_encode(['status' => 'success', 'data' => $olympiads]);
+        exit;
+    } catch (Exception $e) {
+        http_response_code(500);
+        echo json_encode(['status' => 'error', 'message' => $e->getMessage()]);
+        exit;
+    }
 }
 
+// ─────────────────────────────────────────────────────────────
+// 2. POST: Create or Update an olympiad
+// ─────────────────────────────────────────────────────────────
 if ($method === 'POST') {
     $raw = file_get_contents('php://input');
     $data = json_decode($raw, true);
 
     if (empty($data['id']) || empty($data['title'])) {
         http_response_code(400);
-        echo json_encode(['status' => 'error', 'message' => 'Missing required fields (id, title)']);
+        echo json_encode(['status' => 'error', 'message' => 'ID va Sarlavha talab qilinadi (id, title)']);
         exit;
     }
 
-    $id = $data['id'];
-    $title = $data['title'];
-    $subject = $data['subject'] ?? 'math';
+    $id = (string)$data['id'];
+    $title = trim($data['title']);
+    $category = $data['category'] ?? ($data['subject'] ?? 'math');
+    $subject = $data['subject'] ?? ($data['category'] ?? 'Matematika');
+    $format = $data['format'] ?? 'online';
     $description = $data['description'] ?? '';
-    $startDate = $data['startDate'] ?? date('Y-m-d H:i:s');
-    $endDate = $data['endDate'] ?? date('Y-m-d H:i:s', time() + 7 * 86400);
-    $durationMinutes = (int)($data['durationMinutes'] ?? 60);
-    $totalQuestions = (int)($data['questionsCount'] ?? (isset($data['questions']) ? count($data['questions']) : 25));
-    $maxScore = (int)($data['maxScore'] ?? 100);
-    $registeredCount = (int)($data['registeredCount'] ?? 0);
-    $retakeAllowed = !empty($data['retakeAllowed']) ? 1 : 0;
-    $maxRetakeAttempts = (int)($data['maxRetakeAttempts'] ?? 2);
-    $targetGrades = json_encode($data['targetGrades'] ?? [5,6,7,8,9,10,11]);
-    $allowedLanguages = json_encode($data['allowedLanguages'] ?? ["O'zbek tili", "Rus tili", "Ingliz tili"]);
-    $isFree = !empty($data['isFree']) ? 1 : 0;
-    $price = (int)($data['price'] ?? 0);
+    $image = $data['image'] ?? 'https://images.unsplash.com/photo-1635070041078-e363dbe005cb?auto=format&fit=crop&w=600&q=80';
+    $startDate = $data['startDate'] ?? ($data['start_time'] ?? date('Y-m-d H:i:s'));
+    $endDate = $data['endDate'] ?? ($data['end_time'] ?? date('Y-m-d H:i:s', time() + 7 * 86400));
+    $durationMinutes = (int)($data['durationMinutes'] ?? ($data['duration_minutes'] ?? 60));
+    $price = (float)($data['price'] ?? 0);
     $status = $data['status'] ?? 'ochiq';
-    $organizer = $data['organizer'] ?? 'Next Olymp Hakamlar Hay\'ati';
-    $antiCheatConfig = isset($data['antiCheatConfig']) ? json_encode($data['antiCheatConfig']) : null;
-    $createdAt = $data['createdAt'] ?? date('Y-m-d H:i:s');
+    $isPinned = !empty($data['isPinned']) ? 1 : 0;
+    $maxScore = (int)($data['maxScore'] ?? ($data['max_score'] ?? 100));
+    $totalQuestions = (int)($data['totalQuestions'] ?? ($data['total_questions'] ?? (isset($data['questions']) ? count($data['questions']) : 25)));
+    $registeredCount = (int)($data['registeredCount'] ?? 0);
+    $submittedCount = (int)($data['submittedCount'] ?? 0);
+    $paidCount = (int)($data['paidCount'] ?? 0);
+    $totalRevenue = (float)($data['totalRevenue'] ?? 0);
+    $organizer = $data['organizer'] ?? 'NextOlymp Kengashi';
 
-    // UPSERT Olympiad
     $sql = "INSERT INTO `olympiads` (
-        `id`, `title`, `subject`, `description`, `startDate`, `endDate`,
-        `durationMinutes`, `totalQuestions`, `maxScore`, `registeredCount`,
-        `retakeAllowed`, `maxRetakeAttempts`, `targetGrades`, `allowedLanguages`,
-        `isFree`, `price`, `status`, `organizer`, `antiCheatConfig`, `createdAt`
+        `id`, `title`, `category`, `subject`, `format`, `description`, `image`,
+        `start_time`, `end_time`, `startDate`, `endDate`, `duration_minutes`, `durationMinutes`,
+        `price`, `status`, `isPinned`, `max_score`, `maxScore`, `total_questions`, `totalQuestions`,
+        `registeredCount`, `submittedCount`, `paidCount`, `totalRevenue`, `organizer`
     ) VALUES (
-        ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
+        ?, ?, ?, ?, ?, ?, ?,
+        ?, ?, ?, ?, ?, ?,
+        ?, ?, ?, ?, ?, ?, ?,
+        ?, ?, ?, ?, ?
     ) ON DUPLICATE KEY UPDATE
         `title` = VALUES(`title`),
+        `category` = VALUES(`category`),
         `subject` = VALUES(`subject`),
+        `format` = VALUES(`format`),
         `description` = VALUES(`description`),
+        `image` = VALUES(`image`),
+        `start_time` = VALUES(`start_time`),
+        `end_time` = VALUES(`end_time`),
         `startDate` = VALUES(`startDate`),
         `endDate` = VALUES(`endDate`),
+        `duration_minutes` = VALUES(`duration_minutes`),
         `durationMinutes` = VALUES(`durationMinutes`),
-        `totalQuestions` = VALUES(`totalQuestions`),
-        `maxScore` = VALUES(`maxScore`),
-        `registeredCount` = VALUES(`registeredCount`),
-        `retakeAllowed` = VALUES(`retakeAllowed`),
-        `maxRetakeAttempts` = VALUES(`maxRetakeAttempts`),
-        `targetGrades` = VALUES(`targetGrades`),
-        `allowedLanguages` = VALUES(`allowedLanguages`),
-        `isFree` = VALUES(`isFree`),
         `price` = VALUES(`price`),
         `status` = VALUES(`status`),
-        `organizer` = VALUES(`organizer`),
-        `antiCheatConfig` = VALUES(`antiCheatConfig`);";
+        `isPinned` = VALUES(`isPinned`),
+        `max_score` = VALUES(`max_score`),
+        `maxScore` = VALUES(`maxScore`),
+        `total_questions` = VALUES(`total_questions`),
+        `totalQuestions` = VALUES(`totalQuestions`),
+        `registeredCount` = VALUES(`registeredCount`),
+        `submittedCount` = VALUES(`submittedCount`),
+        `paidCount` = VALUES(`paidCount`),
+        `totalRevenue` = VALUES(`totalRevenue`),
+        `organizer` = VALUES(`organizer`)";
 
     $stmt = $pdo->prepare($sql);
     $stmt->execute([
-        $id, $title, $subject, $description, $startDate, $endDate,
-        $durationMinutes, $totalQuestions, $maxScore, $registeredCount,
-        $retakeAllowed, $maxRetakeAttempts, $targetGrades, $allowedLanguages,
-        $isFree, $price, $status, $organizer, $antiCheatConfig, $createdAt
+        $id, $title, $category, $subject, $format, $description, $image,
+        $startDate, $endDate, $startDate, $endDate, $durationMinutes, $durationMinutes,
+        $price, $status, $isPinned, $maxScore, $maxScore, $totalQuestions, $totalQuestions,
+        $registeredCount, $submittedCount, $paidCount, $totalRevenue, $organizer
     ]);
 
-    // Save Questions if provided
-    if (isset($data['questions']) && is_array($data['questions'])) {
-        // Delete old questions for clean replace
-        $del = $pdo->prepare("DELETE FROM `questions` WHERE `olympiadId` = ?");
-        $del->execute([$id]);
+    // Save questions if passed
+    if (isset($data['questions']) && is_array($data['questions']) && count($data['questions']) > 0) {
+        $del = $pdo->prepare("DELETE FROM `questions` WHERE `olympiad_id` = ? OR `olympiadId` = ?");
+        $del->execute([$id, $id]);
 
         $qInsert = $pdo->prepare("INSERT INTO `questions` (
-            `id`, `olympiadId`, `roundId`, `type`, `content`, `imageUrl`,
-            `options`, `optionImages`, `correctAnswer`, `points`, `orderNum`
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
+            `id`, `olympiad_id`, `olympiadId`, `question_text`, `content`,
+            `option_a`, `option_b`, `option_c`, `option_d`, `options`,
+            `correct_option`, `correctAnswer`, `difficulty_level`, `points`, `orderNum`
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
 
         $order = 1;
         foreach ($data['questions'] as $q) {
-            $qId = $q['id'] ?? "q_{$id}_{$order}";
-            $roundId = $q['roundId'] ?? 'r1';
-            $type = $q['type'] ?? 'multiple_choice';
-            $content = $q['content'] ?? ($q['text'] ?? "Savol #{$order}");
-            $imageUrl = $q['imageUrl'] ?? null;
-            $options = json_encode($q['options'] ?? []);
-            $optionImages = json_encode($q['optionImages'] ?? []);
-            $correctAnswer = $q['correctAnswer'] ?? 'A';
+            $qId = (string)($q['id'] ?? "q_{$id}_{$order}");
+            $qText = $q['question_text'] ?? ($q['content'] ?? ($q['text'] ?? "Savol #{$order}"));
+            $opts = $q['options'] ?? [$q['option_a'] ?? '', $q['option_b'] ?? '', $q['option_c'] ?? '', $q['option_d'] ?? ''];
+            $optA = $q['option_a'] ?? ($opts[0] ?? '');
+            $optB = $q['option_b'] ?? ($opts[1] ?? '');
+            $optC = $q['option_c'] ?? ($opts[2] ?? '');
+            $optD = $q['option_d'] ?? ($opts[3] ?? '');
+            $correct = $q['correct_option'] ?? ($q['correctAnswer'] ?? 'A');
+            $diff = (float)($q['difficulty_level'] ?? 0.0);
             $points = (int)($q['points'] ?? 4);
 
             $qInsert->execute([
-                $qId, $id, $roundId, $type, $content, $imageUrl,
-                $options, $optionImages, $correctAnswer, $points, $order
+                $qId, $id, $id, $qText, $qText,
+                $optA, $optB, $optC, $optD, json_encode($opts),
+                $correct, $correct, $diff, $points, $order
             ]);
             $order++;
         }
     }
 
-    echo json_encode(['status' => 'success', 'message' => 'Olympiad saved to MySQL', 'id' => $id]);
+    echo json_encode([
+        'status' => 'success',
+        'message' => 'Olimpiada MySQL bazasiga muvaffaqiyatli saqlandi',
+        'id' => $id
+    ]);
     exit;
 }
 
+// ─────────────────────────────────────────────────────────────
+// 3. DELETE: Delete olympiad
+// ─────────────────────────────────────────────────────────────
 if ($method === 'DELETE') {
     $id = $_GET['id'] ?? null;
     if (!$id) {
         http_response_code(400);
-        echo json_encode(['status' => 'error', 'message' => 'ID is required']);
+        echo json_encode(['status' => 'error', 'message' => 'ID talab qilinadi']);
         exit;
     }
 
     $stmt = $pdo->prepare("DELETE FROM `olympiads` WHERE `id` = ?");
     $stmt->execute([$id]);
 
-    echo json_encode(['status' => 'success', 'message' => 'Olympiad deleted from MySQL']);
+    echo json_encode(['status' => 'success', 'message' => 'Olimpiada MySQL bazasidan o\'chirildi']);
     exit;
 }
