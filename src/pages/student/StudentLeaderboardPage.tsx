@@ -15,6 +15,7 @@ import {
 import { clsx } from 'clsx';
 import * as XLSX from 'xlsx';
 import { INITIAL_LEADERBOARD_ENTRIES, LeaderboardUserEntry } from '../../data/initialLeaderboard';
+import { submissionService } from '../../services/submissionService';
 
 const UZBEKISTAN_REGIONS = [
   'Toshkent shahri',
@@ -44,7 +45,7 @@ export const StudentLeaderboardPage: React.FC = () => {
   const [gradeFilter, setGradeFilter] = useState<'all' | number>('all');
   const [limitMode, setLimitMode] = useState<'top20' | 'top50' | 'all'>('top20');
 
-  // Current logged in user entry (100% dynamic, bound to authenticated user)
+  // Current logged in user entry (100% dynamic, real submissions based, starting from 0 XP)
   const userEntry: LeaderboardUserEntry | null = useMemo(() => {
     if (!user) return entries[0] || null;
 
@@ -56,10 +57,17 @@ export const StudentLeaderboardPage: React.FC = () => {
       return matched;
     }
 
-    // Dynamically calculate standing for logged-in user
-    const userXP = (user as any).totalXP || (user as any).totalScore || 2450;
+    // Real submissions calculate
+    const realSubs = user.id ? submissionService.getUserSubmissions(user.id) : [];
+    const testsCount = realSubs.length;
+    const userBaseScore = realSubs.reduce((sum, s) => sum + (Number(s.score) || 0), 0);
+    const userXP = realSubs.reduce((sum, s) => sum + (Number(s.score) ? Number(s.score) * 10 : 0), 0);
+    const accuracy = testsCount > 0 
+      ? Math.round(realSubs.reduce((sum, s: any) => sum + (Number(s.percentage) || (s.maxScore ? Math.round((s.score / s.maxScore) * 100) : 0)), 0) / testsCount)
+      : 0;
+
     const userRegion = user.region || 'Toshkent shahri';
-    const userDistrict = user.district || 'Yunusobod tumani';
+    const userDistrict = user.district || 'Mirzo Ulug\'bek tumani';
     const higherNational = entries.filter((e) => e.totalXP > userXP).length;
     const higherRegion = entries.filter((e) => e.region === userRegion && e.totalXP > userXP).length;
     const higherDistrict = entries.filter((e) => e.district === userDistrict && e.totalXP > userXP).length;
@@ -73,25 +81,28 @@ export const StudentLeaderboardPage: React.FC = () => {
       district: userDistrict,
       school: user.school || 'Maktab',
       grade: user.grade || 9,
-      baseScore: userXP,
-      bonusPoints: 100,
+      baseScore: userBaseScore,
+      bonusPoints: 0,
       cheatingPenalty: 0,
-      totalXP: userXP + 100,
-      accuracyRate: 95,
-      nationalRank: higherNational + 1,
-      regionRank: higherRegion + 1,
-      districtRank: higherDistrict + 1,
-      testsCompletedCount: 5,
+      totalXP: userXP,
+      accuracyRate: accuracy,
+      nationalRank: userXP > 0 ? higherNational + 1 : entries.length + 1,
+      regionRank: userXP > 0 ? higherRegion + 1 : higherRegion + 1,
+      districtRank: userXP > 0 ? higherDistrict + 1 : higherDistrict + 1,
+      testsCompletedCount: testsCount,
       lastActive: 'Hozir'
     };
   }, [user, entries]);
 
-  // Combined entries including current user if not already in store
+  // Combined entries including current user if they have participated in tests or exist in store
   const allEntriesWithUser = useMemo(() => {
     if (!user || !userEntry) return entries;
     const exists = entries.some((e) => e.userId === user.id || e.userName.toLowerCase() === user.fullName.toLowerCase());
     if (exists) return entries;
-    return [userEntry, ...entries].sort((a, b) => b.totalXP - a.totalXP);
+    if (userEntry.totalXP > 0 || userEntry.testsCompletedCount > 0) {
+      return [userEntry, ...entries].sort((a, b) => b.totalXP - a.totalXP);
+    }
+    return entries;
   }, [entries, user, userEntry]);
 
   // Handle Tab Switch with Automatic Filter Alignment
