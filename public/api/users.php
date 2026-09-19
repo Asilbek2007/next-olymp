@@ -1,43 +1,90 @@
 <?php
 // ==========================================================
-// NextOlymp — Users API (api/users.php)
+// NextOlymp — Users Management API (api/users.php)
 // ==========================================================
 
 require_once __DIR__ . '/db.php';
 
 $method = $_SERVER['REQUEST_METHOD'];
 
+// ─────────────────────────────────────────────────────────────
+// 1. GET: Fetch user(s)
+// ─────────────────────────────────────────────────────────────
 if ($method === 'GET') {
     $id = $_GET['id'] ?? null;
-    if ($id) {
-        $stmt = $pdo->prepare("SELECT `id`, `email`, `phone`, `fullName`, `name`, `score`, `role`, `gender`, `grade`, `region`, `district`, `school`, `avatarUrl`, `parentConsent`, `createdAt` FROM `users` WHERE `id` = ?");
-        $stmt->execute([$id]);
-        $user = $stmt->fetch();
-        if ($user) {
-            $user['score'] = (int)($user['score'] ?? 0);
-            $user['grade'] = $user['grade'] !== null ? (int)$user['grade'] : null;
-            $user['parentConsent'] = (bool)$user['parentConsent'];
-            echo json_encode(['status' => 'success', 'data' => $user]);
-        } else {
-            http_response_code(404);
-            echo json_encode(['status' => 'error', 'message' => 'Foydalanuvchi topilmadi']);
+
+    try {
+        if ($id) {
+            $stmt = $pdo->prepare("SELECT * FROM `users` WHERE `id` = ?");
+            $stmt->execute([$id]);
+            $u = $stmt->fetch();
+            if ($u) {
+                $clean = [
+                    'id' => (string)$u['id'],
+                    'fullName' => $u['full_name'] ?? ($u['fullName'] ?? ($u['name'] ?? 'Foydalanuvchi')),
+                    'full_name' => $u['full_name'] ?? ($u['fullName'] ?? 'Foydalanuvchi'),
+                    'email' => $u['email'] ?? '',
+                    'phone' => $u['phone'] ?? '',
+                    'role' => $u['role'] ?? 'student',
+                    'gender' => $u['gender'] ?? 'male',
+                    'grade' => isset($u['grade']) ? (int)$u['grade'] : 9,
+                    'score' => (int)($u['score'] ?? 0),
+                    'region' => $u['region'] ?: 'Toshkent shahri',
+                    'district' => $u['district'] ?: '',
+                    'school' => $u['school'] ?: '',
+                    'package' => $u['package'] ?? 'Bepul',
+                    'status' => $u['status'] ?? 'active',
+                    'avatarUrl' => $u['avatar_url'] ?? ($u['avatarUrl'] ?? 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150&auto=format&fit=crop&q=80'),
+                    'createdAt' => $u['created_at'] ?? ($u['createdAt'] ?? date('Y-m-d')),
+                    'created_at' => $u['created_at'] ?? date('Y-m-d')
+                ];
+                echo json_encode(['status' => 'success', 'data' => $clean]);
+            } else {
+                http_response_code(404);
+                echo json_encode(['status' => 'error', 'message' => 'Foydalanuvchi topilmadi']);
+            }
+            exit;
         }
+
+        $stmt = $pdo->query("SELECT * FROM `users` ORDER BY `id` DESC");
+        $rawUsers = $stmt->fetchAll();
+        $users = [];
+
+        foreach ($rawUsers as $u) {
+            $users[] = [
+                'id' => (string)$u['id'],
+                'fullName' => $u['full_name'] ?? ($u['fullName'] ?? ($u['name'] ?? 'Ishtirokchi')),
+                'full_name' => $u['full_name'] ?? ($u['fullName'] ?? 'Ishtirokchi'),
+                'email' => $u['email'] ?? '',
+                'phone' => $u['phone'] ?? '+998 90 123 45 67',
+                'role' => $u['role'] ?? 'student',
+                'gender' => $u['gender'] ?? 'male',
+                'grade' => isset($u['grade']) ? (int)$u['grade'] : 9,
+                'score' => (int)($u['score'] ?? 0),
+                'region' => $u['region'] ?: 'Toshkent shahri',
+                'district' => $u['district'] ?: 'Yunusobod tumani',
+                'school' => $u['school'] ?: 'Prezident maktabi',
+                'package' => $u['package'] ?? 'Bepul',
+                'status' => $u['status'] ?? 'active',
+                'avatarUrl' => $u['avatar_url'] ?? ($u['avatarUrl'] ?? 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150&auto=format&fit=crop&q=80'),
+                'createdAt' => $u['created_at'] ?? ($u['createdAt'] ?? date('Y-m-d')),
+                'created_at' => $u['created_at'] ?? date('Y-m-d'),
+                'participationCount' => (int)($u['participationCount'] ?? 0)
+            ];
+        }
+
+        echo json_encode(['status' => 'success', 'data' => $users]);
+        exit;
+    } catch (Exception $e) {
+        http_response_code(500);
+        echo json_encode(['status' => 'error', 'message' => $e->getMessage()]);
         exit;
     }
-
-    $stmt = $pdo->query("SELECT `id`, `email`, `phone`, `fullName`, `name`, `score`, `role`, `gender`, `grade`, `region`, `district`, `school`, `avatarUrl`, `parentConsent`, `createdAt` FROM `users` ORDER BY `createdAt` DESC");
-    $users = $stmt->fetchAll();
-
-    foreach ($users as &$u) {
-        $u['score'] = (int)($u['score'] ?? 0);
-        $u['grade'] = $u['grade'] !== null ? (int)$u['grade'] : null;
-        $u['parentConsent'] = (bool)$u['parentConsent'];
-    }
-
-    echo json_encode($users);
-    exit;
 }
 
+// ─────────────────────────────────────────────────────────────
+// 2. POST: Create or Update User
+// ─────────────────────────────────────────────────────────────
 if ($method === 'POST') {
     $raw = file_get_contents('php://input');
     $data = json_decode($raw, true);
@@ -48,97 +95,74 @@ if ($method === 'POST') {
         exit;
     }
 
-    // Support simple name & score format
-    if (!empty($data['name']) && isset($data['score']) && empty($data['email'])) {
-        $name = trim($data['name']);
-        $score = (int)$data['score'];
-        $id = $data['id'] ?? ('usr_' . time() . '_' . rand(100, 999));
-        $email = $data['email'] ?? ($id . '@nextolymp.uz');
-        $createdAt = date('Y-m-d H:i:s');
-
-        $stmt = $pdo->prepare("INSERT INTO `users` (`id`, `fullName`, `name`, `email`, `score`, `createdAt`) VALUES (?, ?, ?, ?, ?, ?)");
-        $stmt->execute([$id, $name, $name, $email, $score, $createdAt]);
-
-        echo json_encode([
-            'status' => 'success',
-            'id' => $id,
-            'message' => "Natija serverdagi bazaga saqlandi"
-        ]);
-        exit;
-    }
-
-    // Support full user profile format
-    $fullName = trim($data['fullName'] ?? ($data['name'] ?? ''));
+    $fullName = trim($data['fullName'] ?? ($data['full_name'] ?? ($data['name'] ?? '')));
+    $phone = trim($data['phone'] ?? '');
     $email = trim($data['email'] ?? '');
+    $id = (string)($data['id'] ?? ('USR-' . time() . rand(10, 99)));
 
-    if (empty($fullName) || empty($email)) {
+    if (empty($fullName)) {
         http_response_code(400);
-        echo json_encode(['status' => 'error', 'message' => "Ma'lumotlar to'liq emas (fullName va email kerak)"]);
+        echo json_encode(['status' => 'error', 'message' => "To'liq ism talab qilinadi"]);
         exit;
     }
 
-    $id = $data['id'] ?? ('usr_' . time() . '_' . rand(100, 999));
-    $phone = $data['phone'] ?? null;
-    $score = (int)($data['score'] ?? 0);
     $role = $data['role'] ?? 'student';
     $gender = $data['gender'] ?? 'male';
-    $grade = isset($data['grade']) ? (int)$data['grade'] : null;
-    $region = $data['region'] ?? null;
-    $district = $data['district'] ?? null;
-    $school = $data['school'] ?? null;
-    $avatarUrl = $data['avatarUrl'] ?? null;
-    $parentConsent = !empty($data['parentConsent']) ? 1 : 1;
-    $createdAt = $data['createdAt'] ?? date('Y-m-d H:i:s');
+    $grade = isset($data['grade']) ? (int)$data['grade'] : 9;
+    $score = (int)($data['score'] ?? 0);
+    $region = $data['region'] ?? 'Toshkent shahri';
+    $district = $data['district'] ?? '';
+    $school = $data['school'] ?? '';
+    $status = $data['status'] ?? 'active';
+    $package = $data['package'] ?? 'Bepul';
+    $password = $data['password'] ?? '123456';
+    $passwordHash = password_hash($password, PASSWORD_BCRYPT);
+    $avatarUrl = $data['avatarUrl'] ?? ($data['avatar_url'] ?? 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150&auto=format&fit=crop&q=80');
+    $createdAt = date('Y-m-d H:i:s');
 
     $sql = "INSERT INTO `users` (
-        `id`, `email`, `phone`, `fullName`, `name`, `score`, `role`, `gender`,
-        `grade`, `region`, `district`, `school`, `avatarUrl`, `parentConsent`, `createdAt`
+        `id`, `full_name`, `fullName`, `phone`, `email`, `password_hash`, `password`,
+        `role`, `gender`, `grade`, `score`, `region`, `district`, `school`,
+        `avatar_url`, `avatarUrl`, `status`, `package`, `created_at`
     ) VALUES (
-        ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
+        ?, ?, ?, ?, ?, ?, ?,
+        ?, ?, ?, ?, ?, ?, ?,
+        ?, ?, ?, ?, ?
     ) ON DUPLICATE KEY UPDATE
-        `phone` = VALUES(`phone`),
+        `full_name` = VALUES(`full_name`),
         `fullName` = VALUES(`fullName`),
-        `name` = VALUES(`name`),
-        `score` = VALUES(`score`),
+        `phone` = VALUES(`phone`),
+        `email` = VALUES(`email`),
         `role` = VALUES(`role`),
         `gender` = VALUES(`gender`),
         `grade` = VALUES(`grade`),
+        `score` = VALUES(`score`),
         `region` = VALUES(`region`),
         `district` = VALUES(`district`),
         `school` = VALUES(`school`),
-        `avatarUrl` = VALUES(`avatarUrl`);";
+        `avatar_url` = VALUES(`avatar_url`),
+        `avatarUrl` = VALUES(`avatarUrl`),
+        `status` = VALUES(`status`),
+        `package` = VALUES(`package`);";
 
     $stmt = $pdo->prepare($sql);
     $stmt->execute([
-        $id, $email, $phone, $fullName, $fullName, $score, $role, $gender,
-        $grade, $region, $district, $school, $avatarUrl, $parentConsent, $createdAt
+        $id, $fullName, $fullName, $phone, $email, $passwordHash, $password,
+        $role, $gender, $grade, $score, $region, $district, $school,
+        $avatarUrl, $avatarUrl, $status, $package, $createdAt
     ]);
 
     echo json_encode([
         'status' => 'success',
-        'message' => "Foydalanuvchi MySQL bazasiga saqlandi",
-        'id' => $id,
-        'user' => [
-            'id' => $id,
-            'email' => $email,
-            'phone' => $phone,
-            'fullName' => $fullName,
-            'name' => $fullName,
-            'score' => $score,
-            'role' => $role,
-            'gender' => $gender,
-            'grade' => $grade,
-            'region' => $region,
-            'district' => $district,
-            'school' => $school,
-            'avatarUrl' => $avatarUrl,
-            'parentConsent' => (bool)$parentConsent,
-            'createdAt' => $createdAt
-        ]
+        'message' => 'Foydalanuvchi MySQL bazasiga saqlandi',
+        'id' => $id
     ]);
     exit;
 }
 
+// ─────────────────────────────────────────────────────────────
+// 3. DELETE: Delete User
+// ─────────────────────────────────────────────────────────────
 if ($method === 'DELETE') {
     $id = $_GET['id'] ?? null;
     if (!$id) {
@@ -149,9 +173,6 @@ if ($method === 'DELETE') {
 
     $stmt = $pdo->prepare("DELETE FROM `users` WHERE `id` = ?");
     $stmt->execute([$id]);
-
-    $delSub = $pdo->prepare("DELETE FROM `submissions` WHERE `userId` = ?");
-    $delSub->execute([$id]);
 
     echo json_encode(['status' => 'success', 'message' => "Foydalanuvchi MySQL bazasidan o'chirildi"]);
     exit;
