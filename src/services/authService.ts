@@ -109,7 +109,54 @@ export const authService = {
       return { user: adminUser, token };
     }
 
-    // STRICT USER/STUDENT DATABASE VERIFICATION (OWASP Secure Login):
+    // 1. Attempt MySQL Real Backend Login
+    try {
+      const res = await fetch('/api/auth.php', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'login',
+          email: params.email.trim(),
+          password: params.password?.trim()
+        })
+      });
+
+      const json = await res.json();
+      if (res.ok && json.status === 'success' && json.user) {
+        const userWithoutSensitiveData: User = json.user;
+        const token = json.token || `jwt-token-${userWithoutSensitiveData.id}-${Date.now()}`;
+
+        localStorage.setItem('next_olymp_jwt', token);
+        localStorage.setItem('next_olymp_user', JSON.stringify(userWithoutSensitiveData));
+        if (userWithoutSensitiveData.role === 'student') {
+          localStorage.setItem('next_olymp_student_user', JSON.stringify(userWithoutSensitiveData));
+        }
+
+        this.saveRegisteredUser({ ...userWithoutSensitiveData, password: params.password });
+        useSecurityStore.getState().recordSuccessfulLogin('127.0.0.1 (MySQL)', params.email, userWithoutSensitiveData.role);
+
+        useNotificationStore.getState().addNotification({
+          title: `${userWithoutSensitiveData.fullName} tizimga kirdi`,
+          desc: `Foydalanuvchi (${userWithoutSensitiveData.email}) tizimga muvaffaqiyatli kirdi`,
+          type: 'info',
+        });
+
+        return { user: userWithoutSensitiveData, token };
+      } else if (json.message) {
+        useSecurityStore.getState().recordFailedLogin(
+          '127.0.0.1 (MySQL)',
+          params.email,
+          json.message
+        );
+        throw new Error(json.message);
+      }
+    } catch (apiErr: any) {
+      if (apiErr.message && (apiErr.message.includes('Login yoki parol') || apiErr.message.includes('topilmadi') || apiErr.message.includes('xato'))) {
+        throw apiErr;
+      }
+    }
+
+    // STRICT USER/STUDENT DATABASE VERIFICATION (Local Fallback):
     const registered = this.getRegisteredUsers();
     const user = registered.find((u) => u.email.toLowerCase().trim() === params.email.toLowerCase().trim());
 
@@ -168,8 +215,51 @@ export const authService = {
   },
 
   async register(params: RegisterParams): Promise<{ user: User; token: string }> {
-    await new Promise((resolve) => setTimeout(resolve, 500));
+    // 1. Attempt MySQL Backend Registration
+    try {
+      const res = await fetch('/api/auth.php', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'register',
+          email: params.email.trim(),
+          fullName: params.fullName.trim(),
+          password: params.password?.trim() || 'password123',
+          phone: params.phone?.trim() || '',
+          gender: params.gender || 'male',
+          role: params.role || 'student',
+          grade: params.grade,
+          region: params.region || 'Toshkent shahri',
+          district: params.district,
+          school: params.school || 'Maktab',
+          parentConsent: params.parentConsent
+        })
+      });
 
+      const json = await res.json();
+      if (!res.ok || json.status !== 'success') {
+        throw new Error(json.message || "Ro'yxatdan o'tishda xatolik yuz berdi!");
+      }
+
+      const userProfile: User = json.user;
+      const token = json.token || `jwt-token-${userProfile.id}-${Date.now()}`;
+
+      localStorage.setItem('next_olymp_jwt', token);
+      localStorage.setItem('next_olymp_user', JSON.stringify(userProfile));
+      if (userProfile.role === 'student') {
+        localStorage.setItem('next_olymp_student_user', JSON.stringify(userProfile));
+      }
+
+      this.saveRegisteredUser({ ...userProfile, password: params.password });
+
+      return { user: userProfile, token };
+    } catch (apiErr: any) {
+      if (apiErr.message && (apiErr.message.includes('allaqachon hisob') || apiErr.message.includes('kiritilishi shart'))) {
+        throw apiErr;
+      }
+    }
+
+    // Local Storage Registration Fallback
     const registered = this.getRegisteredUsers();
     const existing = registered.find((u) => u.email.toLowerCase().trim() === params.email.toLowerCase().trim());
 

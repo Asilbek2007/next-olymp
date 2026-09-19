@@ -42,6 +42,7 @@ function initDatabase($pdo) {
             `id` VARCHAR(64) PRIMARY KEY,
             `email` VARCHAR(191) NOT NULL UNIQUE,
             `phone` VARCHAR(64) DEFAULT NULL,
+            `password` VARCHAR(255) DEFAULT NULL,
             `fullName` VARCHAR(255) NOT NULL,
             `role` ENUM('student', 'teacher', 'admin') DEFAULT 'student',
             `gender` ENUM('male', 'female') DEFAULT 'male',
@@ -154,6 +155,12 @@ function initDatabase($pdo) {
 
     foreach ($tables as $sql) {
         $pdo->exec($sql);
+    }
+
+    try {
+        $pdo->exec("ALTER TABLE `users` ADD COLUMN `password` VARCHAR(255) DEFAULT NULL AFTER `phone`;");
+    } catch (Exception $e) {
+        // column already exists
     }
 }
 
