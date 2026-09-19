@@ -1,5 +1,5 @@
 import { Olympiad, Question, LeaderboardEntry, Subject, OlympiadStatus } from '../types';
-import { MOCK_OLYMPIADS, MOCK_QUESTIONS } from './mockData';
+import { MOCK_OLYMPIADS, MOCK_QUESTIONS, DEFAULT_SAMPLE_QUESTIONS } from './mockData';
 import { useLeaderboardStore } from '../store/useLeaderboardStore';
 import { useOlympiadStore } from '../store/useOlympiadStore';
 import { useNationalExamStore } from '../store/useNationalExamStore';
@@ -184,7 +184,12 @@ export const olympiadService = {
     } catch {
       // fallback
     }
-    return MOCK_QUESTIONS['OLY-101'] || MOCK_QUESTIONS['olymp-math-2026'] || [];
+    return (
+      MOCK_QUESTIONS[olympiadId] ||
+      MOCK_QUESTIONS['OLY-101'] ||
+      MOCK_QUESTIONS['olymp-math-2026'] ||
+      DEFAULT_SAMPLE_QUESTIONS
+    );
   },
 
   async getLeaderboard(_olympiadId?: string): Promise<LeaderboardEntry[]> {

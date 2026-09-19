@@ -81,7 +81,7 @@ interface SecurityState {
   recordRateLimitHit: (ip: string, path: string) => void;
 }
 
-const STORAGE_KEY = 'ega_security_v4';
+const STORAGE_KEY = 'ega_security_v6';
 
 const DEFAULT_METRICS: ServerMetrics = {
   cpu: 2,
@@ -130,7 +130,7 @@ export const useSecurityStore = create<SecurityState>()(
       trafficData: initialTrafficData,
       alerts: initialSecurityAlerts,
       blockedIPs: initialBlockedIPs,
-      liveMode: false,
+      liveMode: true,
       serverMetrics: DEFAULT_METRICS,
       defenseStatus: DEFAULT_DEFENSE,
       autoDefend: true,
