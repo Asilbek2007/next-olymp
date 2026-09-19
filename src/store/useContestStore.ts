@@ -5,6 +5,17 @@ import { useNotificationStore } from './useNotificationStore';
 import { useAuthStore } from './useAuthStore';
 import { ServerExamEngine, ServerSyncResponse } from '../services/serverExamEngine';
 
+export interface IncidentLog {
+  id: string;
+  type: string;
+  detail: string;
+  timestamp: string;
+  snapshotUrl?: string;
+  count: number;
+  severity: 'O\'rta' | 'Yuqori' | 'Kritik';
+  status: 'pending' | 'warned' | 'penalized' | 'disqualified';
+}
+
 interface ContestState {
   olympiadId: string | null;
   sessionId: string | null;
@@ -24,14 +35,15 @@ interface ContestState {
   serverOffsetMs: number;
   isTimerRunning: boolean;
   isSubmitted: boolean;
+  capturedIncidents: IncidentLog[];
 
   startContest: (olympiadId: string, questions: Question[], durationMinutes: number) => void;
   setAnswer: (questionId: string, answer: string | string[]) => void;
   nextQuestion: () => void;
   prevQuestion: () => void;
   goToQuestion: (index: number) => void;
-  incrementTabSwitch: () => void;
-  recordGuardViolation: (type: string, message: string, max?: number) => void;
+  incrementTabSwitch: (snapshotUrl?: string) => void;
+  recordGuardViolation: (type: string, message: string, max?: number, snapshotUrl?: string) => void;
   disqualifyContest: (reason: string) => void;
   closeAntiCheatModal: () => void;
   tickTimer: () => void;
@@ -58,6 +70,7 @@ export const useContestStore = create<ContestState>((set, get) => ({
   serverOffsetMs: 0,
   isTimerRunning: false,
   isSubmitted: false,
+  capturedIncidents: [],
 
   startContest: (olympiadId, questions, durationMinutes) => {
     const user = useAuthStore.getState().user;
@@ -84,6 +97,7 @@ export const useContestStore = create<ContestState>((set, get) => ({
       serverOffsetMs: serverOffset,
       isTimerRunning: true,
       isSubmitted: false,
+      capturedIncidents: [],
     });
   },
 
@@ -109,15 +123,27 @@ export const useContestStore = create<ContestState>((set, get) => ({
     set({ currentQuestionIndex: index });
   },
 
-  incrementTabSwitch: () => {
+  incrementTabSwitch: (snapshotUrl?: string) => {
     const nextCount = get().tabSwitchCount + 1;
-    set({
+    const newIncident: IncidentLog = {
+      id: `INC-TAB-${Date.now()}`,
+      type: 'TAB_SWITCH',
+      detail: `Brauzer oynasi almashtirildi (${nextCount}-marta)`,
+      timestamp: new Date().toLocaleTimeString(),
+      snapshotUrl,
+      count: nextCount,
+      severity: nextCount >= 3 ? 'Kritik' : nextCount === 2 ? 'Yuqori' : 'O\'rta',
+      status: nextCount >= 3 ? 'penalized' : 'warned',
+    };
+
+    set((state) => ({
       tabSwitchCount: nextCount,
-      violationCount: get().violationCount + 1,
+      violationCount: state.violationCount + 1,
       latestViolationMessage: `Brauzer oynasi almashtirildi (${nextCount}-marta)`,
       latestViolationType: 'TAB_SWITCH',
       showAntiCheatModal: true,
-    });
+      capturedIncidents: [newIncident, ...state.capturedIncidents],
+    }));
 
     const currentUser = useAuthStore.getState().user;
     const olympiadId = get().olympiadId || 'olymp-math-2026';
@@ -139,14 +165,94 @@ export const useContestStore = create<ContestState>((set, get) => ({
     });
   },
 
-  recordGuardViolation: (type, message, max = 3) => {
+  recordGuardViolation: (type, message, max = 3, snapshotUrl?: string) => {
+    const isTabOrFocus = type === 'TAB_SWITCH' || type === 'WINDOW_BLUR' || type === 'EXIT_FULLSCREEN';
+    const nextTabCount = isTabOrFocus ? get().tabSwitchCount + 1 : Math.max(1, get().tabSwitchCount);
     const nextCount = get().violationCount + 1;
-    set({
+
+    const newIncident: IncidentLog = {
+      id: `INC-${type}-${Date.now()}`,
+      type,
+      detail: message,
+      timestamp: new Date().toLocaleTimeString(),
+      snapshotUrl,
+      count: nextCount,
+      severity: nextCount >= max ? 'Kritik' : nextCount === 2 ? 'Yuqori' : 'O\'rta',
+      status: nextCount >= max ? 'penalized' : 'pending',
+    };
+
+    set((state) => ({
+      tabSwitchCount: nextTabCount,
       violationCount: nextCount,
       maxViolations: max,
       latestViolationType: type,
       latestViolationMessage: message,
       showAntiCheatModal: true,
+      capturedIncidents: [newIncident, ...state.capturedIncidents],
+    }));
+
+    const currentUser = useAuthStore.getState().user;
+    const olympiadId = get().olympiadId || 'olymp-current';
+
+    // Save live incident directly to submissionService & localStorage
+    try {
+      const typeLabel =
+        type === 'TAB_SWITCH' ? 'Brauzer oynasi almashtirildi (Tab Switch)' :
+        type === 'WINDOW_BLUR' ? 'Oyna faolligi yo\'qoldi (Window Blur)' :
+        type === 'EXIT_FULLSCREEN' ? 'To\'liq ekrandan chiqildi (Fullscreen Exit)' :
+        type === 'NO_FACE_DETECTED' ? 'Kamera oldida yuz ko\'rinmadi (No Face)' :
+        type === 'MULTIPLE_FACES_DETECTED' ? 'Kadrda begona shaxs aniqlandi' :
+        type === 'CLIPBOARD_ACTION' ? 'Nusxa olish taqiqlandi' :
+        type.includes('DEVTOOLS') ? 'Dasturchi paneli (DevTools) ochildi' : type;
+
+      const formattedLog = {
+        id: newIncident.id,
+        studentId: currentUser?.id || 'usr-student',
+        name: currentUser?.fullName || 'Ishtirokchi',
+        phone: currentUser?.phone || '+998 90 123 45 67',
+        ipAddress: '195.158.12.45',
+        region: currentUser?.region || 'Toshkent sh.',
+        school: currentUser?.school || 'Maktab',
+        type: typeLabel,
+        detail: message,
+        count: nextCount,
+        severity: newIncident.severity,
+        timestamp: new Date().toLocaleString(),
+        isOnline: true,
+        snapshotUrl: snapshotUrl,
+        status: 'pending'
+      };
+
+      const anticheatKey = `anticheat_logs_${olympiadId}`;
+      const existingStr = localStorage.getItem(anticheatKey);
+      let list: any[] = [];
+      if (existingStr) {
+        try {
+          list = JSON.parse(existingStr);
+          if (!Array.isArray(list)) list = [];
+        } catch {}
+      }
+      list.unshift(formattedLog);
+      localStorage.setItem(anticheatKey, JSON.stringify(list));
+    } catch (e) {
+      console.error('Error saving live anticheat log:', e);
+    }
+
+    // Log to Proctoring Store for Admin Dashboard
+    useProctoringStore.getState().addFlag({
+      user: currentUser?.fullName || 'Ishtirokchi',
+      userEmail: currentUser?.email || '',
+      olympiad: olympiadId,
+      category: isTabOrFocus ? 'Oyna & Brauzer' : 'Xavfsizlik & Anti-Cheat',
+      type: type,
+      detail: message,
+      severity: nextCount >= max ? 'Kritik' : nextCount === 2 ? 'Yuqori' : 'O\'rta',
+    });
+
+    useNotificationStore.getState().addNotification({
+      title: `${currentUser?.fullName || 'Ishtirokchi'}: ${type}`,
+      desc: `${message} (${nextCount}/${max})`,
+      type: 'warning',
     });
   },
 

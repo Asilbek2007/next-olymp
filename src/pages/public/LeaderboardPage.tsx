@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Trophy, Search, ShieldCheck, UserCheck, Sparkles } from 'lucide-react';
+import { Trophy, Search, ShieldCheck } from 'lucide-react';
 import { LeaderboardTable } from '../../components/leaderboard/LeaderboardTable';
 import { useLeaderboard } from '../../hooks/useLeaderboard';
 import { useAuth } from '../../hooks/useAuth';
@@ -37,93 +37,87 @@ export const LeaderboardPage: React.FC = () => {
   }) || [];
 
   const userEntry = entries?.find(
-    (e) => user && (e.userId === user.id || e.userName.toLowerCase() === user.fullName.toLowerCase())
+    (e) => user && (e.userId === user.id || e.userName.toLowerCase() === (user.fullName || '').toLowerCase())
   );
 
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 space-y-8">
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 space-y-8 bg-[#0B1120] text-[#F1F5F9]">
       {/* Title Header */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-border pb-6">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-[#1E293B] pb-6">
         <div>
-          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-amber-50 text-amber-700 border border-amber-200 text-xs font-bold mb-2">
-            <Trophy className="w-4 h-4 text-amber-500" />
+          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-[#F59E0B]/15 text-[#F59E0B] border border-[#F59E0B]/30 text-xs font-bold mb-2">
+            <Trophy className="w-4 h-4 text-[#F59E0B]" />
             <span>Milliy Natijalar va Jonli Reyting</span>
           </div>
-          <h1 className="text-3xl font-black text-accent-900 tracking-tight">{t('leaderboard.title')}</h1>
-          <p className="text-accent-600 text-sm">{t('leaderboard.subtitle')}</p>
+          <h1 className="text-3xl font-black text-[#F1F5F9] tracking-tight">{t('leaderboard.title') || "Umummilliy Reyting"}</h1>
+          <p className="text-[#94A3B8] text-sm">{t('leaderboard.subtitle') || "O'zbekiston bo'ylab eng faol va iqtidorli o'quvchilar ro'yxati"}</p>
         </div>
       </div>
 
       {/* Current User Rank Highlight Card */}
       {user && (
-        <div className="p-6 bg-gradient-to-r from-blue-950 via-slate-900 to-blue-900 text-white rounded-3xl shadow-xl border border-blue-700/60 flex flex-col md:flex-row items-start md:items-center justify-between gap-6 relative overflow-hidden">
-          <div className="absolute -top-12 -right-12 w-64 h-64 bg-cyan-500/20 blur-3xl rounded-full pointer-events-none" />
-
+        <div className="p-6 bg-gradient-to-r from-[#111827] via-[#1E293B] to-[#111827] text-[#F1F5F9] rounded-xl shadow-xl border border-[#1E293B] flex flex-col md:flex-row items-start md:items-center justify-between gap-6 relative overflow-hidden">
           <div className="flex items-center gap-4 relative z-10">
-            <Avatar name={user.fullName} src={user.avatarUrl} size="lg" className="border-2 border-cyan-400/80 shadow-md shrink-0" />
+            <Avatar name={user.fullName || 'User'} src={user.avatarUrl} size="lg" className="border-2 border-[#3B82F6] shadow-md shrink-0" />
             <div className="space-y-1">
               <div className="flex items-center gap-2">
-                <span className="text-xs font-extrabold uppercase tracking-widest text-cyan-300 flex items-center gap-1">
-                  <UserCheck className="w-3.5 h-3.5 text-cyan-400" />
-                  Sizning O'rningiz
-                </span>
-                <span className="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-400/40 text-[10px] font-bold flex items-center gap-1">
-                  <ShieldCheck className="w-3 h-3 text-emerald-400" /> Anti-Cheat Tasdiqlangan
+                <h3 className="text-lg font-bold text-[#F1F5F9]">{user.fullName}</h3>
+                <span className="px-2 py-0.5 rounded-full text-[10px] bg-[#3B82F6] text-white font-black uppercase">
+                  Siz
                 </span>
               </div>
-              <h3 className="text-xl font-black text-white">{user.fullName}</h3>
-              <p className="text-xs text-blue-200 font-medium">
-                {user.school || 'Prezident Maktabi'} • {user.region || 'Toshkent shahri'}
+              <p className="text-xs text-[#94A3B8]">
+                {user.school || 'Maktab kiritilmagan'} • {user.region || 'Toshkent'}
               </p>
             </div>
           </div>
 
-          <div className="flex items-center gap-6 relative z-10 bg-blue-900/60 p-4 rounded-2xl border border-blue-700/60 backdrop-blur-xs shrink-0 w-full md:w-auto justify-around">
-            <div className="text-center">
-              <div className="text-2xl font-black text-amber-400 font-mono">
-                #{userEntry ? userEntry.rank : 1}
+          <div className="flex items-center gap-8 relative z-10 border-t md:border-t-0 md:border-l border-[#1E293B] pt-4 md:pt-0 md:pl-8 w-full md:w-auto justify-between md:justify-start">
+            <div>
+              <div className="text-xs font-bold uppercase tracking-wider text-[#94A3B8]">O'rningiz</div>
+              <div className="text-2xl font-black text-[#F59E0B]">
+                {userEntry ? `#${userEntry.rank}` : 'Top 100+'}
               </div>
-              <div className="text-[10px] text-blue-200 font-bold uppercase tracking-wider">Milliy O'rin</div>
             </div>
-            <div className="w-px h-8 bg-blue-700/80" />
-            <div className="text-center">
-              <div className="text-2xl font-black text-cyan-300 font-mono">
-                {userEntry ? userEntry.score : 100} ball
+            <div>
+              <div className="text-xs font-bold uppercase tracking-wider text-[#94A3B8]">Jami Ball</div>
+              <div className="text-2xl font-black text-[#10B981]">
+                {userEntry ? `${userEntry.score} XP` : '0 XP'}
               </div>
-              <div className="text-[10px] text-blue-200 font-bold uppercase tracking-wider">Umumiy Ball</div>
             </div>
           </div>
         </div>
       )}
 
-      {/* Filter Bar */}
-      <div className="bg-white border border-border rounded-2xl p-4 shadow-xs flex flex-col sm:flex-row items-center gap-4">
+      {/* Search & Filter Bar */}
+      <div className="bg-[#111827] border border-[#1E293B] rounded-xl p-4 shadow-xs flex flex-col sm:flex-row items-center gap-4">
         <div className="relative flex-1 w-full">
-          <Search className="w-4 h-4 text-accent-400 absolute left-3 top-3" />
+          <Search className="w-4 h-4 text-[#94A3B8] absolute left-3.5 top-3" />
           <input
             type="text"
-            placeholder="Ishtirokchi ismi yoki maktabidan izlash..."
+            placeholder="Ism-familiya yoki maktab bo'yicha qidirish..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="w-full pl-9 pr-3 py-2 text-sm border border-border rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-500"
+            className="w-full pl-10 pr-4 py-2 text-sm border border-[#1E293B] bg-[#0B1120] text-[#F1F5F9] placeholder-[#64748B] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#3B82F6]"
           />
         </div>
 
-        <select
-          value={regionFilter}
-          onChange={(e) => setRegionFilter(e.target.value)}
-          className="w-full sm:w-64 p-2 text-sm border border-border rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white font-medium"
-        >
-          <option value="all">Barcha viloyatlar</option>
-          {UZBEKISTAN_REGIONS.map((r) => (
-            <option key={r} value={r}>{r}</option>
-          ))}
-        </select>
+        <div className="w-full sm:w-64">
+          <select
+            value={regionFilter}
+            onChange={(e) => setRegionFilter(e.target.value)}
+            className="w-full p-2 text-sm border border-[#1E293B] bg-[#0B1120] text-[#F1F5F9] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#3B82F6]"
+          >
+            <option value="all">Barcha viloyatlar</option>
+            {UZBEKISTAN_REGIONS.map((r) => (
+              <option key={r} value={r}>{r}</option>
+            ))}
+          </select>
+        </div>
       </div>
 
-      {/* Table */}
+      {/* Live Table */}
       <LeaderboardTable entries={filteredEntries} isLoading={isLoading} />
     </div>
   );
 };
-

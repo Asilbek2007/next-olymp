@@ -12,6 +12,7 @@ export interface RegisterParams {
   fullName: string;
   email: string;
   phone?: string;
+  gender?: 'male' | 'female';
   password?: string;
   role: Role;
   grade?: number;
@@ -21,19 +22,33 @@ export interface RegisterParams {
   parentConsent?: boolean;
 }
 
+export interface RegisteredUser extends User {
+  password?: string;
+}
+
 const REGISTERED_USERS_KEY = 'next_olymp_registered_users';
 
+// Clean initial registered users (0 on fresh platform deploy)
+const DEFAULT_INITIAL_USERS: RegisteredUser[] = [];
+
 export const authService = {
-  getRegisteredUsers(): User[] {
+  getRegisteredUsers(): RegisteredUser[] {
     try {
       const saved = localStorage.getItem(REGISTERED_USERS_KEY);
-      return saved ? JSON.parse(saved) : [];
+      if (!saved) {
+        return DEFAULT_INITIAL_USERS;
+      }
+      const parsed = JSON.parse(saved);
+      if (!Array.isArray(parsed)) {
+        return DEFAULT_INITIAL_USERS;
+      }
+      return parsed as RegisteredUser[];
     } catch {
-      return [];
+      return DEFAULT_INITIAL_USERS;
     }
   },
 
-  saveRegisteredUser(user: User): void {
+  saveRegisteredUser(user: RegisteredUser): void {
     const users = this.getRegisteredUsers();
     const existingIndex = users.findIndex((u) => u.email.toLowerCase() === user.email.toLowerCase());
     if (existingIndex >= 0) {
@@ -94,29 +109,52 @@ export const authService = {
       return { user: adminUser, token };
     }
 
+    // STRICT USER/STUDENT DATABASE VERIFICATION (OWASP Secure Login):
     const registered = this.getRegisteredUsers();
-    let user = registered.find((u) => u.email.toLowerCase() === params.email.toLowerCase());
+    const user = registered.find((u) => u.email.toLowerCase().trim() === params.email.toLowerCase().trim());
 
+    // 1. If user doesn't exist in database, fail with generic error
     if (!user) {
-      user = {
-        id: `usr-${Date.now()}`,
-        email: params.email,
-        fullName: params.email.split('@')[0] || 'Foydalanuvchi',
-        role: params.role || 'student',
-        grade: 9,
-        region: 'Toshkent shahri',
-        school: 'Maktab',
-        createdAt: new Date().toISOString(),
-      };
-      this.saveRegisteredUser(user);
-    } else if (params.role) {
-      user.role = params.role;
-      this.saveRegisteredUser(user);
+      useSecurityStore.getState().recordFailedLogin(
+        '127.0.0.1 (Brauzer)',
+        params.email,
+        "Login yoki parol xato (Foydalanuvchi topilmadi)"
+      );
+      throw new Error("Login yoki parol xato! Iltimos, ma'lumotlarni qayta tekshiring.");
     }
+
+    // 2. Check password if provided in user record
+    if (user.password && params.password && user.password !== params.password) {
+      useSecurityStore.getState().recordFailedLogin(
+        '127.0.0.1 (Brauzer)',
+        params.email,
+        "Login yoki parol xato (Noto'g'ri parol)"
+      );
+      throw new Error("Login yoki parol xato! Iltimos, ma'lumotlarni qayta tekshiring.");
+    }
+
+    // Login successful
+    const userWithoutSensitiveData: User = {
+      id: user.id,
+      email: user.email,
+      phone: user.phone,
+      fullName: user.fullName,
+      role: user.role,
+      grade: user.grade,
+      region: user.region,
+      district: user.district,
+      school: user.school,
+      avatarUrl: user.avatarUrl,
+      createdAt: user.createdAt,
+      parentConsent: user.parentConsent,
+    };
 
     const token = `jwt-token-${user.id}-${Date.now()}`;
     localStorage.setItem('next_olymp_jwt', token);
-    localStorage.setItem('next_olymp_user', JSON.stringify(user));
+    localStorage.setItem('next_olymp_user', JSON.stringify(userWithoutSensitiveData));
+    if (user.role === 'student') {
+      localStorage.setItem('next_olymp_student_user', JSON.stringify(userWithoutSensitiveData));
+    }
 
     useSecurityStore.getState().recordSuccessfulLogin('127.0.0.1 (Brauzer)', params.email, user.role);
 
@@ -126,32 +164,62 @@ export const authService = {
       type: 'info',
     });
 
-    return { user, token };
+    return { user: userWithoutSensitiveData, token };
   },
 
   async register(params: RegisterParams): Promise<{ user: User; token: string }> {
-    await new Promise((resolve) => setTimeout(resolve, 600));
+    await new Promise((resolve) => setTimeout(resolve, 500));
 
-    const newUser: User = {
+    const registered = this.getRegisteredUsers();
+    const existing = registered.find((u) => u.email.toLowerCase().trim() === params.email.toLowerCase().trim());
+
+    if (existing) {
+      throw new Error(`Ushbu elektron pochta (${params.email}) bilan allaqachon hisob yaratilgan. Iltimos, to'g'ridan-to'g'ri tizimga kiring!`);
+    }
+
+    const newUser: RegisteredUser = {
       id: `usr-${Date.now()}`,
-      email: params.email,
-      phone: params.phone,
-      fullName: params.fullName,
-      role: params.role,
+      email: params.email.trim(),
+      phone: params.phone?.trim(),
+      gender: params.gender || 'male',
+      password: params.password || 'password123',
+      fullName: params.fullName.trim(),
+      role: params.role || 'student',
       grade: params.grade,
       region: params.region || 'Toshkent shahri',
       district: params.district,
       school: params.school || 'Maktab',
       parentConsent: params.parentConsent,
-      avatarUrl: `https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150&auto=format&fit=crop&q=80`,
+      avatarUrl: params.gender === 'female'
+        ? `https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=150&auto=format&fit=crop&q=80`
+        : `https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150&auto=format&fit=crop&q=80`,
       createdAt: new Date().toISOString(),
     };
 
     this.saveRegisteredUser(newUser);
 
+    const userProfile: User = {
+      id: newUser.id,
+      email: newUser.email,
+      phone: newUser.phone,
+      gender: newUser.gender,
+      fullName: newUser.fullName,
+      role: newUser.role,
+      grade: newUser.grade,
+      region: newUser.region,
+      district: newUser.district,
+      school: newUser.school,
+      avatarUrl: newUser.avatarUrl,
+      createdAt: newUser.createdAt,
+      parentConsent: newUser.parentConsent,
+    };
+
     const token = `jwt-token-${newUser.id}-${Date.now()}`;
     localStorage.setItem('next_olymp_jwt', token);
-    localStorage.setItem('next_olymp_user', JSON.stringify(newUser));
+    localStorage.setItem('next_olymp_user', JSON.stringify(userProfile));
+    if (newUser.role === 'student') {
+      localStorage.setItem('next_olymp_student_user', JSON.stringify(userProfile));
+    }
 
     useNotificationStore.getState().addNotification({
       title: `Yangi ishtirokchi ro'yxatdan o'tdi`,
@@ -159,21 +227,56 @@ export const authService = {
       type: 'success',
     });
 
-    return { user: newUser, token };
+    return { user: userProfile, token };
+  },
+
+  async resetPassword(email: string, newPassword: string): Promise<boolean> {
+    await new Promise((resolve) => setTimeout(resolve, 400));
+    const users = this.getRegisteredUsers();
+    const userIndex = users.findIndex((u) => u.email.toLowerCase().trim() === email.toLowerCase().trim());
+
+    if (userIndex === -1) {
+      throw new Error("Bunday elektron pochta manzili bilan akkaunt topilmadi. Iltimos, pochtangizni to'g'ri kiritganingizga ishonch hosil qiling.");
+    }
+
+    users[userIndex].password = newPassword;
+    localStorage.setItem(REGISTERED_USERS_KEY, JSON.stringify(users));
+
+    // Also update active session if it matches
+    const current = this.getCurrentUser();
+    if (current && current.email.toLowerCase() === email.toLowerCase()) {
+      localStorage.setItem('next_olymp_user', JSON.stringify({ ...current }));
+    }
+
+    useNotificationStore.getState().addNotification({
+      title: `Parol yangilandi`,
+      desc: `${email} hisobining paroli muvaffaqiyatli o'zgartirildi`,
+      type: 'success',
+    });
+
+    return true;
   },
 
   getCurrentUser(): User | null {
     const saved = localStorage.getItem('next_olymp_user');
-    if (!saved) return null;
-    try {
-      return JSON.parse(saved);
-    } catch {
-      return null;
+    if (saved) {
+      try {
+        const u = JSON.parse(saved);
+        if (u && u.role === 'admin') {
+          // If admin was logged in, check if student profile is active for user dashboard
+          const studentSaved = localStorage.getItem('next_olymp_student_user');
+          if (studentSaved) return JSON.parse(studentSaved);
+        } else if (u && u.email) {
+          return u;
+        }
+      } catch {}
     }
+    return null;
   },
 
   logout(): void {
     localStorage.removeItem('next_olymp_jwt');
     localStorage.removeItem('next_olymp_user');
+    localStorage.removeItem('next_olymp_student_user');
   }
 };

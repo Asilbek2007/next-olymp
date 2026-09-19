@@ -7,6 +7,7 @@ export interface UseAntiCheatOptions {
   olympiadTitle?: string;
   maxViolations?: number;
   requireFullscreen?: boolean;
+  onCaptureSnapshot?: () => string | undefined;
 }
 
 export function useAntiCheat(isActive: boolean, options: UseAntiCheatOptions = {}) {
@@ -29,7 +30,8 @@ export function useAntiCheat(isActive: boolean, options: UseAntiCheatOptions = {
       olympiadTitle: options.olympiadTitle,
       requireFullscreen: options.requireFullscreen ?? true,
       onViolation: (type, data) => {
-        recordGuardViolation(type, data.message, data.max);
+        const snap = options.onCaptureSnapshot ? options.onCaptureSnapshot() : undefined;
+        recordGuardViolation(type, data.message, data.max, snap);
       },
       onDisqualify: (reason) => {
         disqualifyContest(reason);
@@ -42,6 +44,6 @@ export function useAntiCheat(isActive: boolean, options: UseAntiCheatOptions = {
       guard.destroy();
       guardRef.current = null;
     };
-  }, [isActive, options.olympiadId, options.olympiadTitle, options.maxViolations, options.requireFullscreen, recordGuardViolation, disqualifyContest]);
+  }, [isActive, options.olympiadId, options.olympiadTitle, options.maxViolations, options.requireFullscreen, options.onCaptureSnapshot, recordGuardViolation, disqualifyContest]);
 }
 

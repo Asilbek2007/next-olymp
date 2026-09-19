@@ -15,16 +15,15 @@ interface PackageStore {
 const loadPackagesFromStorage = (): PackageItem[] => {
   try {
     const stored = localStorage.getItem(STORAGE_KEY);
-    if (stored) {
+    if (stored !== null) {
       const parsed = JSON.parse(stored);
-      if (Array.isArray(parsed) && parsed.length > 0) {
+      if (Array.isArray(parsed)) {
         return parsed;
       }
     }
   } catch (error) {
     console.error('Error loading packages from localStorage:', error);
   }
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(INITIAL_PACKAGES));
   return INITIAL_PACKAGES;
 };
 

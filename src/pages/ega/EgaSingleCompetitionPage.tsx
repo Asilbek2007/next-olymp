@@ -23,29 +23,33 @@ import {
   CheckCircle2,
   AlertTriangle
 } from 'lucide-react';
-import { useOlympiadDetail, useOlympiadQuestions } from '../../hooks/useOlympiad';
-import { MOCK_QUESTIONS, MOCK_LEADERBOARD } from '../../services/mockData';
+import { useOlympiadStore } from '../../store/useOlympiadStore';
 import { Question, QuestionType } from '../../types';
+import { submissionService } from '../../services/submissionService';
 import confetti from 'canvas-confetti';
 
 export const EgaSingleCompetitionPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { data: olympiad } = useOlympiadDetail(id || 'olymp-math-2026');
+  const { olympiads, updateOlympiad } = useOlympiadStore();
+  const storeOlympiad = olympiads.find((o) => o.id === id);
+
+  // Dynamic Real Participants Submissions List
+  const participantsList = id ? submissionService.getOlympiadSubmissions(id) : [];
 
   // Active Tab (Only 3 clean tabs: Sozlamalar, Savollar Bazasi, Natijalar va Reyting)
   const [activeTab, setActiveTab] = useState<'settings' | 'questions' | 'results'>('settings');
 
   // Settings Tab State
-  const [title, setTitle] = useState(olympiad?.title || 'Respublika Matematika Iqtidorlari II Bosqichi');
-  const [subject, setSubject] = useState(olympiad?.subject || 'math');
-  const [durationMinutes, setDurationMinutes] = useState(olympiad?.durationMinutes || 120);
+  const [title, setTitle] = useState(storeOlympiad?.title || 'Yangi Olimpiada');
+  const [subject, setSubject] = useState(storeOlympiad?.subject || 'math');
+  const [durationMinutes, setDurationMinutes] = useState((storeOlympiad as any)?.durationMinutes || 120);
   const [isPaid, setIsPaid] = useState(false);
   const [priceAmount, setPriceAmount] = useState('35,000 UZS');
-  const [antiCheatLevel, setAntiCheatLevel] = useState('Strict AI Proctoring');
+  const [antiCheatLevel, setAntiCheatLevel] = useState('Strict Anti-Cheat');
 
   // Questions Tab State
-  const questionsList = MOCK_QUESTIONS[id || 'olymp-math-2026'] || MOCK_QUESTIONS['olymp-math-2026'] || [];
+  const questionsList: Question[] = storeOlympiad?.questions || [];
   const [isQuestionModalOpen, setIsQuestionModalOpen] = useState(false);
   const [qType, setQType] = useState<QuestionType>('multiple_choice');
   const [qContent, setQContent] = useState('');
@@ -55,6 +59,12 @@ export const EgaSingleCompetitionPage: React.FC = () => {
 
   const handleSaveSettings = (e: React.FormEvent) => {
     e.preventDefault();
+    if (id) {
+      updateOlympiad(id, {
+        title,
+        subject
+      });
+    }
     alert("Musobaqa sozlamalari saqlandi!");
   };
 
@@ -62,7 +72,7 @@ export const EgaSingleCompetitionPage: React.FC = () => {
     e.preventDefault();
     const newQ: Question = {
       id: `q-single-${Date.now()}`,
-      olympiadId: id || 'olymp-math-2026',
+      olympiadId: id || 'OLY-101',
       roundId: 'r1',
       type: qType,
       content: qContent,
@@ -70,23 +80,25 @@ export const EgaSingleCompetitionPage: React.FC = () => {
       order: questionsList.length + 1,
       options: qType === 'multiple_choice' ? [optA, optB].filter(Boolean) : undefined,
     };
-    if (!MOCK_QUESTIONS[id || 'olymp-math-2026']) {
-      MOCK_QUESTIONS[id || 'olymp-math-2026'] = [];
+    if (id) {
+      const updatedQuestions = [...(storeOlympiad?.questions || []), newQ];
+      updateOlympiad(id, { questions: updatedQuestions });
     }
-    MOCK_QUESTIONS[id || 'olymp-math-2026'].push(newQ);
     setIsQuestionModalOpen(false);
     setQContent('');
+    setOptA('');
+    setOptB('');
     alert("Savol saqlandi!");
   };
 
   const handleExportExcel = () => {
     confetti({ particleCount: 60, spread: 50 });
-    alert(`Excel protokoli (.xlsx) yuklab olindi! (${olympiad?.title || title})`);
+    alert(`Excel protokoli (.xlsx) yuklab olindi! (${storeOlympiad?.title || title})`);
   };
 
   const handleExportPdf = () => {
     confetti({ particleCount: 60, spread: 50 });
-    alert(`Rasmiy PDF bayonnoma (.pdf) yuklab olindi! (${olympiad?.title || title})`);
+    alert(`Rasmiy PDF bayonnoma (.pdf) yuklab olindi! (${storeOlympiad?.title || title})`);
   };
 
   return (
@@ -100,12 +112,12 @@ export const EgaSingleCompetitionPage: React.FC = () => {
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-slate-900 text-white p-6 rounded-3xl shadow-xl border border-slate-800">
           <div className="space-y-2">
             <div className="flex items-center gap-2">
-              <Badge subject={olympiad?.subject || 'math'} />
-              <Badge status={olympiad?.status || 'active'} />
+              <Badge subject={(storeOlympiad?.subject as any) || 'math'} />
+              <Badge status={storeOlympiad?.status === 'ochiq' ? 'active' : 'upcoming'} />
             </div>
-            <h1 className="text-2xl md:text-3xl font-black text-white">{olympiad?.title || title}</h1>
+            <h1 className="text-2xl md:text-3xl font-black text-white">{storeOlympiad?.title || title}</h1>
             <p className="text-xs text-slate-300">
-              Id: <span className="font-mono text-cyan-400 font-bold">{olympiad?.id || id}</span> • Davomiyligi: {durationMinutes} daq • {questionsList.length} ta savol
+              Id: <span className="font-mono text-cyan-400 font-bold">{storeOlympiad?.id || id}</span> • Davomiyligi: {durationMinutes} daq • {questionsList.length} ta savol
             </p>
           </div>
 
@@ -240,7 +252,7 @@ export const EgaSingleCompetitionPage: React.FC = () => {
                 onChange={(e) => setAntiCheatLevel(e.target.value)}
                 className="w-full p-2.5 text-sm border border-slate-200 rounded-xl bg-white font-semibold"
               >
-                <option value="Strict AI Proctoring">Strict AI Proctoring (Kamera + Tab switch + Clipboard block)</option>
+                <option value="Strict Anti-Cheat">Strict Anti-Cheat (Tab switch + Clipboard + Fullscreen block)</option>
                 <option value="Moderate">Moderate (Faqat Tab switch nazorati)</option>
                 <option value="Basic">Basic (Standart timer)</option>
               </select>
@@ -267,24 +279,32 @@ export const EgaSingleCompetitionPage: React.FC = () => {
           </div>
 
           <div className="space-y-3">
-            {questionsList.map((q, idx) => (
-              <div key={q.id} className="p-4 bg-slate-50 border border-slate-200 rounded-2xl space-y-2 flex items-start justify-between">
-                <div className="space-y-1">
-                  <div className="flex items-center gap-2">
-                    <span className="font-mono font-bold text-xs text-blue-600">#{idx + 1}</span>
-                    <span className="px-2 py-0.5 rounded-full text-[10px] font-bold uppercase bg-blue-100 text-blue-800">
-                      {q.type}
-                    </span>
-                    <span className="text-xs font-bold text-slate-700">{q.points} ball</span>
-                  </div>
-                  <p className="text-sm font-medium text-slate-900">{q.content}</p>
-                </div>
-                <div className="flex items-center gap-1">
-                  <button className="p-1.5 text-slate-400 hover:text-blue-600"><Edit className="w-4 h-4" /></button>
-                  <button className="p-1.5 text-slate-400 hover:text-rose-600"><Trash2 className="w-4 h-4" /></button>
-                </div>
+            {questionsList.length === 0 ? (
+              <div className="p-8 text-center text-slate-400 bg-slate-50 rounded-2xl border border-dashed border-slate-200">
+                <FileText className="w-8 h-8 opacity-40 mx-auto mb-2" />
+                <p className="font-semibold text-xs text-slate-600">Hozircha savollar mavjud emas</p>
+                <p className="text-[11px] text-slate-400 mt-0.5">Yangi savol qo'shish uchun yuqoridagi tugmani bosing</p>
               </div>
-            ))}
+            ) : (
+              questionsList.map((q: Question, idx: number) => (
+                <div key={q.id} className="p-4 bg-slate-50 border border-slate-200 rounded-2xl space-y-2 flex items-start justify-between">
+                  <div className="space-y-1">
+                    <div className="flex items-center gap-2">
+                      <span className="font-mono font-bold text-xs text-blue-600">#{idx + 1}</span>
+                      <span className="px-2 py-0.5 rounded-full text-[10px] font-bold uppercase bg-blue-100 text-blue-800">
+                        {q.type}
+                      </span>
+                      <span className="text-xs font-bold text-slate-700">{q.points} ball</span>
+                    </div>
+                    <p className="text-sm font-medium text-slate-900">{q.content}</p>
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <button className="p-1.5 text-slate-400 hover:text-blue-600"><Edit className="w-4 h-4" /></button>
+                    <button className="p-1.5 text-slate-400 hover:text-rose-600"><Trash2 className="w-4 h-4" /></button>
+                  </div>
+                </div>
+              ))
+            )}
           </div>
         </Card>
       )}
@@ -310,19 +330,27 @@ export const EgaSingleCompetitionPage: React.FC = () => {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 font-medium">
-                {MOCK_LEADERBOARD.map((item) => (
-                  <tr key={item.id} className="hover:bg-slate-50">
-                    <td className="p-3 font-bold text-slate-900 font-mono">#{item.rank}</td>
-                    <td className="p-3 font-bold text-slate-900">{item.userName}</td>
-                    <td className="p-3">{item.grade}-sinf • {item.region}</td>
-                    <td className="p-3 font-extrabold text-blue-600 font-mono text-sm">{item.score} ball</td>
-                    <td className="p-3 font-mono">{Math.floor(item.penaltyTime / 60)} daq</td>
-                    <td className="p-3 font-bold text-emerald-600 flex items-center gap-1">
-                      <CheckCircle2 className="w-3.5 h-3.5" />
-                      <span>{item.status}</span>
+                {participantsList.length === 0 ? (
+                  <tr>
+                    <td colSpan={6} className="py-8 text-center text-slate-400">
+                      Hozircha ishtirokchilar mavjud emas
                     </td>
                   </tr>
-                ))}
+                ) : (
+                  participantsList.map((item, idx) => (
+                    <tr key={item.id} className="hover:bg-slate-50">
+                      <td className="p-3 font-bold text-slate-900 font-mono">#{idx + 1}</td>
+                      <td className="p-3 font-bold text-slate-900">{item.name}</td>
+                      <td className="p-3">{item.grade}-sinf • {item.region}</td>
+                      <td className="p-3 font-extrabold text-blue-600 font-mono text-sm">{item.score} ball ({item.percentage}%)</td>
+                      <td className="p-3 font-mono">{item.timeSpentMinutes} daq</td>
+                      <td className="p-3 font-bold text-emerald-600 flex items-center gap-1">
+                        <CheckCircle2 className="w-3.5 h-3.5" />
+                        <span>Tasdiqlangan</span>
+                      </td>
+                    </tr>
+                  ))
+                )}
               </tbody>
             </table>
           </div>

@@ -9,14 +9,14 @@ import {
   Bell,
   HelpCircle,
   Package,
-  Moon,
-  Sun,
   User,
   PanelLeftClose,
-  PanelLeftOpen
+  PanelLeftOpen,
+  Award,
+  Calculator,
+  ShieldAlert
 } from 'lucide-react';
 import { useAuth } from '../../hooks/useAuth';
-import { useThemeStore } from '../../store/useThemeStore';
 import { useTranslation } from 'react-i18next';
 import { translateText } from '../../i18n/translator';
 import { clsx } from 'clsx';
@@ -30,10 +30,8 @@ export const EgaNavbar: React.FC<EgaNavbarProps> = ({ isCollapsed, onToggleColla
   const { user } = useAuth();
   const location = useLocation();
   const path = location.pathname;
-  const { theme, toggleTheme } = useThemeStore();
   const { i18n } = useTranslation();
 
-  const isDark = theme === 'dark';
   const currentLang = (i18n.language || 'uz').toUpperCase() as 'UZ' | 'EN' | 'RU';
 
   const changeLanguage = (newLang: 'UZ' | 'EN' | 'RU') => {
@@ -53,6 +51,12 @@ export const EgaNavbar: React.FC<EgaNavbarProps> = ({ isCollapsed, onToggleColla
     if (path.startsWith('/ega/competitions')) {
       return { title: translateText('Olimpiadalar', currentLang.toLowerCase()), icon: Trophy };
     }
+    if (path.startsWith('/ega/baholash')) {
+      return { title: translateText('Baholash Moduli (Rasch)', currentLang.toLowerCase()), icon: Calculator };
+    }
+    if (path.startsWith('/ega/leaderboard')) {
+      return { title: translateText('Reytinglar', currentLang.toLowerCase()), icon: Award };
+    }
     if (path.startsWith('/ega/users')) {
       return { title: translateText('Foydalanuvchilar', currentLang.toLowerCase()), icon: Users };
     }
@@ -71,6 +75,9 @@ export const EgaNavbar: React.FC<EgaNavbarProps> = ({ isCollapsed, onToggleColla
     if (path.startsWith('/ega/packages')) {
       return { title: translateText('Paketlar', currentLang.toLowerCase()), icon: Package };
     }
+    if (path.startsWith('/ega/security')) {
+      return { title: translateText('Kiberxavfsizlik', currentLang.toLowerCase()), icon: ShieldAlert };
+    }
     return { title: translateText('Boshqaruv paneli', currentLang.toLowerCase()), icon: LayoutDashboard };
   };
 
@@ -78,79 +85,37 @@ export const EgaNavbar: React.FC<EgaNavbarProps> = ({ isCollapsed, onToggleColla
   const PageIcon = pageInfo.icon;
 
   return (
-    <header
-      className={clsx(
-        "sticky top-0 z-20 w-full px-6 py-3 flex items-center justify-between shadow-md font-sans transition-colors duration-300",
-        isDark
-          ? "bg-[#0D1832] border-b border-[#152542] text-slate-200"
-          : "bg-white border-b border-slate-200 text-slate-800"
-      )}
-    >
+    <header className="sticky top-0 z-20 w-full h-16 px-6 flex items-center justify-between shadow-md font-sans bg-[#0B1120] border-b border-[#1E293B] text-[#F1F5F9] shrink-0">
       {/* Left Active Page Badge */}
       <div className="flex items-center gap-3">
-        <div
-          className={clsx(
-            "inline-flex items-center gap-2.5 px-4 py-2 rounded-xl font-black text-xs uppercase tracking-wider shadow-xs border transition-colors",
-            isDark
-              ? "bg-[#142447] border-[#1E365E] text-amber-400"
-              : "bg-amber-50 border-amber-200 text-amber-600"
-          )}
-        >
-          <PageIcon className={clsx("w-4 h-4", isDark ? "text-amber-400" : "text-amber-600")} />
+        <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-lg font-bold text-xs uppercase tracking-wider border bg-[#111827] border-[#1E293B] text-[#F59E0B]">
+          <PageIcon className="w-4 h-4 text-[#F59E0B]" />
           <span>{pageInfo.title}</span>
         </div>
       </div>
 
-      {/* Right Controls Bar (Sidebar Toggle, Dark/Light Mode, Lang Selector, Profile) */}
+      {/* Right Controls Bar */}
       <div className="flex items-center gap-3">
-        {/* Sidebar Toggle Button (Primary collapse button next to theme) */}
+        {/* Sidebar Toggle Button */}
         <button
           onClick={onToggleCollapse}
-          className={clsx(
-            "p-2 rounded-xl border transition-all cursor-pointer",
-            isDark
-              ? "bg-[#142447] hover:bg-[#1C325E] border-[#1E365E] text-slate-300 hover:text-white"
-              : "bg-slate-100 hover:bg-slate-200 border-slate-300 text-slate-700 hover:text-slate-900"
-          )}
+          className="p-2 rounded-lg border border-[#1E293B] bg-[#111827] hover:bg-[#1E293B] text-[#94A3B8] hover:text-[#F1F5F9] transition-colors cursor-pointer"
           title="Menyuni ko'rsatish / berkitish"
         >
           {isCollapsed ? <PanelLeftOpen className="w-4 h-4" /> : <PanelLeftClose className="w-4 h-4" />}
         </button>
 
-        {/* Dark / Light Toggle Switch */}
-        <button
-          onClick={toggleTheme}
-          className={clsx(
-            "p-2 rounded-xl border transition-all cursor-pointer flex items-center justify-center",
-            isDark
-              ? "bg-[#142447] hover:bg-[#1C325E] border-[#1E365E] text-amber-400 hover:text-amber-300"
-              : "bg-slate-100 hover:bg-slate-200 border-slate-300 text-amber-600 hover:text-amber-700"
-          )}
-          title={isDark ? "Yorug' rejimga o'tish" : "Tungi rejimga o'tish"}
-        >
-          {isDark ? <Moon className="w-4 h-4" /> : <Sun className="w-4 h-4" />}
-        </button>
-
         {/* Language Selector (UZ | EN | RU) */}
-        <div
-          className={clsx(
-            "inline-flex items-center p-1 rounded-xl border text-xs font-bold",
-            isDark ? "bg-[#142447] border-[#1E365E] text-slate-400" : "bg-slate-100 border-slate-300 text-slate-600"
-          )}
-        >
+        <div className="inline-flex items-center p-1 rounded-lg border border-[#1E293B] bg-[#111827] text-xs font-semibold">
           {(['UZ', 'EN', 'RU'] as const).map((l) => (
             <button
               key={l}
               onClick={() => changeLanguage(l)}
               className={clsx(
-                "px-2.5 py-1 rounded-lg text-xs font-extrabold transition-all cursor-pointer",
+                "px-2 py-0.5 rounded-md text-xs font-bold transition-all cursor-pointer",
                 currentLang === l
-                  ? isDark
-                    ? "bg-amber-400 text-slate-950 shadow-xs"
-                    : "bg-amber-500 text-white shadow-xs"
-                  : isDark
-                  ? "hover:text-white text-slate-400"
-                  : "hover:text-slate-900 text-slate-600"
+                  ? "bg-[#3B82F6] text-white"
+                  : "text-[#94A3B8] hover:text-[#F1F5F9]"
               )}
             >
               {l}
@@ -158,14 +123,9 @@ export const EgaNavbar: React.FC<EgaNavbarProps> = ({ isCollapsed, onToggleColla
           ))}
         </div>
 
-        {/* Admin Profile Button */}
-        <div
-          className={clsx(
-            "inline-flex items-center gap-2 px-3 py-1.5 rounded-xl border text-xs font-bold",
-            isDark ? "bg-[#142447] border-[#1E365E] text-slate-200" : "bg-slate-100 border-slate-300 text-slate-800"
-          )}
-        >
-          <User className={clsx("w-4 h-4", isDark ? "text-amber-400" : "text-amber-600")} />
+        {/* Admin Profile Display */}
+        <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg border border-[#1E293B] bg-[#111827] text-xs font-bold text-[#F1F5F9]">
+          <User className="w-4 h-4 text-[#F59E0B]" />
           <span>{user?.fullName || 'Admin'}</span>
         </div>
       </div>

@@ -3,9 +3,42 @@
 @tailwind utilities;
 
 @layer base {
-  body {
-    @apply bg-surface text-accent font-sans antialiased;
+  :root {
+    color-scheme: dark;
   }
+
+  html {
+    background-color: #0B1120;
+    color: #F1F5F9;
+    font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  }
+
+  body {
+    background-color: #0B1120;
+    color: #F1F5F9;
+    font-family: 'Inter', system-ui, -apple-system, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+}
+
+/* Custom Unified Scrollbar */
+.custom-scrollbar::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: #0B1120;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: #1E293B;
+  border-radius: 9999px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: #3B82F6;
 }
 
 /* Chrome/Safari/Edge autofill override for dark inputs */
@@ -13,8 +46,8 @@
 .dark-autofill:-webkit-autofill:hover, 
 .dark-autofill:-webkit-autofill:focus, 
 .dark-autofill:-webkit-autofill:active {
-  -webkit-box-shadow: 0 0 0 1000px #060d1f inset !important;
-  -webkit-text-fill-color: #ffffff !important;
-  caret-color: #ffffff !important;
+  -webkit-box-shadow: 0 0 0 1000px #111827 inset !important;
+  -webkit-text-fill-color: #F1F5F9 !important;
+  caret-color: #F1F5F9 !important;
   transition: background-color 5000s ease-in-out 0s;
 }

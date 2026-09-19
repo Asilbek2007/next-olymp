@@ -12,11 +12,9 @@ import {
   LogOut,
   ShieldCheck,
   ShieldAlert,
-  Award,
-  Video
+  Award
 } from 'lucide-react';
 import { useAuth } from '../../hooks/useAuth';
-import { useThemeStore } from '../../store/useThemeStore';
 import { useTranslation } from 'react-i18next';
 import { translateText } from '../../i18n/translator';
 import { clsx } from 'clsx';
@@ -28,11 +26,8 @@ interface EgaSidebarProps {
 export const EgaSidebar: React.FC<EgaSidebarProps> = ({ isCollapsed }) => {
   const location = useLocation();
   const { logout } = useAuth();
-  const { theme } = useThemeStore();
   const { i18n } = useTranslation();
   const currentLang = i18n.language || 'uz';
-
-  const isDark = theme === 'dark';
 
   const menuGroups = [
     {
@@ -40,7 +35,7 @@ export const EgaSidebar: React.FC<EgaSidebarProps> = ({ isCollapsed }) => {
       items: [
         { label: translateText('Boshqaruv paneli', currentLang), path: '/ega', icon: LayoutDashboard },
         { label: translateText('Olimpiadalar', currentLang), path: '/ega/competitions', icon: Trophy },
-        { label: translateText('Jonli Proktoring', currentLang), path: '/ega/proctoring', icon: Video },
+        { label: translateText('Baholash Moduli (Rasch)', currentLang), path: '/ega/baholash', icon: Award },
         { label: translateText('Reytinglar', currentLang), path: '/ega/leaderboard', icon: Award },
         { label: translateText('Foydalanuvchilar', currentLang), path: '/ega/users', icon: Users },
         { label: translateText('Hududlar', currentLang), path: '/ega/locations', icon: MapPin },
@@ -56,32 +51,28 @@ export const EgaSidebar: React.FC<EgaSidebarProps> = ({ isCollapsed }) => {
   return (
     <aside
       className={clsx(
-        "h-screen sticky top-0 shrink-0 flex flex-col justify-between transition-colors duration-300 z-30 shadow-xl overflow-x-hidden overflow-y-auto custom-scrollbar font-sans select-none",
-        isCollapsed ? "w-20 p-3" : "w-64 p-4",
-        isDark
-          ? "bg-[#0D1832] border-r border-[#152542] text-slate-300"
-          : "bg-white border-r border-slate-200 text-slate-700"
+        "h-screen sticky top-0 shrink-0 flex flex-col justify-between z-30 shadow-xl overflow-x-hidden overflow-y-auto custom-scrollbar font-sans select-none bg-[#0B1120] border-r border-[#1E293B] text-[#F1F5F9]",
+        isCollapsed ? "w-20 p-3" : "w-[260px] p-4"
       )}
     >
       <div className="space-y-6">
-        {/* Brand Logo Header (No floating arrow toggle here, toggle is in top navbar next to dark mode) */}
+        {/* Admin Brand Logo Header */}
         <div
           className={clsx(
-            "pb-3 border-b flex items-center",
-            isCollapsed ? "justify-center" : "justify-between",
-            isDark ? "border-[#1A2E56]" : "border-slate-200"
+            "pb-3 border-b border-[#1E293B] flex items-center",
+            isCollapsed ? "justify-center" : "justify-between"
           )}
         >
           <Link to="/ega" className="flex items-center gap-3 overflow-hidden group">
-            <div className="w-9 h-9 rounded-xl bg-amber-500 text-slate-950 font-black flex items-center justify-center text-sm shadow-md shrink-0">
+            <div className="w-9 h-9 rounded-xl bg-[#F59E0B] text-slate-950 font-black flex items-center justify-center text-sm shadow-md shrink-0">
               <ShieldCheck className="w-5 h-5 text-slate-950" />
             </div>
             {!isCollapsed && (
               <div className="flex flex-col overflow-hidden">
-                <span className="text-sm font-extrabold tracking-wider text-amber-500 uppercase leading-none truncate">
+                <span className="text-sm font-extrabold tracking-wider text-[#F59E0B] uppercase leading-none truncate">
                   KHISO ADMIN
                 </span>
-                <span className={clsx("text-[10px] font-bold tracking-widest uppercase mt-1 truncate", isDark ? "text-slate-400" : "text-slate-500")}>
+                <span className="text-[10px] font-bold tracking-widest uppercase mt-1 text-[#94A3B8] truncate">
                   Control System
                 </span>
               </div>
@@ -94,7 +85,7 @@ export const EgaSidebar: React.FC<EgaSidebarProps> = ({ isCollapsed }) => {
           {menuGroups.map((group, idx) => (
             <div key={idx} className="space-y-1">
               {!isCollapsed && (
-                <div className={clsx("px-3 text-[10px] uppercase font-black tracking-widest mb-1.5", isDark ? "text-slate-400" : "text-slate-400")}>
+                <div className="px-3 text-[10px] uppercase font-bold tracking-widest mb-1.5 text-[#64748B]">
                   {group.title}
                 </div>
               )}
@@ -102,25 +93,20 @@ export const EgaSidebar: React.FC<EgaSidebarProps> = ({ isCollapsed }) => {
               {group.items.map((item) => {
                 const Icon = item.icon;
                 const active = location.pathname === item.path || (item.path !== '/ega' && location.pathname.startsWith(item.path));
-
                 return (
                   <Link
                     key={item.path}
                     to={item.path}
                     title={isCollapsed ? item.label : undefined}
                     className={clsx(
-                      "flex items-center gap-3 py-2.5 rounded-xl text-xs font-semibold transition-all duration-200",
-                      isCollapsed ? "px-0 justify-center" : "px-3.5",
+                      "flex items-center gap-3 py-2 rounded-lg text-xs font-semibold transition-all duration-150",
+                      isCollapsed ? "px-0 justify-center" : "px-3",
                       active
-                        ? isDark
-                          ? "bg-[#1B325E] text-amber-400 font-bold border-l-4 border-amber-400 shadow-md"
-                          : "bg-amber-50 text-amber-600 font-bold border-l-4 border-amber-500 shadow-sm"
-                        : isDark
-                        ? "text-slate-300 hover:bg-[#152542] hover:text-white"
-                        : "text-slate-600 hover:bg-slate-100 hover:text-slate-900"
+                        ? "bg-[#3B82F6] text-white font-bold shadow-md shadow-[#3B82F6]/20"
+                        : "text-[#94A3B8] hover:bg-[#111827] hover:text-[#F1F5F9]"
                     )}
                   >
-                    <Icon className={clsx("w-4 h-4 shrink-0", active ? (isDark ? "text-amber-400" : "text-amber-600") : (isDark ? "text-slate-400" : "text-slate-500"))} />
+                    <Icon className={clsx("w-4 h-4 shrink-0", active ? "text-white" : "text-[#94A3B8]")} />
                     {!isCollapsed && <span className="truncate">{item.label}</span>}
                   </Link>
                 );
@@ -130,17 +116,14 @@ export const EgaSidebar: React.FC<EgaSidebarProps> = ({ isCollapsed }) => {
         </div>
       </div>
 
-      {/* Logout Footer Button */}
-      <div className={clsx("pt-4 border-t mt-auto", isDark ? "border-[#152542]" : "border-slate-200")}>
+      {/* Admin Bottom Section (Logout only, no link to main site) */}
+      <div className="pt-4 border-t border-[#1E293B]">
         <button
           onClick={logout}
           title={isCollapsed ? translateText('Chiqish', currentLang) : undefined}
           className={clsx(
-            "w-full flex items-center justify-center gap-2 rounded-2xl border transition-all text-xs font-bold shadow-xs cursor-pointer",
-            isCollapsed ? "py-2.5" : "px-4 py-2.5",
-            isDark
-              ? "border-[#1E365E] bg-[#11203E] text-amber-400 hover:bg-rose-950/60 hover:text-rose-300 hover:border-rose-800"
-              : "border-slate-200 bg-slate-50 text-slate-700 hover:bg-rose-50 hover:text-rose-600 hover:border-rose-200"
+            "w-full flex items-center gap-3 py-2 rounded-lg text-xs font-semibold text-[#94A3B8] hover:bg-[#EF4444]/10 hover:text-[#EF4444] transition-colors cursor-pointer",
+            isCollapsed ? "px-0 justify-center" : "px-3"
           )}
         >
           <LogOut className="w-4 h-4 shrink-0" />

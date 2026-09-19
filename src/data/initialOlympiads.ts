@@ -33,7 +33,40 @@ export interface OlympiadItem {
   showResultsToStudent?: boolean; // Test yakunlangach o'quvchiga natijani ko'rsatish/yashirish
   resultsPublishDate?: string; // Natijalarni e'lon qilish sanasi va vaqti
   aiAnalysisEnabled?: boolean; // AI orqali xato qilingan savollarni tahlil qilish va kamchiliklarni ko'rsatish
+  retakeAllowed?: boolean; // Qayta topshirishga ruxsat (Ha / Yo'q)
+  maxRetakeAttempts?: number; // Maksimal urinishlar soni (1, 2, 3...)
   questions?: any[]; // Musobaqaga biriktirilgan savollar
+  
+  // Certificate & Anti-Cheat configs
+  certificateConfig?: {
+    fontFamily: 'serif' | 'sans' | 'cinzel' | 'playfair' | 'montserrat' | 'greatvibes';
+    subjectName?: string;
+    isMultiRound?: boolean;
+    awardCriteria?: 'top_rank' | 'min_score' | 'both';
+    topRankLimit?: number;
+    minScoreLimit?: number;
+    winnerText?: string;
+    participantText?: string;
+    round1PassedText?: string;
+    round1FailedText?: string;
+    signatureName?: string;
+    signatureRole?: string;
+  };
+  antiCheatConfig?: {
+    enabled: boolean;
+    blockTabSwitch: boolean;
+    blockCopyPaste: boolean;
+    requireFullscreen: boolean;
+    requireWebcam: boolean;
+    requireMic: boolean;
+    blockDevTools: boolean;
+    maxViolationsAllowed: number;
+    blockDuplicateIP?: boolean;
+    heartbeatIntervalSec?: number;
+    cameraFaceSnapshotEnabled?: boolean;
+    snapshotOnMultipleFaces?: boolean;
+    snapshotOnNoFace?: boolean;
+  };
 }
 
 export const INITIAL_OLYMPIADS: OlympiadItem[] = [

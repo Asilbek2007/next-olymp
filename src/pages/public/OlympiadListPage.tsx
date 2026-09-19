@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Search, Filter } from 'lucide-react';
+import { Search } from 'lucide-react';
 import { OlympiadCard } from '../../components/olympiad/OlympiadCard';
 import { useOlympiadList } from '../../hooks/useOlympiad';
 import { Subject, OlympiadStatus } from '../../types';
@@ -20,25 +20,25 @@ export const OlympiadListPage: React.FC = () => {
   });
 
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 space-y-8">
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 space-y-8 bg-[#0B1120] text-[#F1F5F9]">
       {/* Title */}
       <div className="space-y-2">
-        <h1 className="text-3xl font-black text-accent-900 tracking-tight">{t('olympiads.title')}</h1>
-        <p className="text-accent-600 text-sm">{t('olympiads.subtitle')}</p>
+        <h1 className="text-3xl font-black text-[#F1F5F9] tracking-tight">{t('olympiads.title') || "Akademik Olimpiadalar"}</h1>
+        <p className="text-[#94A3B8] text-sm">{t('olympiads.subtitle') || "Bilimingizni sinang, bellashing va nufuzli sovrinlarni qo'lga kiriting"}</p>
       </div>
 
       {/* Filter Bar */}
-      <div className="bg-white border border-border rounded-2xl p-4 shadow-xs space-y-4">
+      <div className="bg-[#111827] border border-[#1E293B] rounded-xl p-4 shadow-xs space-y-4">
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
           {/* Search */}
           <div className="relative">
-            <Search className="w-4 h-4 text-accent-400 absolute left-3 top-3" />
+            <Search className="w-4 h-4 text-[#94A3B8] absolute left-3 top-3" />
             <input
               type="text"
               placeholder="Musobaqa nomidan izlash..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="w-full pl-9 pr-3 py-2 text-sm border border-border rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-500"
+              className="w-full pl-9 pr-3 py-2 text-sm border border-[#1E293B] bg-[#0B1120] text-[#F1F5F9] placeholder-[#64748B] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#3B82F6]"
             />
           </div>
 
@@ -46,9 +46,9 @@ export const OlympiadListPage: React.FC = () => {
           <select
             value={subject}
             onChange={(e) => setSubject(e.target.value as Subject | 'all')}
-            className="w-full p-2 text-sm border border-border rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white"
+            className="w-full p-2 text-sm border border-[#1E293B] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#3B82F6] bg-[#0B1120] text-[#F1F5F9]"
           >
-            <option value="all">{t('olympiads.allSubjects')}</option>
+            <option value="all">{t('olympiads.allSubjects') || "Barcha fanlar"}</option>
             <option value="math">Matematika</option>
             <option value="physics">Fizika</option>
             <option value="chemistry">Kimyo</option>
@@ -60,9 +60,9 @@ export const OlympiadListPage: React.FC = () => {
           <select
             value={grade}
             onChange={(e) => setGrade(e.target.value === 'all' ? 'all' : Number(e.target.value))}
-            className="w-full p-2 text-sm border border-border rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white"
+            className="w-full p-2 text-sm border border-[#1E293B] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#3B82F6] bg-[#0B1120] text-[#F1F5F9]"
           >
-            <option value="all">{t('olympiads.allGrades')}</option>
+            <option value="all">{t('olympiads.allGrades') || "Barcha sinflar"}</option>
             {[5, 6, 7, 8, 9, 10, 11].map((g) => (
               <option key={g} value={g}>{g}-sinf</option>
             ))}
@@ -72,34 +72,33 @@ export const OlympiadListPage: React.FC = () => {
           <select
             value={status}
             onChange={(e) => setStatus(e.target.value as OlympiadStatus | 'all')}
-            className="w-full p-2 text-sm border border-border rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white"
+            className="w-full p-2 text-sm border border-[#1E293B] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#3B82F6] bg-[#0B1120] text-[#F1F5F9]"
           >
-            <option value="all">{t('olympiads.allStatuses')}</option>
-            <option value="active">{t('olympiads.active')}</option>
-            <option value="upcoming">{t('olympiads.upcoming')}</option>
-            <option value="finished">{t('olympiads.finished')}</option>
+            <option value="all">{t('olympiads.allStatuses') || "Barcha holatlar"}</option>
+            <option value="active">🟢 {t('olympiads.active') || "Faol"}</option>
+            <option value="upcoming">🟡 {t('olympiads.upcoming') || "Kutilayotgan"}</option>
+            <option value="finished">🔴 {t('olympiads.finished') || "Yakunlangan"}</option>
           </select>
         </div>
       </div>
 
-      {/* Grid List */}
+      {/* Grid */}
       {isLoading ? (
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           {[1, 2, 3, 4, 5, 6].map((i) => (
-            <div key={i} className="h-80 bg-surface rounded-2xl animate-pulse" />
+            <div key={i} className="h-80 bg-[#111827] border border-[#1E293B] rounded-xl animate-pulse" />
           ))}
         </div>
-      ) : olympiads && olympiads.length > 0 ? (
+      ) : !olympiads || olympiads.length === 0 ? (
+        <div className="p-12 text-center bg-[#111827] border border-[#1E293B] rounded-xl space-y-3">
+          <p className="text-base font-semibold text-[#F1F5F9]">Musobaqalar topilmadi</p>
+          <p className="text-xs text-[#94A3B8]">Filtr parametrlarini o'zgartirib ko'ring.</p>
+        </div>
+      ) : (
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           {olympiads.map((o) => (
             <OlympiadCard key={o.id} olympiad={o} />
           ))}
-        </div>
-      ) : (
-        <div className="text-center py-16 bg-white border border-border rounded-2xl space-y-3">
-          <Filter className="w-10 h-10 text-accent-400 mx-auto" />
-          <h3 className="text-lg font-bold text-accent-900">Ushbu filtr bo'yicha musobaqalar topilmadi</h3>
-          <p className="text-xs text-accent-500">Filtr parametrlari yoki izlash so'rovini o'zgartirib ko'ring.</p>
         </div>
       )}
     </div>

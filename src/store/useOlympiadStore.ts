@@ -10,23 +10,21 @@ interface OlympiadStore {
   deleteOlympiad: (id: string) => void;
   togglePinOlympiad: (id: string) => void;
   toggleOlympiadStatus: (id: string) => void;
-  generateAiOlympiadDraft: (promptCommand: string) => Partial<OlympiadItem>;
   resetOlympiads: () => void;
 }
 
 const loadOlympiadsFromStorage = (): OlympiadItem[] => {
   try {
     const stored = localStorage.getItem(STORAGE_KEY);
-    if (stored) {
+    if (stored !== null) {
       const parsed = JSON.parse(stored);
-      if (Array.isArray(parsed) && parsed.length > 0) {
+      if (Array.isArray(parsed)) {
         return parsed;
       }
     }
   } catch (error) {
     console.error('Error loading olympiads from localStorage:', error);
   }
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(INITIAL_OLYMPIADS));
   return INITIAL_OLYMPIADS;
 };
 
@@ -41,6 +39,7 @@ export const useOlympiadStore = create<OlympiadStore>((set, get) => ({
     const olympiad: OlympiadItem = {
       ...newItem,
       id,
+      questions: newItem.questions || [],
       registeredCount: 0,
       submittedCount: 0,
       paidCount: 0,
@@ -82,40 +81,6 @@ export const useOlympiadStore = create<OlympiadStore>((set, get) => ({
 
     set({ olympiads: updated });
     localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
-  },
-
-  generateAiOlympiadDraft: (promptCommand) => {
-    const cmd = promptCommand.toLowerCase();
-    let subject = 'Matematika';
-    let format: 'online' | 'offline' = 'online';
-    let price = 35000;
-
-    if (cmd.includes('ingliz') || cmd.includes('english')) subject = 'Ingliz tili';
-    else if (cmd.includes('fizika')) subject = 'Fizika';
-    else if (cmd.includes('biologiya')) subject = 'Biologiya';
-    else if (cmd.includes('informatika') || cmd.includes('it')) subject = 'Informatika';
-    else if (cmd.includes('kimyo')) subject = 'Kimyo';
-
-    if (cmd.includes('offline') || cmd.includes('oflayn') || cmd.includes('maktabda')) {
-      format = 'offline';
-      price = 45000;
-    }
-
-    const today = new Date().toISOString().split('T')[0];
-
-    return {
-      title: `Respublika ${subject} Bo'yicha AI Gen Olimpiadasi`,
-      subject,
-      format,
-      price,
-      status: 'ochiq',
-      isPinned: false,
-      startDate: `${today} 10:00`,
-      endDate: `${today} 18:00`,
-      image: 'https://images.unsplash.com/photo-1434030216411-0b793f4b4173?auto=format&fit=crop&w=600&q=80',
-      description: `AI yordamida avtomatik shakllantirilgan ${subject} fani bo'yicha Respublika akademik musobaqasi va sinov testi.`,
-      organizer: 'NextOlymp AI Akademik System'
-    };
   },
 
   resetOlympiads: () => {

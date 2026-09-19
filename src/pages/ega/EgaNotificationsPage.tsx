@@ -14,14 +14,12 @@ import {
   AlertCircle,
   Percent,
   Send,
-  Sparkles,
   Search,
   FileSpreadsheet,
   Columns,
   Calendar,
   Filter,
   Trash2,
-  Bot,
   RefreshCw,
   PhoneCall,
   MapPin,
@@ -32,7 +30,7 @@ import {
 import * as XLSX from 'xlsx';
 
 export const EgaNotificationsPage: React.FC = () => {
-  const { notifications, sendNotification, generateAiSmsContent, deleteNotification } = useNotificationStore();
+  const { notifications, sendNotification, deleteNotification } = useNotificationStore();
   const { viloyatlar } = useLocationStore();
   const { users } = useUserStore();
   const { theme } = useThemeStore();
@@ -50,8 +48,6 @@ export const EgaNotificationsPage: React.FC = () => {
   const [selectedUserIds, setSelectedUserIds] = useState<string[]>([]);
   const [userSearchTerm, setUserSearchTerm] = useState('');
   const [isUserDropdownOpen, setIsUserDropdownOpen] = useState(false);
-  const [aiPromptInput, setAiPromptInput] = useState('');
-  const [isAiGenerating, setIsAiGenerating] = useState(false);
 
   // History Filters & Search
   const [historyTab, setHistoryTab] = useState<'all' | 'otp' | 'notifications'>('all');
@@ -73,19 +69,17 @@ export const EgaNotificationsPage: React.FC = () => {
   const [isColumnDropdownOpen, setIsColumnDropdownOpen] = useState(false);
 
   // Stats Calculations
-  const totalSmsCount = 72118 + notifications.length - 7;
+  const totalSmsCount = notifications.length;
   const deliveredCount = useMemo(() => {
-    const successLogs = notifications.filter((n) => n.status === 'Qabul qilindi').length;
-    return 71941 + (successLogs - 6);
+    return notifications.filter((n) => n.status === 'Qabul qilindi').length;
   }, [notifications]);
 
   const failedCount = useMemo(() => {
-    const failedLogs = notifications.filter((n) => n.status === 'Yuborilmadi').length;
-    return 177 + (failedLogs - 1);
+    return notifications.filter((n) => n.status === 'Yuborilmadi').length;
   }, [notifications]);
 
   const deliveryRate = useMemo(() => {
-    if (totalSmsCount === 0) return '100%';
+    if (totalSmsCount === 0) return '0%';
     return `${((deliveredCount / totalSmsCount) * 100).toFixed(1)}%`;
   }, [totalSmsCount, deliveredCount]);
 
@@ -123,18 +117,6 @@ export const EgaNotificationsPage: React.FC = () => {
       return matchesSearch && matchesDate;
     });
   }, [notifications, historyTab, searchTerm, fromDate, toDate]);
-
-  // AI SMS Generator
-  const handleGenerateAiSms = () => {
-    if (!aiPromptInput.trim()) return;
-    setIsAiGenerating(true);
-
-    setTimeout(() => {
-      const generatedText = generateAiSmsContent(aiPromptInput.trim(), smsType);
-      setSmsText(generatedText);
-      setIsAiGenerating(false);
-    }, 500);
-  };
 
   // Filtered Users for Picker
   const filteredUsersForPicker = useMemo(() => {
@@ -177,7 +159,6 @@ export const EgaNotificationsPage: React.FC = () => {
     }
 
     setSmsText('');
-    setAiPromptInput('');
     setSelectedUserIds([]);
   };
 
@@ -336,41 +317,6 @@ export const EgaNotificationsPage: React.FC = () => {
           </div>
 
           <form onSubmit={handleSendSms} className="space-y-3">
-            {/* AI Command Input Bar */}
-            <div className={clsx("p-2.5 rounded-xl border flex flex-col sm:flex-row items-center gap-2", isDark ? "bg-[#050C1F] border-purple-900/60" : "bg-purple-50 border-purple-200")}>
-              <div className="flex items-center gap-1.5 font-bold text-purple-400 text-xs shrink-0 pl-1">
-                <Sparkles className="w-4 h-4 text-purple-400 animate-pulse" />
-                <span>{t("AI Chat Buyruq")}:</span>
-              </div>
-              <input
-                type="text"
-                placeholder={t("Masalan: Matematika olimpiadasi natijalari e'lon qilindi deb matn yoz...")}
-                value={aiPromptInput}
-                onChange={(e) => setAiPromptInput(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') {
-                    e.preventDefault();
-                    handleGenerateAiSms();
-                  }
-                }}
-                className={clsx(
-                  "w-full rounded-lg px-3 py-1.5 text-xs outline-none border transition-all",
-                  isDark
-                    ? "bg-[#091129] border-purple-900/60 focus:border-purple-400 text-white placeholder:text-slate-500"
-                    : "bg-white border-purple-300 focus:border-purple-500 text-slate-900 placeholder:text-slate-400"
-                )}
-              />
-              <button
-                type="button"
-                onClick={handleGenerateAiSms}
-                disabled={isAiGenerating || !aiPromptInput.trim()}
-                className="px-3 py-1.5 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white font-bold rounded-lg text-xs transition-all shrink-0 cursor-pointer disabled:opacity-50 flex items-center gap-1"
-              >
-                <Bot className="w-3.5 h-3.5" />
-                <span>{isAiGenerating ? t("Yaratilmoqda...") : t("AI Bilan Yaratish")}</span>
-              </button>
-            </div>
-
             {/* Message Textarea */}
             <div className="relative">
               <textarea

@@ -1,53 +1,72 @@
 import React, { useState } from 'react';
-import { Link } from 'react-router-dom';
-import { Sidebar } from '../../components/common/Sidebar';
 import { Card } from '../../components/common/Card';
 import { Button } from '../../components/common/Button';
 import { Badge } from '../../components/common/Badge';
-import { Trophy, Clock, Search, Filter, Sparkles, ArrowRight, HelpCircle } from 'lucide-react';
+import { Trophy, Clock, HelpCircle, ArrowRight, Search, GraduationCap, RotateCcw, AlertTriangle, CheckCircle2 } from 'lucide-react';
 import { useOlympiadList } from '../../hooks/useOlympiad';
-import { Subject, OlympiadStatus } from '../../types';
-
 import { useOlympiadStore } from '../../store/useOlympiadStore';
+import { useAuthStore } from '../../store/useAuthStore';
+import { submissionService } from '../../services/submissionService';
+import { Subject, OlympiadStatus } from '../../types';
+import { Link } from 'react-router-dom';
 
 export const StudentOlympiadsPage: React.FC = () => {
   const [selectedSubject, setSelectedSubject] = useState<Subject | 'all'>('all');
   const [selectedStatus, setSelectedStatus] = useState<OlympiadStatus | 'all'>('all');
   const [searchQuery, setSearchQuery] = useState('');
 
-  const { olympiads: storedOlympiads } = useOlympiadStore();
+  const user = useAuthStore((state) => state.user);
+  const studentGrade = user?.grade ? Number(user.grade) : null;
+
   const { data: queriedOlympiads, isLoading } = useOlympiadList({
-    subject: selectedSubject,
-    status: selectedStatus,
-    search: searchQuery,
+    subject: selectedSubject === 'all' ? undefined : selectedSubject,
+    status: selectedStatus === 'all' ? undefined : selectedStatus,
+    search: searchQuery || undefined,
   });
 
-  const olympiads = storedOlympiads.length > 0
-    ? storedOlympiads
-        .filter((o) => {
-          const matchSubject = selectedSubject === 'all' || o.subject.toLowerCase().includes(selectedSubject);
-          const matchStatus = selectedStatus === 'all' || (selectedStatus === 'active' ? o.status === 'ochiq' : o.status === 'yopiq');
-          const matchQuery = !searchQuery || o.title.toLowerCase().includes(searchQuery.toLowerCase());
-          return matchSubject && matchStatus && matchQuery;
-        })
-        .map((o) => ({
-          id: o.id,
-          title: o.title,
-          subject: (o.subject.toLowerCase().includes('mat') ? 'math' : o.subject.toLowerCase().includes('fiz') ? 'physics' : o.subject.toLowerCase().includes('inf') ? 'informatics' : o.subject.toLowerCase().includes('kim') ? 'chemistry' : o.subject.toLowerCase().includes('bio') ? 'biology' : 'other') as Subject,
-          description: o.description,
-          startDate: o.startDate,
-          endDate: o.endDate,
-          status: (o.status === 'ochiq' ? 'active' : 'finished') as OlympiadStatus,
-          durationMinutes: 90,
-          totalQuestions: o.questions?.length || 30,
-          maxScore: 100,
-          rounds: [],
-          eligibility: { grades: o.targetGrades || [5,6,7,8,9,10,11] },
-          prizes: [],
-          participantsCount: o.registeredCount || 0,
-          organizer: o.organizer || 'NextOlymp'
-        }))
-    : queriedOlympiads;
+  const { olympiads: localOlympiads } = useOlympiadStore();
+
+  const matchSubject = (subjectStr: string | undefined, filter: Subject | 'all') => {
+    if (filter === 'all') return true;
+    if (!subjectStr) return false;
+    const s = subjectStr.toLowerCase();
+    if (filter === 'math') return s.includes('matematik') || s === 'math';
+    if (filter === 'physics') return s.includes('fizik') || s === 'physics';
+    if (filter === 'informatics') return s.includes('informat') || s === 'informatics';
+    if (filter === 'chemistry') return s.includes('kimyo') || s === 'chemistry';
+    if (filter === 'biology') return s.includes('biolog') || s === 'biology';
+    return s.includes(filter);
+  };
+
+  const olympiads = (localOlympiads || [])
+    .filter((o) => matchSubject(o.subject, selectedSubject))
+    .filter((o) => {
+      if (selectedStatus === 'all') return true;
+      const s = (o.status || '').toLowerCase();
+      const mappedStatus = (s === 'ochiq' || s === 'active') ? 'active' : (s === 'upcoming' || s === 'kutilmoqda') ? 'upcoming' : 'finished';
+      return mappedStatus === selectedStatus;
+    })
+    .filter((o) => {
+      if (!searchQuery) return true;
+      const q = searchQuery.toLowerCase();
+      return (o.title || '').toLowerCase().includes(q) || (o.description || '').toLowerCase().includes(q) || (o.subject || '').toLowerCase().includes(q);
+    })
+    .map((o) => {
+      const s = (o.status || '').toLowerCase();
+      const mappedStatus: OlympiadStatus = (s === 'ochiq' || s === 'active') ? 'active' : (s === 'upcoming' || s === 'kutilmoqda') ? 'upcoming' : 'finished';
+      return {
+        ...o,
+        subject: o.subject || 'other',
+        status: mappedStatus,
+        startDate: o.startDate || new Date().toISOString(),
+        endDate: o.endDate || new Date(Date.now() + 86400000).toISOString(),
+        durationMinutes: (o as any).durationMinutes || 60,
+        totalQuestions: (o as any).questionsCount || (o as any).totalQuestions || (o.questions ? o.questions.length : 25),
+        maxScore: (o as any).maxScore || 100,
+        participantsCount: (o as any).participantsCount || (o.registeredCount || 0),
+        organizer: o.organizer || 'Next Olymp Hakamlar Hay\'ati',
+      };
+    });
 
   const subjectsList: { id: Subject | 'all'; name: string }[] = [
     { id: 'all', name: 'Barcha Fanlar' },
@@ -59,132 +78,228 @@ export const StudentOlympiadsPage: React.FC = () => {
   ];
 
   return (
-    <div className="flex bg-surface min-h-screen">
-      <Sidebar />
-
-      <main className="flex-1 w-full min-w-0 transition-all duration-300 p-6 md:p-8 space-y-8">
-        {/* Header Hero */}
-        <div className="relative overflow-hidden bg-gradient-to-r from-blue-950 via-slate-900 to-blue-900 text-white rounded-3xl p-8 shadow-xl border border-blue-800/80 flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
-          <div className="space-y-2 relative z-10">
-            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-cyan-400/15 border border-cyan-400/30 text-cyan-300 text-xs font-extrabold uppercase tracking-widest backdrop-blur-xs">
-              <Trophy className="w-3.5 h-3.5 text-cyan-400" />
-              <span>Kabinet Olimpiadalar Bo'limi</span>
+    <div className="space-y-5">
+      {/* Compact Unified Header & Filter Bar */}
+      <div className="bg-[#111827] text-[#F1F5F9] rounded-xl p-4 sm:p-5 border border-[#1E293B] shadow-md space-y-3.5">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 rounded-lg bg-[#3B82F6]/15 border border-[#3B82F6]/30 flex items-center justify-center text-[#60A5FA] shrink-0">
+              <Trophy className="w-5 h-5 text-[#F59E0B]" />
             </div>
-            <h1 className="text-3xl font-black tracking-tight text-white">Olimpiadalar va Musobaqalar</h1>
-            <p className="text-sm text-blue-200 font-medium max-w-xl">
-              Bilimingizni sinash uchun mavjud olimpiadalarga ro'yxatdan o'ting va jonli musobaqalarda qatnashing
-            </p>
+            <div>
+              <div className="flex items-center gap-2">
+                <h1 className="text-lg sm:text-xl font-black tracking-tight text-[#F1F5F9]">Olimpiadalar va Musobaqalar</h1>
+                <span className="hidden sm:inline-flex px-2 py-0.5 rounded-full bg-[#3B82F6]/15 text-[#60A5FA] text-[10px] font-bold uppercase tracking-wider border border-[#3B82F6]/30">
+                  Kabinet
+                </span>
+              </div>
+              <p className="text-[11px] sm:text-xs text-[#94A3B8] font-medium">
+                Mavjud olimpiadalarga ro'yxatdan o'ting va jonli musobaqalarda bilimingizni sinang
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2 self-start sm:self-auto">
+            <span className="text-xs font-semibold text-[#94A3B8] bg-[#0B1120] px-2.5 py-1 rounded-md border border-[#1E293B]">
+              Jami: <strong className="text-white">{olympiads.length}</strong> ta
+            </span>
           </div>
         </div>
 
-        {/* Filter and Search Bar */}
-        <div className="bg-white border border-border rounded-2xl p-5 shadow-xs space-y-4">
-          <div className="flex flex-col sm:flex-row items-center gap-4">
-            <div className="relative flex-1 w-full">
-              <Search className="w-4 h-4 text-accent-400 absolute left-3.5 top-3.5" />
-              <input
-                type="text"
-                placeholder="Olimpiada nomi yoki yo'nalishi bo'yicha izlash..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full pl-10 pr-4 py-2.5 text-sm border border-border rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 font-medium"
-              />
-            </div>
-
-            <div className="flex items-center gap-3 w-full sm:w-auto">
-              <select
-                value={selectedStatus}
-                onChange={(e) => setSelectedStatus(e.target.value as OlympiadStatus | 'all')}
-                className="w-full sm:w-44 p-2.5 text-sm border border-border rounded-xl bg-white font-semibold text-accent-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
-              >
-                <option value="all">Barcha holatlar</option>
-                <option value="active">🟢 Faol (Davom etayotgan)</option>
-                <option value="upcoming">🟡 Kutilayotgan</option>
-                <option value="finished">🔴 Yakunlangan</option>
-              </select>
-            </div>
+        {/* Search & Status Filter Row */}
+        <div className="flex flex-col sm:flex-row items-center gap-2.5 pt-1">
+          <div className="relative flex-1 w-full">
+            <Search className="w-3.5 h-3.5 text-[#94A3B8] absolute left-3 top-2.5" />
+            <input
+              type="text"
+              placeholder="Olimpiada nomi yoki fani bo'yicha izlash..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full pl-9 pr-3 py-1.5 sm:py-2 text-xs border border-[#1E293B] bg-[#0B1120] text-[#F1F5F9] placeholder-[#64748B] rounded-lg focus:outline-none focus:ring-1 focus:ring-[#3B82F6] font-medium"
+            />
           </div>
 
-          {/* Subject Pills */}
-          <div className="flex items-center gap-2 overflow-x-auto pb-1">
-            {subjectsList.map((s) => (
-              <button
-                key={s.id}
-                onClick={() => setSelectedSubject(s.id)}
-                className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all shrink-0 cursor-pointer ${
-                  selectedSubject === s.id
-                    ? 'bg-blue-600 text-white shadow-md shadow-blue-900/30'
-                    : 'bg-surface hover:bg-blue-50 text-accent-700 border border-border'
-                }`}
-              >
-                {s.name}
-              </button>
-            ))}
+          <div className="flex items-center gap-2 w-full sm:w-auto">
+            <select
+              value={selectedStatus}
+              onChange={(e) => setSelectedStatus(e.target.value as OlympiadStatus | 'all')}
+              className="w-full sm:w-40 px-2.5 py-1.5 sm:py-2 text-xs border border-[#1E293B] rounded-lg bg-[#0B1120] font-semibold text-[#F1F5F9] focus:outline-none focus:ring-1 focus:ring-[#3B82F6] cursor-pointer"
+            >
+              <option value="all">Barcha holatlar</option>
+              <option value="active">🟢 Faol (Ochiq)</option>
+              <option value="upcoming">🟡 Kutilayotgan</option>
+              <option value="finished">🔴 Yakunlangan</option>
+            </select>
           </div>
         </div>
 
-        {/* Olympiad List */}
-        {isLoading ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {[1, 2, 3, 4].map((i) => (
-              <div key={i} className="h-48 bg-white border border-border rounded-2xl animate-pulse" />
-            ))}
-          </div>
-        ) : !olympiads || olympiads.length === 0 ? (
-          <div className="p-12 text-center bg-white border border-border rounded-2xl space-y-3">
-            <Trophy className="w-12 h-12 text-accent-300 mx-auto" />
-            <h3 className="text-lg font-bold text-accent-900">Musobaqalar topilmadi</h3>
-            <p className="text-xs text-accent-500">Qidiruv yoki filtr parametrlarini o'zgartirib ko'ring</p>
-          </div>
-        ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {olympiads.map((o) => (
-              <Card key={o.id} className="p-6 space-y-5 bg-white border border-blue-100 shadow-xs hover:border-blue-500 hover:shadow-lg transition-all duration-300 flex flex-col justify-between">
+        {/* Subject Pills */}
+        <div className="flex items-center gap-1.5 overflow-x-auto pb-0.5 no-scrollbar">
+          {subjectsList.map((s) => (
+            <button
+              key={s.id}
+              onClick={() => setSelectedSubject(s.id)}
+              className={`px-2.5 py-1 rounded-md text-[11px] font-bold transition-all shrink-0 cursor-pointer ${
+                selectedSubject === s.id
+                  ? 'bg-[#3B82F6] text-white shadow-xs'
+                  : 'bg-[#0B1120] hover:bg-[#1E293B] text-[#94A3B8] border border-[#1E293B]'
+              }`}
+            >
+              {s.name}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Olympiad List */}
+      {isLoading ? (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          {[1, 2, 3, 4].map((i) => (
+            <div key={i} className="h-48 bg-[#111827] border border-[#1E293B] rounded-xl animate-pulse" />
+          ))}
+        </div>
+      ) : !olympiads || olympiads.length === 0 ? (
+        <div className="p-12 text-center bg-[#111827] border border-[#1E293B] rounded-xl space-y-3">
+          <Trophy className="w-12 h-12 text-[#94A3B8] mx-auto" />
+          <h3 className="text-lg font-bold text-[#F1F5F9]">Musobaqalar topilmadi</h3>
+          <p className="text-xs text-[#94A3B8]">Qidiruv yoki filtr parametrlarini o'zgartirib ko'ring</p>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          {olympiads.map((o) => {
+            const targetGrades: number[] = (o as any).targetGrades || (o as any).eligibility?.grades || [];
+            const hasGradeFilter = targetGrades && targetGrades.length > 0 && targetGrades.length < 11;
+            const isGradeEligible = !studentGrade || !hasGradeFilter || targetGrades.includes(studentGrade);
+            
+            const attemptsCount = user ? submissionService.getAttemptCount(user.id, o.id) : 0;
+            const retakeAllowed = (o as any).retakeAllowed === true;
+            const maxAttempts = retakeAllowed ? Number((o as any).maxRetakeAttempts || 2) : 1;
+            const hasRemainingAttempts = retakeAllowed && attemptsCount > 0 && attemptsCount < maxAttempts;
+            const isCompleted = attemptsCount > 0 && (!retakeAllowed || attemptsCount >= maxAttempts);
+
+            return (
+              <Card key={o.id} hoverEffect className="p-6 space-y-5 bg-[#111827] border border-[#1E293B] flex flex-col justify-between">
                 <div className="space-y-3">
-                  <div className="flex items-center justify-between">
-                    <Badge subject={o.subject} />
+                  <div className="flex items-center justify-between flex-wrap gap-2">
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <Badge subject={o.subject} />
+                      {hasGradeFilter && (
+                        <span className="px-2 py-0.5 rounded-full bg-purple-500/15 text-purple-400 border border-purple-500/30 text-[10px] font-bold flex items-center gap-1">
+                          <GraduationCap className="w-3 h-3" />
+                          {targetGrades.join(', ')}-sinf
+                        </span>
+                      )}
+                      {retakeAllowed && (
+                        <span className="px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-400 border border-amber-500/30 text-[10px] font-bold flex items-center gap-1">
+                          <RotateCcw className="w-3 h-3" />
+                          {maxAttempts}x Urinish
+                        </span>
+                      )}
+                    </div>
                     <Badge status={o.status} />
                   </div>
+
                   <div>
-                    <h3 className="font-bold text-xl text-slate-900 leading-snug">{o.title}</h3>
-                    <p className="text-xs text-slate-600 line-clamp-2 mt-2 leading-relaxed">{o.description}</p>
+                    <h3 className="font-bold text-lg text-[#F1F5F9] leading-snug">{o.title}</h3>
+                    <p className="text-xs text-[#94A3B8] line-clamp-2 mt-2 leading-relaxed">{o.description}</p>
                   </div>
+
+                  {/* Warning if student grade doesn't match */}
+                  {!isGradeEligible && (
+                    <div className="p-2.5 rounded-lg bg-rose-500/10 border border-rose-500/30 flex items-center gap-2 text-[11px] text-rose-300">
+                      <AlertTriangle className="w-4 h-4 text-rose-400 shrink-0" />
+                      <span>
+                        Faqat <strong>{targetGrades.join(', ')}-sinf</strong> o'quvchilari uchun. Siz: <strong>{studentGrade}-sinf</strong>.
+                      </span>
+                    </div>
+                  )}
+
+                  {/* Status if already participated */}
+                  {attemptsCount > 0 && (
+                    <div className={`p-2.5 rounded-lg border flex items-center justify-between text-[11px] ${
+                      hasRemainingAttempts 
+                        ? 'bg-amber-500/10 border-amber-500/30 text-amber-300' 
+                        : 'bg-emerald-500/10 border-emerald-500/30 text-emerald-300'
+                    }`}>
+                      <div className="flex items-center gap-1.5">
+                        <CheckCircle2 className="w-4 h-4 shrink-0" />
+                        <span>
+                          {hasRemainingAttempts 
+                            ? `Ishtirok etilgan (${attemptsCount}/${maxAttempts} ta urinish ishlatildi)`
+                            : `Yakunlangan (${attemptsCount} ta urinish topshirilgan)`}
+                        </span>
+                      </div>
+                    </div>
+                  )}
                 </div>
 
-                <div className="space-y-4 pt-4 border-t border-slate-100">
-                  <div className="grid grid-cols-2 gap-2 text-xs text-slate-600 font-medium">
+                <div className="space-y-4 pt-4 border-t border-[#1E293B]">
+                  <div className="grid grid-cols-2 gap-2 text-xs text-[#94A3B8] font-medium">
                     <div className="flex items-center gap-1.5">
-                      <Clock className="w-4 h-4 text-blue-600" />
+                      <Clock className="w-4 h-4 text-[#3B82F6]" />
                       <span>{o.durationMinutes} daqiqa</span>
                     </div>
                     <div className="flex items-center gap-1.5">
-                      <HelpCircle className="w-4 h-4 text-blue-600" />
+                      <HelpCircle className="w-4 h-4 text-[#3B82F6]" />
                       <span>{o.totalQuestions} ta savol</span>
                     </div>
                   </div>
 
                   <div className="flex items-center justify-between pt-2">
-                    <div className="text-xs font-bold text-emerald-600 bg-emerald-50 px-2.5 py-1 rounded-lg border border-emerald-200">
+                    <div className="text-xs font-bold text-[#10B981] bg-[#10B981]/15 px-2.5 py-1 rounded-md border border-[#10B981]/30">
                       Maks. {o.maxScore} ball
                     </div>
 
-                    <Link to={`/olympiads/${o.id}`}>
+                    {!isGradeEligible ? (
                       <Button
                         size="sm"
-                        variant="primary"
-                        rightIcon={<ArrowRight className="w-4 h-4" />}
-                        className="bg-blue-600 hover:bg-blue-500 text-white font-bold shadow-md shadow-blue-900/30"
+                        variant="secondary"
+                        disabled
+                        className="opacity-50 cursor-not-allowed text-xs"
                       >
-                        Qatnashish
+                        Sinf mos emas
                       </Button>
-                    </Link>
+                    ) : isCompleted ? (
+                      <Link to="/results">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="bg-emerald-500/15 border-emerald-500/40 text-emerald-300 hover:bg-emerald-500/25"
+                          rightIcon={<ArrowRight className="w-4 h-4" />}
+                        >
+                          Natijani ko'rish
+                        </Button>
+                      </Link>
+                    ) : hasRemainingAttempts ? (
+                      <Link to={`/olympiads/${o.id}/participate`}>
+                        <Button
+                          size="sm"
+                          variant="primary"
+                          className="bg-amber-600 hover:bg-amber-500 text-white"
+                          rightIcon={<RotateCcw className="w-3.5 h-3.5" />}
+                        >
+                          Qayta topshirish ({attemptsCount + 1}/{maxAttempts})
+                        </Button>
+                      </Link>
+                    ) : (
+                      <Link to={`/olympiads/${o.id}/participate`}>
+                        <Button
+                          size="sm"
+                          variant="primary"
+                          rightIcon={<ArrowRight className="w-4 h-4" />}
+                        >
+                          Qatnashish
+                        </Button>
+                      </Link>
+                    )}
                   </div>
                 </div>
               </Card>
-            ))}
-          </div>
-        )}
-      </main>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 };
+

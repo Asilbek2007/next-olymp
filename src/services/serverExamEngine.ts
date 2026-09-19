@@ -1,6 +1,5 @@
 // src/services/serverExamEngine.ts — Server-Side Calculations, Timer Enforcement & Payload Sanitization
 import { Question } from '../types';
-import { useSecurityStore } from '../store/useSecurityStore';
 
 // ─── 1. DATABASE MODELS (Server Schema) ───────────────────────────────────────
 export interface DbQuestion {
@@ -328,40 +327,6 @@ export class ServerExamEngine {
   private static async generateAiMistakeAnalysis(
     mistakes: Array<{ question: string; studentAnswer: string; correctAnswer: string }>
   ): Promise<string> {
-    const secStore = useSecurityStore.getState();
-    const apiKey = secStore.getActiveApiKey();
-
-    const fallback = `O'quvchi ${mistakes.length} ta savolda xatolikka yo'l qo'ydi. Asosiy e'tiborni formulalarni to'g'ri qo'llashga va hisob-kitoblarni qayta tekshirishga qaratish tavsiya etiladi.`;
-
-    if (!apiKey || apiKey.startsWith('AI-KEY-DEMO')) {
-      return fallback;
-    }
-
-    try {
-      const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.7-flash:generateContent?key=${apiKey.trim()}`;
-      const prompt = `Siz olimpiada ustozi va tahlilchisiz. O'quvchi imtihonda quyidagi savollarda xato qildi:
-${JSON.stringify(mistakes, null, 2)}
-
-O'quvchiga uning xatolarini tushuntirib, qaysi mavzularni qayta o'rganishi kerakligini qisqa, tushunarli (3-4 jumla) o'zbek tilida bayon qiling.`;
-
-      const res = await fetch(endpoint, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          contents: [{ role: 'user', parts: [{ text: prompt }] }],
-          generationConfig: { temperature: 0.3, maxOutputTokens: 300 },
-        }),
-      });
-
-      if (res.ok) {
-        const data = await res.json();
-        const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
-        if (text) return text.trim();
-      }
-    } catch {
-      // fallback
-    }
-
-    return fallback;
+    return `O'quvchi ${mistakes.length} ta savolda xatolikka yo'l qo'ydi. Asosiy e'tiborni formulalarni to'g'ri qo'llashga va hisob-kitoblarni qayta tekshirishga qaratish tavsiya etiladi.`;
   }
 }

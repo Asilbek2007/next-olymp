@@ -19,19 +19,18 @@ import {
   FileSpreadsheet,
   Columns,
   Calendar,
-  Sparkles,
   Trash2,
   Pencil,
   X,
-  Bot,
   AlertCircle,
   TrendingUp,
-  Banknote
+  Banknote,
+  BarChart3
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 
 export const EgaFinancePage: React.FC = () => {
-  const { payments, addPayment, updatePaymentStatus, deletePayment, generateAiFinancialReport } = usePaymentStore();
+  const { payments, addPayment, updatePaymentStatus, deletePayment, generateFinancialSummary } = usePaymentStore();
   const { theme } = useThemeStore();
   const { i18n } = useTranslation();
 
@@ -61,8 +60,8 @@ export const EgaFinancePage: React.FC = () => {
 
   // Modal States
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
-  const [isAiModalOpen, setIsAiModalOpen] = useState(false);
-  const [aiReportContent, setAiReportContent] = useState('');
+  const [isReportModalOpen, setIsReportModalOpen] = useState(false);
+  const [reportContent, setReportContent] = useState('');
   const [editingPayment, setEditingPayment] = useState<PaymentTransaction | null>(null);
 
   // Add Payment Form State
@@ -75,34 +74,40 @@ export const EgaFinancePage: React.FC = () => {
   const [newStatus, setNewStatus] = useState<'muvaffaqiyatli' | 'kutilmoqda' | 'bekor_qilindi'>('muvaffaqiyatli');
   const [newRef, setNewRef] = useState('');
 
-  // 7 Stat Calculations
-  const totalParticipants = 1850;
+  // 7 Stat Calculations (Real Dynamic Production Data)
+  const totalParticipants = useMemo(() => {
+    const unique = new Set(payments.map((p) => p.userName + p.userPhone));
+    return unique.size;
+  }, [payments]);
+
   const paidCount = useMemo(() => {
-    return 1420 + payments.filter((p) => p.status === 'muvaffaqiyatli' && p.method !== 'paket').length - 4;
+    return payments.filter((p) => p.status === 'muvaffaqiyatli' && p.method !== 'paket').length;
   }, [payments]);
 
   const pendingCount = useMemo(() => {
-    return 430 + payments.filter((p) => p.status === 'kutilmoqda').length - 1;
+    return payments.filter((p) => p.status === 'kutilmoqda').length;
   }, [payments]);
 
   const cardRevenue = useMemo(() => {
-    const sum = payments.filter((p) => p.method === 'karta' && p.status === 'muvaffaqiyatli').reduce((acc, p) => acc + p.amount, 0);
-    return 48500000 + (sum - 264000);
+    return payments
+      .filter((p) => p.method === 'karta' && p.status === 'muvaffaqiyatli')
+      .reduce((acc, p) => acc + p.amount, 0);
   }, [payments]);
 
   const cashRevenue = useMemo(() => {
-    const sum = payments.filter((p) => p.method === 'naqd' && p.status === 'muvaffaqiyatli').reduce((acc, p) => acc + p.amount, 0);
-    return 12200000 + (sum - 450000);
+    return payments
+      .filter((p) => p.method === 'naqd' && p.status === 'muvaffaqiyatli')
+      .reduce((acc, p) => acc + p.amount, 0);
   }, [payments]);
 
   const walletRevenue = useMemo(() => {
-    const sum = payments.filter((p) => p.method === 'hamyon' && p.status === 'muvaffaqiyatli').reduce((acc, p) => acc + p.amount, 0);
-    return 9800000 + (sum - 25000);
+    return payments
+      .filter((p) => p.method === 'hamyon' && p.status === 'muvaffaqiyatli')
+      .reduce((acc, p) => acc + p.amount, 0);
   }, [payments]);
 
   const packageSubscribersCount = useMemo(() => {
-    const count = payments.filter((p) => p.method === 'paket').length;
-    return 685 + (count - 1);
+    return payments.filter((p) => p.method === 'paket' && p.status === 'muvaffaqiyatli').length;
   }, [payments]);
 
   // Filtered Payments List
@@ -136,11 +141,11 @@ export const EgaFinancePage: React.FC = () => {
     return `${val.toLocaleString()} UZS`;
   };
 
-  // Open AI Report Modal
-  const handleOpenAiReport = () => {
-    const report = generateAiFinancialReport();
-    setAiReportContent(report);
-    setIsAiModalOpen(true);
+  // Open Financial Summary Modal
+  const handleOpenFinancialReport = () => {
+    const report = generateFinancialSummary();
+    setReportContent(report);
+    setIsReportModalOpen(true);
   };
 
   // Export to Excel
@@ -233,18 +238,18 @@ export const EgaFinancePage: React.FC = () => {
               {t("To'lovlar va Moliya Boshqaruvi")}
             </h1>
             <p className={clsx("text-[11px] mt-0.5", isDark ? "text-slate-400" : "text-slate-500")}>
-              {t("Ishtirokchilar to'lovlari, kartalar, naqd pul, hamyon tushumlari hamda AI moliya analitikasi")}
+              {t("Ishtirokchilar to'lovlari, kartalar, naqd pul va hamyon tushumlari tahlili")}
             </p>
           </div>
 
           <div className="flex items-center gap-2">
             <button
-              onClick={handleOpenAiReport}
-              className="flex items-center gap-1.5 px-3 py-1.5 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white font-bold rounded-lg text-xs transition-all cursor-pointer shadow-sm"
-              title="AI Moliya Tahlili va Hisoboti"
+              onClick={handleOpenFinancialReport}
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-bold rounded-lg text-xs transition-all cursor-pointer shadow-sm"
+              title="Moliya Tahlili va Hisoboti"
             >
-              <Sparkles className="w-3.5 h-3.5 text-amber-300" />
-              <span>{t("✨ AI Moliya Analitika")}</span>
+              <BarChart3 className="w-3.5 h-3.5 text-amber-300" />
+              <span>{t("Moliya Hisoboti")}</span>
             </button>
 
             <button
@@ -925,8 +930,8 @@ export const EgaFinancePage: React.FC = () => {
           </div>
         )}
 
-        {/* Modal 3: AI Financial Report Modal */}
-        {isAiModalOpen && (
+        {/* Modal 3: Financial Summary Report Modal */}
+        {isReportModalOpen && (
           <div className="fixed inset-0 bg-black/70 backdrop-blur-xs z-50 flex items-center justify-center p-4">
             <div
               className={clsx(
@@ -936,12 +941,12 @@ export const EgaFinancePage: React.FC = () => {
             >
               <div className={clsx("flex items-center justify-between border-b pb-3", isDark ? "border-[#182A4D]" : "border-slate-200")}>
                 <h3 className={clsx("text-sm font-bold flex items-center gap-2", isDark ? "text-white" : "text-slate-900")}>
-                  <Bot className="w-5 h-5 text-indigo-400 animate-bounce" />
-                  <span>AI Moliya Tahlili va Xulosasi</span>
+                  <BarChart3 className="w-5 h-5 text-indigo-400" />
+                  <span>{t("Moliya Tahlili va Xulosasi")}</span>
                 </h3>
                 <button
-                  onClick={() => setIsAiModalOpen(false)}
-                  className="text-slate-400 hover:text-slate-600 transition-colors"
+                  onClick={() => setIsReportModalOpen(false)}
+                  className="text-slate-400 hover:text-slate-600 transition-colors cursor-pointer"
                 >
                   <X className="w-4 h-4" />
                 </button>
@@ -954,16 +959,16 @@ export const EgaFinancePage: React.FC = () => {
                     isDark ? "bg-[#050B18] border-indigo-900/60 text-indigo-200" : "bg-indigo-50 border-indigo-200 text-indigo-900"
                   )}
                 >
-                  {aiReportContent}
+                  {reportContent}
                 </div>
 
                 <div className="flex justify-end pt-2">
                   <button
                     type="button"
-                    onClick={() => setIsAiModalOpen(false)}
+                    onClick={() => setIsReportModalOpen(false)}
                     className="px-4 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white font-bold rounded-lg text-xs transition-all cursor-pointer shadow-md"
                   >
-                    Tushunarli
+                    {t("Tushunarli")}
                   </button>
                 </div>
               </div>

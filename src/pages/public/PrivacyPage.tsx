@@ -47,7 +47,7 @@ export const PrivacyPage: React.FC = () => {
             </p>
             <ul className="list-disc pl-5 space-y-1">
               <li>Musobaqalar ishtirokchilarini verifikatsiyalash va natijalarni hisoblash;</li>
-              <li>Anti-cheat AI vositasi yordamida jonli proctoring va halol baholashni ta'minlash;</li>
+              <li>Anti-cheat xavfsizlik tizimi yordamida halol va shaffof baholashni ta'minlash;</li>
               <li>Rasmiy sertifikat va QR-kodli verifikatsiya hujjatlarini shakllantirish;</li>
               <li>G'oliblar va viloyatlar bo'yicha milliy reyting jadvallarini tuzish.</li>
             </ul>

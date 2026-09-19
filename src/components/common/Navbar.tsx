@@ -14,37 +14,42 @@ export const Navbar: React.FC = () => {
   const { user, isAuthenticated, logout } = useAuth();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
-  const isActive = (path: string) => location.pathname === path;
+  const isActive = (path: string) => {
+    if (path === '/') return location.pathname === '/';
+    return location.pathname.startsWith(path);
+  };
 
   const navLinks = [
-    { to: '/', label: t('nav.home') || 'Bosh sahifa', icon: <Home className="w-4 h-4" /> },
-    { to: '/olympiads', label: t('nav.olympiads') || 'Musobaqalar', icon: <Trophy className="w-4 h-4" /> },
-    { to: '/leaderboard', label: t('nav.leaderboard') || 'Reyting', icon: <Award className="w-4 h-4" /> },
-    { to: '/verify/NO-2026-MATH-8921', label: t('nav.verifyCertificate') || 'Sertifikatni tekshirish', icon: <CheckCircle className="w-4 h-4" /> },
-    { to: '/about', label: t('nav.about') || 'Biz haqimizda', icon: <Info className="w-4 h-4" /> },
+    { to: '/', label: 'Home', icon: <Home className="w-4 h-4" /> },
+    { to: '/olympiads', label: 'Olympiads', icon: <Trophy className="w-4 h-4" /> },
+    { to: '/leaderboard', label: 'Leaderboard', icon: <Award className="w-4 h-4" /> },
+    { to: '/verify/NO-2026-MATH-8921', label: 'Verify Certificate', icon: <CheckCircle className="w-4 h-4" /> },
+    { to: '/about', label: 'About Us', icon: <Info className="w-4 h-4" /> },
   ];
 
   return (
-    <header className="sticky top-0 z-50 backdrop-blur-md bg-[#0a0e1a]/80 border-b border-slate-800/60 text-white transition-all">
+    <header className="sticky top-0 z-50 bg-[#0B1120] border-b border-[#1E293B] text-[#F1F5F9] select-none">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
         
-        {/* Left: Crystal Mountain Logo */}
+        {/* Left: Next Olymp Logo */}
         <div className="shrink-0 flex items-center">
-          <Logo size="md" lightText />
+          <Link to="/" className="flex items-center gap-2 hover:opacity-95 transition-opacity">
+            <Logo size="md" lightText />
+          </Link>
         </div>
 
-        {/* Center: Desktop Navigation Links (Desktop lg breakpoint) */}
-        <nav className="hidden lg:flex items-center gap-6 xl:gap-8 justify-center">
+        {/* Center: Desktop Navigation Links */}
+        <nav className="hidden lg:flex items-center gap-7 justify-center">
           {navLinks.map((link) => {
             const active = isActive(link.to);
             return (
               <Link
                 key={link.to}
                 to={link.to}
-                className={`text-sm font-semibold transition-all duration-200 py-1 ${
+                className={`text-sm font-medium transition-colors duration-150 py-1 ${
                   active
-                    ? 'text-white font-extrabold border-b-2 border-indigo-400'
-                    : 'text-slate-300 hover:text-white hover:scale-105'
+                    ? 'text-[#3B82F6] font-semibold border-b-2 border-[#3B82F6]'
+                    : 'text-[#94A3B8] hover:text-[#F1F5F9]'
                 }`}
               >
                 {link.label}
@@ -53,33 +58,33 @@ export const Navbar: React.FC = () => {
           })}
         </nav>
 
-        {/* Right Section: Language Switcher, Auth Buttons (Desktop lg breakpoint) */}
+        {/* Right: Language selector, Dashboard button, Profile avatar, Logout */}
         <div className="hidden lg:flex items-center gap-4">
           <LanguageSwitcher />
 
           {isAuthenticated && user ? (
             <div className="flex items-center gap-3">
-              <Link
-                to={user.role === 'admin' ? '/ega' : user.role === 'teacher' ? '/teacher/dashboard' : '/dashboard'}
-              >
+              {/* Dashboard button ALWAYS goes to User Dashboard (/dashboard) */}
+              <Link to="/dashboard">
                 <Button
                   size="sm"
                   variant="primary"
-                  className="bg-indigo-600 hover:bg-indigo-500 border border-indigo-400/40 text-white font-bold shadow-md"
-                  leftIcon={<LayoutDashboard className="w-4 h-4 text-indigo-200" />}
+                  className="bg-[#3B82F6] hover:bg-[#2563EB] text-white font-medium"
+                  leftIcon={<LayoutDashboard className="w-4 h-4" />}
                 >
-                  {t('nav.dashboard') || 'Boshqaruv'}
+                  Dashboard
                 </Button>
               </Link>
 
-              <div className="flex items-center gap-2 pl-3 border-l border-slate-800">
-                <Link to="/profile" title={user.fullName}>
-                  <Avatar name={user.fullName} src={user.avatarUrl} size="sm" />
+              <div className="flex items-center gap-2.5 pl-3 border-l border-[#1E293B]">
+                {/* Profile avatar links to /profile */}
+                <Link to="/profile" title={user.fullName || 'User Profile'}>
+                  <Avatar name={user.fullName || 'User'} src={user.avatarUrl} size="sm" />
                 </Link>
                 <button
                   onClick={logout}
-                  title={t('nav.logout') || 'Chiqish'}
-                  className="p-2 rounded-xl text-slate-300 hover:text-rose-400 hover:bg-rose-950/40 transition-colors"
+                  title="Logout"
+                  className="p-2 rounded-lg text-[#94A3B8] hover:text-[#EF4444] hover:bg-[#1E293B] transition-colors cursor-pointer"
                 >
                   <LogOut className="w-4 h-4" />
                 </button>
@@ -91,40 +96,40 @@ export const Navbar: React.FC = () => {
                 <Button
                   size="sm"
                   variant="ghost"
-                  className="text-slate-300 hover:text-white hover:bg-slate-800/80 px-4 py-2 font-semibold"
+                  className="text-[#94A3B8] hover:text-[#F1F5F9] hover:bg-[#1E293B]"
                 >
-                  {t('nav.login') || 'Kirish'}
+                  Kirish
                 </Button>
               </Link>
               <Link to="/auth/register">
                 <Button
                   size="sm"
                   variant="primary"
-                  className="bg-indigo-600 hover:bg-indigo-500 text-white font-bold shadow-md shadow-indigo-600/30 px-4 py-2"
+                  className="bg-[#3B82F6] hover:bg-[#2563EB] text-white font-medium"
                 >
-                  {t('nav.register') || "Ro'yxatdan o'tish"}
+                  Ro'yxatdan o'tish
                 </Button>
               </Link>
             </div>
           )}
         </div>
 
-        {/* Tablet & Mobile Menu Trigger (lg:hidden) */}
+        {/* Mobile menu button */}
         <div className="lg:hidden flex items-center gap-2">
           <LanguageSwitcher />
           <button
             onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
             aria-label="Toggle navigation menu"
-            className="p-2 rounded-xl border border-slate-700 bg-slate-900/80 text-slate-200 hover:bg-slate-800 hover:text-white transition-all cursor-pointer"
+            className="p-2 rounded-lg border border-[#1E293B] bg-[#111827] text-[#F1F5F9] hover:bg-[#1E293B] transition-colors cursor-pointer"
           >
-            {mobileMenuOpen ? <X className="w-5 h-5 text-amber-400" /> : <Menu className="w-5 h-5" />}
+            {mobileMenuOpen ? <X className="w-5 h-5 text-[#F59E0B]" /> : <Menu className="w-5 h-5" />}
           </button>
         </div>
       </div>
 
-      {/* Mobile Drawer Dropdown (lg:hidden) */}
+      {/* Mobile Drawer Menu */}
       {mobileMenuOpen && (
-        <div className="lg:hidden fixed inset-x-0 top-16 bg-[#0a0e1a]/95 backdrop-blur-xl border-b border-slate-800/90 shadow-2xl p-5 space-y-4 animate-in slide-in-from-top duration-200 max-h-[calc(100vh-4rem)] overflow-y-auto z-50">
+        <div className="lg:hidden fixed inset-x-0 top-16 bg-[#0B1120]/95 backdrop-blur-xl border-b border-[#1E293B] p-5 space-y-4 max-h-[calc(100vh-4rem)] overflow-y-auto z-50">
           <div className="space-y-1">
             {navLinks.map((link) => {
               const active = isActive(link.to);
@@ -133,10 +138,10 @@ export const Navbar: React.FC = () => {
                   key={link.to}
                   to={link.to}
                   onClick={() => setMobileMenuOpen(false)}
-                  className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold transition-all ${
+                  className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
                     active
-                      ? 'bg-indigo-600/20 text-indigo-300 border border-indigo-500/30 font-bold'
-                      : 'text-slate-300 hover:bg-slate-850 hover:text-white'
+                      ? 'bg-[#1E293B] text-[#3B82F6] font-semibold'
+                      : 'text-[#94A3B8] hover:bg-[#111827] hover:text-[#F1F5F9]'
                   }`}
                 >
                   {link.icon}
@@ -146,24 +151,26 @@ export const Navbar: React.FC = () => {
             })}
           </div>
 
-          {isAuthenticated && user && (
-            <div className="pt-2 border-t border-slate-800/80 space-y-2">
+          {isAuthenticated && user ? (
+            <div className="pt-3 border-t border-[#1E293B] space-y-2">
               <Link
-                to={user.role === 'admin' ? '/ega' : user.role === 'teacher' ? '/teacher/dashboard' : '/dashboard'}
+                to="/dashboard"
                 onClick={() => setMobileMenuOpen(false)}
-                className="flex items-center justify-between px-3 py-2.5 rounded-xl bg-indigo-600/20 text-indigo-300 border border-indigo-500/40 text-sm font-bold"
+                className="flex items-center justify-between px-3 py-2.5 rounded-lg bg-[#3B82F6]/10 text-[#3B82F6] border border-[#3B82F6]/30 text-sm font-semibold"
               >
                 <div className="flex items-center gap-2.5">
                   <LayoutDashboard className="w-4 h-4" />
-                  <span>{t('nav.dashboard') || 'Boshqaruv Paneli'}</span>
+                  <span>Dashboard</span>
                 </div>
-                <Avatar name={user.fullName} src={user.avatarUrl} size="sm" />
+                <Avatar name={user.fullName || 'User'} src={user.avatarUrl} size="sm" />
               </Link>
-            </div>
-          )}
-
-          <div className="pt-3 border-t border-slate-800/80 space-y-2">
-            {isAuthenticated ? (
+              <Link
+                to="/profile"
+                onClick={() => setMobileMenuOpen(false)}
+                className="flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-sm text-[#94A3B8] hover:bg-[#111827] hover:text-[#F1F5F9]"
+              >
+                <span>Profil Sozlamalari</span>
+              </Link>
               <Button
                 size="sm"
                 variant="danger"
@@ -171,34 +178,26 @@ export const Navbar: React.FC = () => {
                   logout();
                   setMobileMenuOpen(false);
                 }}
-                className="w-full py-2.5 font-bold flex items-center justify-center gap-2"
+                className="w-full mt-2"
+                leftIcon={<LogOut className="w-4 h-4" />}
               >
-                <LogOut className="w-4 h-4" />
-                <span>{t('nav.logout') || 'Chiqish'}</span>
+                Chiqish
               </Button>
-            ) : (
-              <div className="flex flex-col gap-2">
-                <Link to="/auth/login" onClick={() => setMobileMenuOpen(false)}>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="w-full border-slate-700 bg-slate-900/60 text-slate-200 hover:bg-slate-800 hover:text-white py-2.5 font-semibold"
-                  >
-                    {t('nav.login') || 'Kirish'}
-                  </Button>
-                </Link>
-                <Link to="/auth/register" onClick={() => setMobileMenuOpen(false)}>
-                  <Button
-                    size="sm"
-                    variant="primary"
-                    className="w-full bg-indigo-600 hover:bg-indigo-500 text-white py-2.5 font-bold shadow-lg shadow-indigo-600/30"
-                  >
-                    {t('nav.register') || "Ro'yxatdan o'tish"}
-                  </Button>
-                </Link>
-              </div>
-            )}
-          </div>
+            </div>
+          ) : (
+            <div className="pt-3 border-t border-[#1E293B] flex flex-col gap-2">
+              <Link to="/auth/login" onClick={() => setMobileMenuOpen(false)}>
+                <Button size="sm" variant="outline" className="w-full">
+                  Kirish
+                </Button>
+              </Link>
+              <Link to="/auth/register" onClick={() => setMobileMenuOpen(false)}>
+                <Button size="sm" variant="primary" className="w-full">
+                  Ro'yxatdan o'tish
+                </Button>
+              </Link>
+            </div>
+          )}
         </div>
       )}
     </header>

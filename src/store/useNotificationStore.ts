@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { NotificationLog, INITIAL_NOTIFICATIONS } from '../data/initialNotifications';
 
-const STORAGE_KEY = 'next_olymp_notifications_v1';
+const STORAGE_KEY = 'next_olymp_notifications_v2';
 
 interface NotificationStore {
   notifications: NotificationLog[];
@@ -12,7 +12,6 @@ interface NotificationStore {
     userAudience?: string
   ) => void;
   addNotification: (notification: any) => void;
-  generateAiSmsContent: (promptCommand: string, type: NotificationLog['type']) => string;
   deleteNotification: (id: string) => void;
   resetNotifications: () => void;
 }
@@ -22,15 +21,14 @@ const loadNotificationsFromStorage = (): NotificationLog[] => {
     const stored = localStorage.getItem(STORAGE_KEY);
     if (stored) {
       const parsed = JSON.parse(stored);
-      if (Array.isArray(parsed) && parsed.length > 0) {
+      if (Array.isArray(parsed)) {
         return parsed;
       }
     }
   } catch (error) {
     console.error('Error loading notifications from localStorage:', error);
   }
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(INITIAL_NOTIFICATIONS));
-  return INITIAL_NOTIFICATIONS;
+  return [];
 };
 
 export const useNotificationStore = create<NotificationStore>((set, get) => ({
@@ -38,7 +36,7 @@ export const useNotificationStore = create<NotificationStore>((set, get) => ({
 
   sendNotification: (message, type, regionFilter, userAudience) => {
     const current = get().notifications;
-    const nextIdNum = 72118 + current.length + 1;
+    const nextIdNum = 1001 + current.length;
     const id = `SMS-${nextIdNum}`;
     
     const now = new Date();
@@ -67,28 +65,6 @@ export const useNotificationStore = create<NotificationStore>((set, get) => ({
     const message = notification.message || notification.title || 'Bildirishnoma';
     const type = notification.type || 'Bildirishnoma';
     get().sendNotification(message, type);
-  },
-
-  generateAiSmsContent: (promptCommand, type) => {
-    const cmd = promptCommand.toLowerCase();
-
-    if (type === 'Tasdiqlash') {
-      return "NextOlymp: Sizning avtorizatsiya va tasdiqlash kodingiz: 894120. Ushbu kodni hech kimga bermang.";
-    }
-    if (type === 'Parol') {
-      return "NextOlymp: Hisobingiz parolini tiklash uchun maxsus kod: 492015. Parolni shaxsiy kabinetda yangilang.";
-    }
-    if (type === 'Tranzaksiya') {
-      return "NextOlymp: To'lov muvaffaqiyatli amalga oshirildi! Obunangiz faollashdi va barcha testlar ochildi.";
-    }
-    if (cmd.includes('olimpiada') || cmd.includes('test')) {
-      return "Hurmatli ishtirokchi! Navbatdagi Respublika onlayn olimpiadasi ertaga soat 10:00 da boshlanadi. Qatnashishni o'tkazib yubormang!";
-    }
-    if (cmd.includes('g\'olib') || cmd.includes('diplom') || cmd.includes('sertifikat')) {
-      return "Tabriklaymiz! Olimpiadada ko'rsatgan yuqori natijangiz va diplom hujjatingiz shaxsiy kabinetingizga yuklandi.";
-    }
-
-    return `NextOlymp E'lon: ${promptCommand}. Batafsil ma'lumot saytimizda nextolymp.uz`;
   },
 
   deleteNotification: (id) => {

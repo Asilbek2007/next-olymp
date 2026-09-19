@@ -6,6 +6,8 @@ import { translateText } from '../../i18n/translator';
 import { useOlympiadStore } from '../../store/useOlympiadStore';
 import { useUserStore } from '../../store/useUserStore';
 import { usePackageStore } from '../../store/usePackageStore';
+import { usePaymentStore } from '../../store/usePaymentStore';
+import { useSupportStore } from '../../store/useSupportStore';
 import { useSecurityStore } from '../../store/useSecurityStore';
 import { clsx } from 'clsx';
 import { Link } from 'react-router-dom';
@@ -49,23 +51,109 @@ export const EgaDashboardPage: React.FC = () => {
   const { olympiads } = useOlympiadStore();
   const { users } = useUserStore();
   const { packages } = usePackageStore();
+  const { payments } = usePaymentStore();
+  const { tickets } = useSupportStore();
   const securityStore = useSecurityStore();
 
-  // Summary Metrics calculations
+  // Summary Metrics calculations (Real Dynamic Data)
   const totalCompetitions = olympiads.length;
   const activeCompetitions = olympiads.filter((o) => o.status === 'ochiq').length;
   const totalRegisteredParticipants = olympiads.reduce((acc, curr) => acc + (curr.registeredCount || 0), 0);
-  const totalRevenue = olympiads.reduce((acc, curr) => acc + (curr.totalRevenue || 0), 0);
-  const totalPaidCount = olympiads.reduce((acc, curr) => acc + (curr.paidCount || 0), 0);
+  const totalRevenue = payments
+    .filter((p) => p.status === 'muvaffaqiyatli')
+    .reduce((acc, curr) => acc + (curr.amount || 0), 0);
+  const totalPaidCount = payments.filter((p) => p.status === 'muvaffaqiyatli').length;
+  const openTicketsCount = tickets.filter((t) => t.status === 'yangi' || t.status === 'jarayonda').length;
 
-  // Subject statistics for summary
-  const subjectStats = [
-    { name: 'Matematika', count: 5420, percentage: 85, color: 'bg-blue-600' },
-    { name: 'Informatika (ICPC)', count: 4180, percentage: 72, color: 'bg-indigo-600' },
-    { name: 'Fizika', count: 2950, percentage: 55, color: 'bg-purple-600' },
-    { name: 'Kimyo', count: 1840, percentage: 40, color: 'bg-teal-600' },
-    { name: 'Biologiya', count: 1030, percentage: 28, color: 'bg-emerald-600' }
-  ];
+  // Real Subject statistics calculated dynamically from olympiads
+  const standardSubjects = ['Matematika', 'Informatika', 'Fizika', 'Kimyo', 'Biologiya'];
+  const colors = ['bg-blue-600', 'bg-indigo-600', 'bg-purple-600', 'bg-teal-600', 'bg-emerald-600'];
+  const maxRegistered = Math.max(...olympiads.map((o) => o.registeredCount || 0), 1);
+  const subjectStats = standardSubjects.map((subName, idx) => {
+    const matched = olympiads.filter((o) => o.subject?.toLowerCase().includes(subName.toLowerCase()));
+    const count = matched.reduce((sum, o) => sum + (o.registeredCount || 0), 0);
+    const percentage = count > 0 ? Math.min(100, Math.round((count / maxRegistered) * 100)) : 0;
+    return {
+      name: subName,
+      count,
+      percentage,
+      color: colors[idx % colors.length]
+    };
+  });
+
+  // Dynamic Payment method shares
+  const successfulPayments = payments.filter((p) => p.status === 'muvaffaqiyatli');
+  const cardCount = successfulPayments.filter((p) => p.method === 'karta').length;
+  const pkgCount = payments.filter((p) => p.method === 'paket').length;
+  const cashCount = successfulPayments.filter((p) => p.method === 'naqd').length;
+  const totalPayTransactions = successfulPayments.length || 1;
+
+  const cardSharePercent = successfulPayments.length > 0 ? Math.round((cardCount / totalPayTransactions) * 100) : 0;
+  const pkgSharePercent = payments.length > 0 ? Math.round((pkgCount / payments.length) * 100) : 0;
+  const cashSharePercent = successfulPayments.length > 0 ? Math.round((cashCount / totalPayTransactions) * 100) : 0;
+
+  // Dynamic User Roles breakdown
+  const studentCount = users.filter((u) => u.role === 'student').length;
+  const teacherCount = users.filter((u) => u.role === 'teacher').length;
+  const totalUsersNum = users.length;
+  const studentSharePercent = totalUsersNum > 0 ? Math.round((studentCount / totalUsersNum) * 100) : 0;
+  const teacherSharePercent = totalUsersNum > 0 ? Math.round((teacherCount / totalUsersNum) * 100) : 0;
+
+  // Dynamic Weekly Activity Trend (Registrations vs Test Submissions)
+  const weeklyTrendData = React.useMemo(() => {
+    const days = [
+      { id: 0, label: 'Dush', full: 'Dushanba' },
+      { id: 1, label: 'Sesh', full: 'Seshanba' },
+      { id: 2, label: 'Chor', full: 'Chorshanba' },
+      { id: 3, label: 'Pay', full: 'Payshanba' },
+      { id: 4, label: 'Jum', full: 'Juma' },
+      { id: 5, label: 'Shan', full: 'Shanba' },
+      { id: 6, label: 'Yak', full: 'Yakshanba' }
+    ];
+
+    const regCounts = [0, 0, 0, 0, 0, 0, 0];
+    const testCounts = [0, 0, 0, 0, 0, 0, 0];
+
+    // Read real registered users
+    (users || []).forEach((u) => {
+      if (u.createdAt) {
+        const d = new Date(u.createdAt);
+        const dayIdx = (d.getDay() + 6) % 7;
+        regCounts[dayIdx] = (regCounts[dayIdx] || 0) + 1;
+      }
+    });
+
+    // Read real completed submissions
+    try {
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        if (key && key.startsWith('submission_completed_') && !key.includes('_att_')) {
+          const val = localStorage.getItem(key);
+          if (val) {
+            const sub = JSON.parse(val);
+            if (sub && sub.completedAt) {
+              const d = new Date(sub.completedAt);
+              const dayIdx = (d.getDay() + 6) % 7;
+              testCounts[dayIdx] = (testCounts[dayIdx] || 0) + 1;
+            }
+          }
+        }
+      }
+    } catch {}
+
+    const totalReg = regCounts.reduce((a, b) => a + b, 0);
+    const totalTests = testCounts.reduce((a, b) => a + b, 0);
+    const maxVal = Math.max(8, ...regCounts, ...testCounts);
+
+    return {
+      days,
+      regCounts,
+      testCounts,
+      maxVal,
+      totalReg,
+      totalTests
+    };
+  }, [users]);
 
   return (
     <EgaLayout>
@@ -221,7 +309,7 @@ export const EgaDashboardPage: React.FC = () => {
                 {totalRegisteredParticipants.toLocaleString()} ta
               </div>
               <div className="text-[11px] font-semibold text-blue-400 mt-0.5">
-                {users.length || 24} ta ro'yxatdan o'tgan foydalanuvchi
+                {users.length} ta ro'yxatdan o'tgan foydalanuvchi
               </div>
             </div>
           </div>
@@ -294,10 +382,10 @@ export const EgaDashboardPage: React.FC = () => {
             </div>
             <div>
               <div className={clsx("text-xl font-black font-mono", isDark ? "text-white" : "text-slate-900")}>
-                0 ochiq
+                {openTicketsCount} ochiq
               </div>
               <div className="text-[11px] font-semibold text-slate-400 mt-0.5">
-                Barcha murojaatlar yopilgan
+                {openTicketsCount === 0 ? t("Barcha murojaatlar yopilgan") : `${openTicketsCount} ta faol murojaat`}
               </div>
             </div>
           </div>
@@ -320,56 +408,119 @@ export const EgaDashboardPage: React.FC = () => {
                 <h3 className={clsx("text-sm font-black tracking-tight", isDark ? "text-white" : "text-slate-900")}>
                   {t("Haftalik Ro'yxatdan O'tish va Qatnashuv Grafigi")}
                 </h3>
+                <p className="text-[10px] text-slate-400 mt-0.5">
+                  Jami: <strong className="text-blue-400 font-mono">{weeklyTrendData.totalReg} ta</strong> registratsiya • <strong className="text-cyan-400 font-mono">{weeklyTrendData.totalTests} ta</strong> test topshirilgan
+                </p>
               </div>
               <div className="flex items-center gap-4 text-[11px] font-bold">
                 <div className="flex items-center gap-1.5">
-                  <span className="w-3 h-3 rounded-full bg-blue-500 inline-block" />
+                  <span className="w-3 h-3 rounded-full bg-blue-500 inline-block shadow-sm shadow-blue-500/50" />
                   <span className={isDark ? "text-slate-300" : "text-slate-700"}>Registratsiyalar</span>
                 </div>
                 <div className="flex items-center gap-1.5">
-                  <span className="w-3 h-3 rounded-full bg-cyan-400 inline-block" />
+                  <span className="w-3 h-3 rounded-full bg-cyan-400 inline-block shadow-sm shadow-cyan-400/50" />
                   <span className={isDark ? "text-slate-300" : "text-slate-700"}>Test Yechganlar</span>
                 </div>
               </div>
             </div>
 
-            {/* Smooth SVG Line Chart */}
-            <div className="h-52 w-full relative pt-2">
-              <svg className="w-full h-full overflow-visible" viewBox="0 0 500 180" preserveAspectRatio="none">
-                <defs>
-                  <linearGradient id="gradBlueDash" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor="#2563EB" stopOpacity="0.4" />
-                    <stop offset="100%" stopColor="#2563EB" stopOpacity="0.0" />
-                  </linearGradient>
-                  <linearGradient id="gradCyanDash" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor="#06B6D4" stopOpacity="0.3" />
-                    <stop offset="100%" stopColor="#06B6D4" stopOpacity="0.0" />
-                  </linearGradient>
-                </defs>
+            {/* Dynamic SVG Line & Area Chart with exact Y-Axis Scale */}
+            <div className="h-56 w-full relative pt-1">
+              {(() => {
+                const { days, regCounts, testCounts, maxVal } = weeklyTrendData;
+                const pointsX = [55, 125, 195, 265, 335, 405, 475];
 
-                <line x1="0" y1="35" x2="500" y2="35" stroke={isDark ? "#1E3666" : "#E2E8F0"} strokeWidth="1" strokeDasharray="3 3" />
-                <line x1="0" y1="75" x2="500" y2="75" stroke={isDark ? "#1E3666" : "#E2E8F0"} strokeWidth="1" strokeDasharray="3 3" />
-                <line x1="0" y1="115" x2="500" y2="115" stroke={isDark ? "#1E3666" : "#E2E8F0"} strokeWidth="1" strokeDasharray="3 3" />
+                // Y coordinates calculation (height 160)
+                const getRegY = (val: number) => 145 - (val / maxVal) * 110;
+                const getTestY = (val: number) => 145 - (val / maxVal) * 110;
 
-                <path d="M0,140 Q70,100 140,70 T280,40 T420,25 L500,15 L500,180 L0,180 Z" fill="url(#gradBlueDash)" />
-                <path d="M0,140 Q70,100 140,70 T280,40 T420,25 L500,15" fill="none" stroke="#2563EB" strokeWidth="3" strokeLinecap="round" />
+                // Build SVG path strings
+                const regPointsStr = regCounts.map((v, i) => `${pointsX[i]},${getRegY(v)}`).join(' ');
+                const testPointsStr = testCounts.map((v, i) => `${pointsX[i]},${getTestY(v)}`).join(' ');
 
-                <path d="M0,160 Q70,130 140,95 T280,65 T420,45 L500,30 L500,180 L0,180 Z" fill="url(#gradCyanDash)" />
-                <path d="M0,160 Q70,130 140,95 T280,65 T420,45 L500,30" fill="none" stroke="#06B6D4" strokeWidth="2.5" strokeDasharray="4 2" strokeLinecap="round" />
+                const regAreaPath = `M${pointsX[0]},145 L${pointsX.map((x, i) => `${x},${getRegY(regCounts[i])}`).join(' L')} L${pointsX[6]},145 Z`;
+                const testAreaPath = `M${pointsX[0]},145 L${pointsX.map((x, i) => `${x},${getTestY(testCounts[i])}`).join(' L')} L${pointsX[6]},145 Z`;
 
-                <circle cx="140" cy="70" r="4" fill="#2563EB" stroke="#FFFFFF" strokeWidth="2" />
-                <circle cx="280" cy="40" r="4" fill="#2563EB" stroke="#FFFFFF" strokeWidth="2" />
-                <circle cx="420" cy="25" r="4" fill="#2563EB" stroke="#FFFFFF" strokeWidth="2" />
-              </svg>
+                return (
+                  <svg className="w-full h-full overflow-visible" viewBox="0 0 500 175" preserveAspectRatio="none">
+                    <defs>
+                      <linearGradient id="gradBlueDynamic" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0%" stopColor="#3B82F6" stopOpacity="0.4" />
+                        <stop offset="100%" stopColor="#3B82F6" stopOpacity="0.0" />
+                      </linearGradient>
+                      <linearGradient id="gradCyanDynamic" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0%" stopColor="#06B6D4" stopOpacity="0.35" />
+                        <stop offset="100%" stopColor="#06B6D4" stopOpacity="0.0" />
+                      </linearGradient>
+                    </defs>
 
-              <div className={clsx("flex justify-between text-[10px] font-bold pt-2 border-t", isDark ? "border-[#182A4D] text-slate-400" : "border-slate-200 text-slate-500")}>
-                <span>Dush</span>
-                <span>Sesh</span>
-                <span>Chor</span>
-                <span>Pay</span>
-                <span>Jum</span>
-                <span>Shan</span>
-                <span>Yak</span>
+                    {/* Y-Axis Horizontal Grid Reference Lines & Labels */}
+                    <g className="opacity-70">
+                      <line x1="38" y1="35" x2="490" y2="35" stroke={isDark ? "#1E3666" : "#E2E8F0"} strokeWidth="1" strokeDasharray="3 3" />
+                      <text x="32" y="38" textAnchor="end" fill={isDark ? "#94A3B8" : "#64748B"} fontSize="9" fontWeight="bold">
+                        {maxVal}
+                      </text>
+
+                      <line x1="38" y1="72" x2="490" y2="72" stroke={isDark ? "#1E3666" : "#E2E8F0"} strokeWidth="1" strokeDasharray="3 3" />
+                      <text x="32" y="75" textAnchor="end" fill={isDark ? "#94A3B8" : "#64748B"} fontSize="9" fontWeight="bold">
+                        {Math.round(maxVal * 0.66)}
+                      </text>
+
+                      <line x1="38" y1="108" x2="490" y2="108" stroke={isDark ? "#1E3666" : "#E2E8F0"} strokeWidth="1" strokeDasharray="3 3" />
+                      <text x="32" y="111" textAnchor="end" fill={isDark ? "#94A3B8" : "#64748B"} fontSize="9" fontWeight="bold">
+                        {Math.round(maxVal * 0.33)}
+                      </text>
+
+                      <line x1="38" y1="145" x2="490" y2="145" stroke={isDark ? "#2A4374" : "#CBD5E1"} strokeWidth="1.5" />
+                      <text x="32" y="148" textAnchor="end" fill={isDark ? "#94A3B8" : "#64748B"} fontSize="9" fontWeight="bold">
+                        0
+                      </text>
+                    </g>
+
+                    {/* Registrations (Blue) Area & Line */}
+                    <path d={regAreaPath} fill="url(#gradBlueDynamic)" />
+                    <polyline points={regPointsStr} fill="none" stroke="#3B82F6" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
+
+                    {/* Test Submissions (Cyan) Area & Line */}
+                    <path d={testAreaPath} fill="url(#gradCyanDynamic)" />
+                    <polyline points={testPointsStr} fill="none" stroke="#06B6D4" strokeWidth="2.5" strokeDasharray="4 2" strokeLinecap="round" strokeLinejoin="round" />
+
+                    {/* Real Data Points Circles & Tooltip Titles */}
+                    {days.map((d, idx) => {
+                      const cx = pointsX[idx];
+                      const cyReg = getRegY(regCounts[idx]);
+                      const cyTest = getTestY(testCounts[idx]);
+
+                      return (
+                        <g key={d.id}>
+                          {/* Reg circle */}
+                          <circle cx={cx} cy={cyReg} r="4.5" fill="#3B82F6" stroke="#FFFFFF" strokeWidth="2" className="cursor-pointer transition-transform hover:scale-125">
+                            <title>{`${d.full}: ${regCounts[idx]} ta yangi ro'yxatdan o'tgan`}</title>
+                          </circle>
+
+                          {/* Test circle */}
+                          <circle cx={cx} cy={cyTest} r="4" fill="#06B6D4" stroke="#FFFFFF" strokeWidth="1.5" className="cursor-pointer transition-transform hover:scale-125">
+                            <title>{`${d.full}: ${testCounts[idx]} ta test topshirgan`}</title>
+                          </circle>
+                        </g>
+                      );
+                    })}
+                  </svg>
+                );
+              })()}
+
+              {/* Day Labels and real numbers */}
+              <div className={clsx("grid grid-cols-7 text-center text-[10px] font-bold pt-2 border-t", isDark ? "border-[#182A4D] text-slate-400" : "border-slate-200 text-slate-500")}>
+                {weeklyTrendData.days.map((d, idx) => (
+                  <div key={d.id} className="space-y-0.5">
+                    <span className="block text-slate-200 font-extrabold">{d.label}</span>
+                    <span className="block text-[9px] font-mono text-slate-500">
+                      {weeklyTrendData.regCounts[idx] > 0 || weeklyTrendData.testCounts[idx] > 0
+                        ? `${weeklyTrendData.regCounts[idx]} / ${weeklyTrendData.testCounts[idx]}`
+                        : '0'}
+                    </span>
+                  </div>
+                ))}
               </div>
             </div>
           </div>
@@ -498,21 +649,21 @@ export const EgaDashboardPage: React.FC = () => {
                     <CreditCard className="w-4 h-4 text-blue-400" />
                     <span className={isDark ? "text-slate-300" : "text-slate-700"}>Karta Orqali:</span>
                   </div>
-                  <span className="font-mono font-bold text-emerald-400">75%</span>
+                  <span className="font-mono font-bold text-emerald-400">{cardSharePercent}%</span>
                 </div>
                 <div className={clsx("p-2.5 rounded-xl border flex justify-between items-center", isDark ? "bg-[#091024] border-[#182A4D]" : "bg-slate-50 border-slate-200")}>
                   <div className="flex items-center gap-2">
                     <Gift className="w-4 h-4 text-purple-400" />
                     <span className={isDark ? "text-slate-300" : "text-slate-700"}>VIP Paket (Bepul):</span>
                   </div>
-                  <span className="font-mono font-bold text-purple-400">18%</span>
+                  <span className="font-mono font-bold text-purple-400">{pkgSharePercent}%</span>
                 </div>
                 <div className={clsx("p-2.5 rounded-xl border flex justify-between items-center", isDark ? "bg-[#091024] border-[#182A4D]" : "bg-slate-50 border-slate-200")}>
                   <div className="flex items-center gap-2">
                     <Building2 className="w-4 h-4 text-amber-400" />
                     <span className={isDark ? "text-slate-300" : "text-slate-700"}>Naqd Pul (Kassa):</span>
                   </div>
-                  <span className="font-mono font-bold text-amber-400">7%</span>
+                  <span className="font-mono font-bold text-amber-400">{cashSharePercent}%</span>
                 </div>
               </div>
             </div>
@@ -542,18 +693,18 @@ export const EgaDashboardPage: React.FC = () => {
                   </h3>
                 </div>
                 <span className="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-blue-500/20 text-blue-300">
-                  {users.length || 24} ta
+                  {users.length} ta
                 </span>
               </div>
 
               <div className="space-y-2 text-[11px]">
                 <div className={clsx("p-2.5 rounded-xl border flex justify-between items-center", isDark ? "bg-[#091024] border-[#182A4D]" : "bg-slate-50 border-slate-200")}>
                   <span>O'quvchilar ulushi:</span>
-                  <span className="font-bold text-blue-400 font-mono">92% (5,400+)</span>
+                  <span className="font-bold text-blue-400 font-mono">{studentSharePercent}% ({studentCount} ta)</span>
                 </div>
                 <div className={clsx("p-2.5 rounded-xl border flex justify-between items-center", isDark ? "bg-[#091024] border-[#182A4D]" : "bg-slate-50 border-slate-200")}>
                   <span>O'qituvchi & Maktablar:</span>
-                  <span className="font-bold text-amber-400 font-mono">8% (420+)</span>
+                  <span className="font-bold text-amber-400 font-mono">{teacherSharePercent}% ({teacherCount} ta)</span>
                 </div>
                 <div className={clsx("p-2.5 rounded-xl border flex justify-between items-center", isDark ? "bg-[#091024] border-[#182A4D]" : "bg-slate-50 border-slate-200")}>
                   <span>Faol Paket Obunalari:</span>
@@ -593,16 +744,16 @@ export const EgaDashboardPage: React.FC = () => {
 
               <div className="p-3 bg-emerald-500/10 border border-emerald-500/30 rounded-xl space-y-1.5 text-center">
                 <CheckCircle2 className="w-6 h-6 text-emerald-400 mx-auto" />
-                <div className="font-bold text-emerald-400 text-xs">AI Proctoring Sinxronizatsiyada</div>
-                <p className="text-[10px] text-slate-400">Vebkamera va ekran nazorati orqali nojo'ya harakatlar aniqlanmadi.</p>
+                <div className="font-bold text-emerald-400 text-xs">Anti-Cheat Tizimi Faol</div>
+                <p className="text-[10px] text-slate-400">Tab almashish, klaviatura va ekran himoyasi orqali nojo'ya harakatlar cheklangan.</p>
               </div>
             </div>
 
             <Link
-              to="/ega/proctoring"
+              to="/ega/security"
               className="flex items-center justify-center gap-1 py-2 bg-rose-500/10 hover:bg-rose-500/20 text-rose-300 border border-rose-500/30 rounded-xl font-bold text-xs transition-all mt-2"
             >
-              <span>{t("Anti-Cheat Markaziga O'tish")}</span>
+              <span>{t("Xavfsizlik Markaziga O'tish")}</span>
               <ArrowRight className="w-3.5 h-3.5" />
             </Link>
           </div>
@@ -658,14 +809,14 @@ export const EgaDashboardPage: React.FC = () => {
             </Link>
 
             <Link
-              to="/ega/proctoring"
+              to="/ega/baholash"
               className={clsx(
                 "p-3 rounded-xl border flex flex-col items-center justify-center gap-2 text-center transition-all hover:scale-102 cursor-pointer",
-                isDark ? "bg-[#091024] border-[#182A4D] hover:border-rose-400" : "bg-slate-50 border-slate-200 hover:border-rose-500"
+                isDark ? "bg-[#091024] border-[#182A4D] hover:border-blue-400" : "bg-slate-50 border-slate-200 hover:border-blue-500"
               )}
             >
-              <ShieldAlert className="w-5 h-5 text-rose-400" />
-              <span className={clsx("font-bold text-xs", isDark ? "text-slate-200" : "text-slate-800")}>Proctoring Hub</span>
+              <Award className="w-5 h-5 text-blue-400" />
+              <span className={clsx("font-bold text-xs", isDark ? "text-slate-200" : "text-slate-800")}>Baholash Moduli</span>
             </Link>
 
             <Link

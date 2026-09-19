@@ -1,5 +1,4 @@
-// src/services/statisticalAnalysisService.ts — Statistical Cheating & AI Forensic Anomaly Detection Engine
-import { useSecurityStore } from '../store/useSecurityStore';
+// src/services/statisticalAnalysisService.ts — Statistical Cheating & Forensic Anomaly Detection Engine
 
 export interface StudentSubmissionRecord {
   userId: string;
@@ -201,15 +200,12 @@ export function analyzeStudentRecord(
   };
 }
 
-// ─── 4. AI Post-Exam Forensic Investigator (Gemini 3.7) ───────────────────────
+// ─── 4. Post-Exam Forensic Investigator (Heuristic & Statistical Analysis) ────
 export async function generateAiForensicReport(
   student: StudentSubmissionRecord,
   anomaly: StatisticalAnomalyResult
 ): Promise<AiForensicReport> {
-  const secStore = useSecurityStore.getState();
-  const apiKey = secStore.getActiveApiKey();
-
-  const fallbackReport: AiForensicReport = {
+  const report: AiForensicReport = {
     overallVerdict: anomaly.anomalyScore >= 60 ? 'Aniq Qoidabuzarlik (Cheat)' : anomaly.anomalyScore >= 30 ? 'Shubhali (Qo\'shimcha Tekshiruv)' : 'Toza (Halol)',
     confidence: anomaly.anomalyScore >= 60 ? 94 : 88,
     summary: anomaly.suspiciousReasons.length > 0
@@ -225,58 +221,7 @@ export async function generateAiForensicReport(
       : "Natija qonuniy deb topildi.",
   };
 
-  if (!apiKey || apiKey.startsWith('AI-KEY-DEMO')) {
-    return fallbackReport;
-  }
-
-  try {
-    const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.7-flash:generateContent?key=${apiKey.trim()}`;
-    const prompt = `Siz onlayn akademik olimpiada va musobaqalar bo'yicha Sud-Ekspertiza (Forensic AI) ekspertisiz.
-Quyidagi o'quvchi imtihon statistikasi bo'yicha tahlil bering:
-O'quvchi: ${student.studentName} (${student.school}, ${student.district})
-Jami Ball: ${student.totalScore}
-Statistik anomaliya ko'rsatkichi: ${anomaly.anomalyScore}/100
-Shubhali omillar: ${JSON.stringify(anomaly.suspiciousReasons)}
-Klasterli mosliklar: ${JSON.stringify(anomaly.collusionMatches)}
-
-Faqat va faqat quyidagi toza JSON formatida javob bering (boshqa matn qo'shmang):
-{
-  "overallVerdict": "Toza (Halol)" | "Shubhali (Qo'shimcha Tekshiruv)" | "Aniq Qoidabuzarlik (Cheat)",
-  "confidence": number,
-  "summary": string,
-  "detectedPatterns": string[],
-  "recommendation": string
-}`;
-
-    const res = await fetch(endpoint, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        contents: [{ role: 'user', parts: [{ text: prompt }] }],
-        generationConfig: { temperature: 0.2, maxOutputTokens: 500 },
-      }),
-    });
-
-    if (res.ok) {
-      const data = await res.json();
-      const rawText = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
-      const match = rawText.match(/\{[\s\S]*\}/);
-      if (match) {
-        const parsed = JSON.parse(match[0]);
-        return {
-          overallVerdict: parsed.overallVerdict || fallbackReport.overallVerdict,
-          confidence: Number(parsed.confidence) || 90,
-          summary: String(parsed.summary || fallbackReport.summary),
-          detectedPatterns: Array.isArray(parsed.detectedPatterns) ? parsed.detectedPatterns : fallbackReport.detectedPatterns,
-          recommendation: String(parsed.recommendation || fallbackReport.recommendation),
-        };
-      }
-    }
-  } catch (err) {
-    console.warn('[Forensic AI] Gemini error:', err);
-  }
-
-  return fallbackReport;
+  return report;
 }
 
 // ─── Initial Demo Datasets for Forensic Lab ───────────────────────────────────

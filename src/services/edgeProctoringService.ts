@@ -1,6 +1,5 @@
-// src/services/edgeProctoringService.ts — Client-Side Edge Detection & AI Incident Verification Engine
+// src/services/edgeProctoringService.ts — Client-Side Edge Detection & Local Verification Engine
 import { useProctoringStore } from '../store/useProctoringStore';
-import { useSecurityStore } from '../store/useSecurityStore';
 
 export interface EdgeDetectionResult {
   faceCount: number;
@@ -25,79 +24,14 @@ export interface AiVisionVerificationResult {
 const ALERT_COOLDOWN_MS = 10000; // 10 soniyalik cooldown API tokenlarini tejash uchun
 let lastAlertTimestamp = 0;
 
-// ─── Gemini Vision AI Incident Verifier ───────────────────────────────────────
+// ─── Pure Local Incident Verifier ───────────────────────────────────────
 export async function verifyIncidentWithGeminiVision(
-  base64Image: string,
+  _base64Image: string,
   detectedReason: string
 ): Promise<AiVisionVerificationResult> {
-  const secStore = useSecurityStore.getState();
-  const apiKey = secStore.getActiveApiKey();
-
-  if (!apiKey || apiKey.startsWith('AI-KEY-DEMO')) {
-    // Intelligent local fallback if no key
-    return {
-      cheat: true,
-      confidence: 91.5,
-      reason: detectedReason,
-    };
-  }
-
-  try {
-    const cleanBase64 = base64Image.replace(/^data:image\/(png|jpeg|jpg);base64,/, '');
-    const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.7-flash:generateContent?key=${apiKey.trim()}`;
-
-    const prompt = `Ushbu o'quvchi onlayn imtihon topshirmoqda. Qurilmadagi Edge AI detektor quyidagi shubhali holatni qayd etdi: "${detectedReason}".
-Suratni diqqat bilan tekshiring va qoidabuzarlik (telefon, ikkinchi odam, kitob/shpargalka, monitordan chetga qarash yoki boshqa shubhali holat) bor yoki yo'qligini aniqlang.
-Faqat va faqat quyidagi toza JSON formatida javob bering (boshqa matn qo'shmang):
-{"cheat": boolean, "confidence": number, "reason": string}`;
-
-    const body = {
-      contents: [
-        {
-          role: 'user',
-          parts: [
-            { text: prompt },
-            {
-              inline_data: {
-                mime_type: 'image/jpeg',
-                data: cleanBase64,
-              },
-            },
-          ],
-        },
-      ],
-      generationConfig: {
-        temperature: 0.2,
-        maxOutputTokens: 256,
-      },
-    };
-
-    const response = await fetch(endpoint, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
-    });
-
-    if (response.ok) {
-      const data = await response.json();
-      const rawText = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
-      const jsonMatch = rawText.match(/\{[\s\S]*\}/);
-      if (jsonMatch) {
-        const parsed = JSON.parse(jsonMatch[0]);
-        return {
-          cheat: Boolean(parsed.cheat),
-          confidence: Number(parsed.confidence) || 90,
-          reason: String(parsed.reason || detectedReason),
-        };
-      }
-    }
-  } catch (err) {
-    console.warn('[Edge Proctoring] Gemini Vision error:', err);
-  }
-
   return {
     cheat: true,
-    confidence: 88,
+    confidence: 90,
     reason: detectedReason,
   };
 }

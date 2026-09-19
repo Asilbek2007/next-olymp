@@ -36,8 +36,48 @@ export const MOCK_USERS: Record<string, User> = {
 // Initial state starts empty (0 items)
 export const MOCK_OLYMPIADS: Olympiad[] = [];
 
+export const DEFAULT_SAMPLE_QUESTIONS: Question[] = [];
+
 export const MOCK_QUESTIONS: Record<string, Question[]> = {};
 
 export const MOCK_LEADERBOARD: LeaderboardEntry[] = [];
 
 export const MOCK_CERTIFICATES: Certificate[] = [];
+
+export interface UserExamResult {
+  id: string;
+  userId: string;
+  olympiadId: string;
+  olympiadTitle: string;
+  subject: string;
+  format: 'online' | 'offline';
+  completedAt: string;
+  score: number;
+  maxScore: number;
+  percentage: number;
+  rank: number;
+  totalParticipants: number;
+  certificateType: string;
+  certificateCode?: string;
+  status: 'published' | 'pending';
+  timeSpentMinutes: number;
+  totalQuestions: number;
+  correctAnswersCount: number;
+  wrongAnswersCount: number;
+  questionsAnalysis: Array<{
+    questionNum: number;
+    topic: string;
+    questionText: string;
+    points: number;
+    options: string[];
+    userAnswer: string;
+    correctAnswer: string;
+    isCorrect: boolean;
+    aiExplanation?: string;
+  }>;
+}
+
+export const MOCK_USER_RESULTS: UserExamResult[] = [];
+
+
+

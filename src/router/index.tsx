@@ -2,6 +2,11 @@ import React from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { ProtectedRoute } from './ProtectedRoute';
 
+// Layouts
+import { PublicLayout } from '../layouts/PublicLayout';
+import { DashboardLayout } from '../layouts/DashboardLayout';
+import { AdminLayout } from '../layouts/AdminLayout';
+
 // Public Pages
 import { HomePage } from '../pages/public/HomePage';
 import { OlympiadListPage } from '../pages/public/OlympiadListPage';
@@ -15,20 +20,23 @@ import { ForgotPasswordPage } from '../pages/public/ForgotPasswordPage';
 import { TermsPage } from '../pages/public/TermsPage';
 import { PrivacyPage } from '../pages/public/PrivacyPage';
 import { RulesPage } from '../pages/public/RulesPage';
+import { BaholashPage } from '../pages/public/BaholashPage';
 
-// Student Pages
+// Student & User Dashboard Pages
 import { StudentDashboard } from '../pages/student/StudentDashboard';
-import { ContestParticipatePage } from '../pages/student/ContestParticipatePage';
-import { ExamDiagnosticPage } from '../pages/student/ExamDiagnosticPage';
+import { StudentProfilePage } from '../pages/student/StudentProfilePage';
 import { StudentResultsPage } from '../pages/student/StudentResultsPage';
 import { StudentCertificatesPage } from '../pages/student/StudentCertificatesPage';
-import { StudentProfilePage } from '../pages/student/StudentProfilePage';
 import { StudentOlympiadsPage } from '../pages/student/StudentOlympiadsPage';
 import { StudentLeaderboardPage } from '../pages/student/StudentLeaderboardPage';
+import { ContestParticipatePage } from '../pages/student/ContestParticipatePage';
+import { ExamDiagnosticPage } from '../pages/student/ExamDiagnosticPage';
 
 // Teacher Pages
 import { TeacherDashboard } from '../pages/teacher/TeacherDashboard';
 import { TeacherOlympiadsPage } from '../pages/teacher/TeacherOlympiadsPage';
+
+import { MilliySertifikatDashboardPage } from '../pages/dashboard/MilliySertifikatDashboardPage';
 
 // EGA Dedicated Admin Panel Pages
 import { EgaLoginPage } from '../pages/ega/EgaLoginPage';
@@ -38,7 +46,6 @@ import { EgaSingleCompetitionPage } from '../pages/ega/EgaSingleCompetitionPage'
 import { EgaLeaderboardPage } from '../pages/ega/EgaLeaderboardPage';
 import { EgaSubjectsPage } from '../pages/ega/EgaSubjectsPage';
 import { EgaUsersPage } from '../pages/ega/EgaUsersPage';
-import { EgaProctoringPage } from '../pages/ega/EgaProctoringPage';
 import { EgaCertificatesPage } from '../pages/ega/EgaCertificatesPage';
 import { EgaFinancePage } from '../pages/ega/EgaFinancePage';
 import { EgaTeamPage } from '../pages/ega/EgaTeamPage';
@@ -47,51 +54,64 @@ import { EgaNotificationsPage } from '../pages/ega/EgaNotificationsPage';
 import { EgaSupportPage } from '../pages/ega/EgaSupportPage';
 import { EgaPackagesPage } from '../pages/ega/EgaPackagesPage';
 import { EgaSecurityPage } from '../pages/ega/EgaSecurityPage';
+import { EgaBaholashPage } from '../pages/ega/EgaBaholashPage';
 
 export const AppRouter: React.FC = () => {
   return (
     <Routes>
-      {/* Public Routes */}
-      <Route path="/" element={<HomePage />} />
-      <Route path="/olympiads" element={<OlympiadListPage />} />
-      <Route path="/olympiads/:id" element={<OlympiadDetailPage />} />
-      <Route path="/leaderboard" element={<LeaderboardPage />} />
-      <Route path="/verify/:code" element={<VerifyCertificatePage />} />
-      <Route path="/about" element={<AboutPage />} />
+      {/* ─────────────────────────────────────────────────────────────
+          1. ASOSIY SAYT (PublicLayout: Header 64px + Content + Footer)
+      ───────────────────────────────────────────────────────────── */}
+      <Route element={<PublicLayout />}>
+        <Route path="/" element={<HomePage />} />
+        <Route path="/olympiads" element={<OlympiadListPage />} />
+        <Route path="/olympiads/:id" element={<OlympiadDetailPage />} />
+        <Route path="/leaderboard" element={<LeaderboardPage />} />
+        <Route path="/verify-certificate" element={<VerifyCertificatePage />} />
+        <Route path="/verify-certificate/:code" element={<VerifyCertificatePage />} />
+        <Route path="/verify/:code" element={<VerifyCertificatePage />} />
+        <Route path="/about" element={<AboutPage />} />
 
-      <Route path="/terms" element={<TermsPage />} />
-      <Route path="/privacy" element={<PrivacyPage />} />
-      <Route path="/rules" element={<RulesPage />} />
+        {/* Baholash havolasi asosiy saytda ko'rinmaydi, ichki sahifaga yo'naltiriladi */}
+        <Route path="/baholash" element={<Navigate to="/dashboard/milliy-sertifikat" replace />} />
+        <Route path="/rash-modul" element={<Navigate to="/dashboard/milliy-sertifikat" replace />} />
 
-      <Route path="/auth/login" element={<LoginPage />} />
-      <Route path="/auth/register" element={<RegisterPage />} />
-      <Route path="/auth/forgot-password" element={<ForgotPasswordPage />} />
+        <Route path="/terms" element={<TermsPage />} />
+        <Route path="/privacy" element={<PrivacyPage />} />
+        <Route path="/rules" element={<RulesPage />} />
 
-      {/* Student Protected Routes */}
+        <Route path="/auth/login" element={<LoginPage />} />
+        <Route path="/auth/register" element={<RegisterPage />} />
+        <Route path="/auth/forgot-password" element={<ForgotPasswordPage />} />
+      </Route>
+
+      {/* ─────────────────────────────────────────────────────────────
+          2. USER DASHBOARD (DashboardLayout: Sidebar 260px + Header 64px)
+      ───────────────────────────────────────────────────────────── */}
       <Route
-        path="/dashboard"
-        element={
-          <ProtectedRoute allowedRoles={['student']}>
-            <StudentDashboard />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/student/olympiads"
-        element={
-          <ProtectedRoute allowedRoles={['student', 'teacher', 'admin']}>
-            <StudentOlympiadsPage />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/student/leaderboard"
         element={
           <ProtectedRoute allowedRoles={['student', 'teacher', 'admin']}>
-            <StudentLeaderboardPage />
+            <DashboardLayout />
           </ProtectedRoute>
         }
-      />
+      >
+        <Route path="/dashboard" element={<StudentDashboard />} />
+        <Route path="/profile" element={<StudentProfilePage />} />
+        <Route path="/results" element={<StudentResultsPage />} />
+        <Route path="/certificates" element={<StudentCertificatesPage />} />
+        <Route path="/student/olympiads" element={<StudentOlympiadsPage />} />
+        <Route path="/student/leaderboard" element={<StudentLeaderboardPage />} />
+        
+        {/* User Ichki Milliy Sertifikat Bo'limi */}
+        <Route path="/dashboard/milliy-sertifikat" element={<MilliySertifikatDashboardPage />} />
+        <Route path="/dashboard/baholash" element={<Navigate to="/dashboard/milliy-sertifikat" replace />} />
+        
+        {/* Teacher Cabinet Routes */}
+        <Route path="/teacher/dashboard" element={<TeacherDashboard />} />
+        <Route path="/teacher/olympiads" element={<TeacherOlympiadsPage />} />
+      </Route>
+
+      {/* Contest Examination (Distraction-free Fullscreen) */}
       <Route
         path="/olympiads/:id/diagnostic"
         element={
@@ -109,175 +129,60 @@ export const AppRouter: React.FC = () => {
         }
       />
       <Route
-        path="/results"
-        element={
-          <ProtectedRoute allowedRoles={['student']}>
-            <StudentResultsPage />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/certificates"
-        element={
-          <ProtectedRoute allowedRoles={['student']}>
-            <StudentCertificatesPage />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/profile"
+        path="/student/olympiads/:id/participate"
         element={
           <ProtectedRoute allowedRoles={['student', 'teacher', 'admin']}>
-            <StudentProfilePage />
+            <ContestParticipatePage />
           </ProtectedRoute>
         }
       />
 
-      {/* Teacher Protected Routes */}
-      <Route
-        path="/teacher/dashboard"
-        element={
-          <ProtectedRoute allowedRoles={['teacher']}>
-            <TeacherDashboard />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/teacher/olympiads"
-        element={
-          <ProtectedRoute allowedRoles={['teacher']}>
-            <TeacherOlympiadsPage />
-          </ProtectedRoute>
-        }
-      />
-
-      {/* Dedicated Secret EGA Admin Panel Routes (/ega & /admin) */}
+      {/* ─────────────────────────────────────────────────────────────
+          3. ADMIN PANEL (AdminLayout: Dedicated EGA Sidebar + Navbar)
+      ───────────────────────────────────────────────────────────── */}
       <Route path="/ega/login" element={<EgaLoginPage />} />
       <Route path="/admin/login" element={<EgaLoginPage />} />
-      <Route
-        path="/ega"
-        element={
-          <ProtectedRoute allowedRoles={['admin']}>
-            <EgaDashboardPage />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/ega/competitions"
-        element={
-          <ProtectedRoute allowedRoles={['admin']}>
-            <EgaCompetitionsPage />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/ega/leaderboard"
-        element={
-          <ProtectedRoute allowedRoles={['admin']}>
-            <EgaLeaderboardPage />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/ega/competitions/:id"
-        element={
-          <ProtectedRoute allowedRoles={['admin']}>
-            <EgaSingleCompetitionPage />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/ega/subjects"
-        element={
-          <ProtectedRoute allowedRoles={['admin']}>
-            <EgaSubjectsPage />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/ega/locations"
-        element={
-          <ProtectedRoute allowedRoles={['admin']}>
-            <EgaLocationsPage />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/ega/team"
-        element={
-          <ProtectedRoute allowedRoles={['admin']}>
-            <EgaTeamPage />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/ega/users"
-        element={
-          <ProtectedRoute allowedRoles={['admin']}>
-            <EgaUsersPage />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/ega/proctoring"
-        element={
-          <ProtectedRoute allowedRoles={['admin']}>
-            <EgaProctoringPage />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/ega/certificates"
-        element={
-          <ProtectedRoute allowedRoles={['admin']}>
-            <EgaCertificatesPage />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/ega/finance"
-        element={
-          <ProtectedRoute allowedRoles={['admin']}>
-            <EgaFinancePage />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/ega/notifications"
-        element={
-          <ProtectedRoute allowedRoles={['admin']}>
-            <EgaNotificationsPage />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/ega/support"
-        element={
-          <ProtectedRoute allowedRoles={['admin']}>
-            <EgaSupportPage />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/ega/packages"
-        element={
-          <ProtectedRoute allowedRoles={['admin']}>
-            <EgaPackagesPage />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/ega/security"
-        element={
-          <ProtectedRoute allowedRoles={['admin']}>
-            <EgaSecurityPage />
-          </ProtectedRoute>
-        }
-      />
 
-      {/* Backward Compatibility Fallback */}
+      <Route
+        element={
+          <ProtectedRoute allowedRoles={['admin']}>
+            <AdminLayout />
+          </ProtectedRoute>
+        }
+      >
+        <Route path="/ega" element={<EgaDashboardPage />} />
+        <Route path="/ega/competitions" element={<EgaCompetitionsPage />} />
+        <Route path="/ega/competitions/:id" element={<EgaSingleCompetitionPage />} />
+        <Route path="/ega/olympiads" element={<EgaCompetitionsPage />} />
+        <Route path="/ega/users" element={<EgaUsersPage />} />
+        <Route path="/ega/proctoring" element={<Navigate to="/ega" replace />} />
+        <Route path="/ega/leaderboard" element={<EgaLeaderboardPage />} />
+        <Route path="/ega/ratings" element={<EgaLeaderboardPage />} />
+        <Route path="/ega/subjects" element={<EgaSubjectsPage />} />
+        <Route path="/ega/locations" element={<EgaLocationsPage />} />
+        <Route path="/ega/team" element={<EgaTeamPage />} />
+        <Route path="/ega/certificates" element={<EgaCertificatesPage />} />
+        <Route path="/ega/finance" element={<EgaFinancePage />} />
+        <Route path="/ega/payments" element={<EgaFinancePage />} />
+        <Route path="/ega/notifications" element={<EgaNotificationsPage />} />
+        <Route path="/ega/support" element={<EgaSupportPage />} />
+        <Route path="/ega/packages" element={<EgaPackagesPage />} />
+        <Route path="/ega/security" element={<EgaSecurityPage />} />
+        <Route path="/ega/settings" element={<EgaSecurityPage />} />
+
+        {/* Admin Baholash & Rubric Editor CRUD */}
+        <Route path="/ega/baholash" element={<EgaBaholashPage />} />
+        <Route path="/ega/baholash/rubric" element={<EgaBaholashPage />} />
+      </Route>
+
+      {/* Backward Compatibility Fallbacks */}
       <Route path="/admin" element={<Navigate to="/ega" replace />} />
       <Route path="/admin/*" element={<Navigate to="/ega" replace />} />
+
+      {/* Fallback to Home */}
+      <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   );
 };
+
+export default AppRouter;

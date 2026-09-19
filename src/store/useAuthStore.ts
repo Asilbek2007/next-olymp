@@ -14,10 +14,13 @@ interface AuthState {
   updateProfile: (updatedData: Partial<User>) => void;
 }
 
+const initialUser = authService.getCurrentUser();
+const initialToken = localStorage.getItem('next_olymp_jwt');
+
 export const useAuthStore = create<AuthState>((set) => ({
-  user: authService.getCurrentUser(),
-  token: localStorage.getItem('next_olymp_jwt') || 'demo-jwt-token',
-  isAuthenticated: true, // Default active session for easy preview
+  user: initialUser,
+  token: initialToken,
+  isAuthenticated: !!initialUser && !!initialToken,
   isLoading: false,
 
   login: async (params) => {

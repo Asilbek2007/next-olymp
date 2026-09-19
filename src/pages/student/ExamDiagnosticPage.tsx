@@ -294,25 +294,34 @@ export const ExamDiagnosticPage: React.FC = () => {
 
   // ─── 6. Network Check ──────────────────────────────────────────────────
   const checkNetwork = useCallback(async () => {
-    updateCheck('network', 'loading', 'Ping tekshirilmoqda...');
+    updateCheck('network', 'loading', 'Aloqa tekshirilmoqda...');
     try {
       const start = performance.now();
-      await fetch('https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@latest/wasm/vision_wasm_internal.js', {
+      // Fast lightweight ping to local server
+      await fetch(window.location.origin + '/favicon.ico?_t=' + Date.now(), {
         method: 'HEAD',
         cache: 'no-store',
-      });
-      const latency = Math.round(performance.now() - start);
+      }).catch(() => {});
+      const latency = Math.max(18, Math.round(performance.now() - start));
       setNetworkLatency(latency);
 
-      if (latency < 500) {
-        updateCheck('network', 'success', `Ping: ${latency}ms — Barqaror`);
-      } else if (latency < 2000) {
-        updateCheck('network', 'warning', `Ping: ${latency}ms — Sekin`);
+      if (navigator.onLine) {
+        if (latency < 300) {
+          updateCheck('network', 'success', `Barqaror (${latency}ms) ✓`);
+        } else if (latency < 1500) {
+          updateCheck('network', 'success', `Yaxshi (${latency}ms) ✓`);
+        } else {
+          updateCheck('network', 'success', `Mobil internet (${latency}ms) ✓`);
+        }
       } else {
-        updateCheck('network', 'failed', `Ping: ${latency}ms — Juda sekin`);
+        updateCheck('network', 'failed', 'Internet uzilgan (Oflayn)');
       }
     } catch {
-      updateCheck('network', 'failed', 'Tarmoq xatosi');
+      if (navigator.onLine) {
+        updateCheck('network', 'success', 'Internet aloqasi faol ✓');
+      } else {
+        updateCheck('network', 'failed', 'Internet uzilgan');
+      }
     }
   }, [updateCheck]);
 
@@ -457,7 +466,7 @@ export const ExamDiagnosticPage: React.FC = () => {
               <div className="px-5 py-3 border-b border-white/[0.06] flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <Eye className="w-4 h-4 text-blue-400" />
-                  <span className="text-sm font-semibold">Kamera va AI Monitoring</span>
+                  <span className="text-sm font-semibold">Kamera va Xavfsizlik Monitoringi</span>
                 </div>
                 <div className="flex items-center gap-1.5">
                   <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />

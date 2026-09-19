@@ -6,6 +6,7 @@ export interface User {
   phone?: string;
   fullName: string;
   role: Role;
+  gender?: 'male' | 'female';
   grade?: number;          // 1-11
   region?: string;
   district?: string;
@@ -49,6 +50,13 @@ export interface Olympiad {
     grades: number[];
     regions?: string[];
   };
+  targetGrades?: number[];
+  allowedLanguages?: string[];
+  retakeAllowed?: boolean;
+  maxRetakeAttempts?: number;
+  isFreeForAll?: boolean;
+  price?: number;
+  antiCheatConfig?: AntiCheatConfig;
   prizes: Prize[];
   participantsCount: number;
   imageUrl?: string;
@@ -85,7 +93,38 @@ export interface Submission {
   status: 'pending' | 'correct' | 'incorrect' | 'partial';
 }
 
-export type CertificateType = 'participation' | 'achievement' | 'winner';
+export type CertificateType = 'participation' | 'participant' | 'achievement' | 'winner' | 'round_passed' | 'round_failed';
+
+export interface CertificateConfig {
+  fontFamily: 'serif' | 'sans' | 'cinzel' | 'playfair' | 'montserrat' | 'greatvibes';
+  subjectName?: string;
+  isMultiRound?: boolean;
+  awardCriteria?: 'top_rank' | 'min_score' | 'both'; // Qaysi mezon bo'yicha g'oliblik/o'rin beriladi
+  topRankLimit?: number; // masalan top 10, 20, 30 ta o'quvchi
+  minScoreLimit?: number; // masalan 70, 80 ball yoki 65 Rasch bali
+  winnerText?: string; // e.g. "{name} {olympiad}da {rank}-o'rinni egalladi va g'oliblik diplomi bilan taqdirlanadi"
+  participantText?: string; // e.g. "{name} {olympiad}da faol ishtirok etgani uchun minnatdorchilik bildiriladi"
+  round1PassedText?: string; // e.g. "Tabriklaymiz! Siz 1-bosqichdan muvaffaqiyatli o'tdingiz va final bosqichiga yo'llanma oldingiz"
+  round1FailedText?: string; // e.g. "Ishtirokingiz va intilishingiz uchun tashakkur! Bilimingiz yuqori, kelgusi musobaqalarda albatta zafar quchasiz"
+  signatureName?: string;
+  signatureRole?: string;
+}
+
+export interface AntiCheatConfig {
+  enabled: boolean;
+  blockTabSwitch?: boolean;
+  blockCopyPaste?: boolean;
+  requireFullscreen?: boolean;
+  requireWebcam?: boolean;
+  requireMic?: boolean;
+  blockDevTools?: boolean;
+  maxViolationsAllowed?: number;
+  blockDuplicateIP?: boolean; // Bitta IP'dan 2 kishi kirishini cheklash
+  heartbeatIntervalSec?: number; // 0.1, 0.5, 1, 2, 5 yoki 10 soniyada offline/online tekshiruv
+  cameraFaceSnapshotEnabled?: boolean; // Kamera orqali nojo'ya harakatda rasmga olib yuborish
+  snapshotOnMultipleFaces?: boolean; // 2 ta yuz ko'rinsa rasmga olish
+  snapshotOnNoFace?: boolean; // Yuz ko'rinmay qolsa rasmga olish
+}
 
 export interface Certificate {
   id: string;
@@ -93,18 +132,20 @@ export interface Certificate {
   userName: string;
   olympiadId: string;
   olympiadTitle: string;
-  subject: Subject;
+  subject: Subject | string;
   type: CertificateType;
   issuedAt: string;
-  fileUrl: string;
+  fileUrl?: string;
   verificationCode: string;
   score: number;
   maxScore: number;
   rank: number;
   totalParticipants: number;
-  grade: number;
+  grade?: number;
   school?: string;
   region?: string;
+  fontFamily?: string;
+  customMessage?: string;
 }
 
 export interface LeaderboardEntry {

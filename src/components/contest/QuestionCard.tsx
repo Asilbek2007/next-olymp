@@ -1,7 +1,8 @@
-import React from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Question } from '../../types';
 import { useSubmission } from '../../hooks/useSubmission';
-import { Upload, CheckCircle2, Code2, FileText, CheckSquare } from 'lucide-react';
+import { useContestStore } from '../../store/useContestStore';
+import { Upload, CheckCircle2, Code2, FileText, CheckSquare, Clock, AlertTriangle } from 'lucide-react';
 import { clsx } from 'clsx';
 import { useTranslation } from 'react-i18next';
 
@@ -15,7 +16,43 @@ export const QuestionCard: React.FC<QuestionCardProps> = ({ question, questionNu
   const { answers, saveDraft } = useSubmission();
   const currentAnswer = answers[question.id] || (question.type === 'code' ? question.codeTemplate || '' : '');
 
+  // Human Factor Timing Tracker
+  const [secondsOnQuestion, setSecondsOnQuestion] = useState(0);
+  const [speedWarning, setSpeedWarning] = useState<string | null>(null);
+  const questionStartTimeRef = useRef(Date.now());
+  const rapidCountRef = useRef(0);
+
+  useEffect(() => {
+    questionStartTimeRef.current = Date.now();
+    setSecondsOnQuestion(0);
+    setSpeedWarning(null);
+
+    const timer = setInterval(() => {
+      setSecondsOnQuestion((prev) => prev + 1);
+    }, 1000);
+
+    return () => clearInterval(timer);
+  }, [question.id]);
+
   const handleSelectOption = (opt: string) => {
+    const elapsedSeconds = (Date.now() - questionStartTimeRef.current) / 1000;
+    
+    // If student answers suspiciously fast (< 0.8 seconds for instant bot clicks)
+    if (elapsedSeconds < 0.8 && !answers[question.id]) {
+      rapidCountRef.current += 1;
+      setSpeedWarning(`O'ta tez javob (${elapsedSeconds.toFixed(1)}s). Iltimos, savolni to'liq o'qib ishlang.`);
+      
+      if (rapidCountRef.current >= 4) {
+        useContestStore.getState().recordGuardViolation(
+          'RAPID_ANSWER_SUSPECT',
+          'Savollarga inson o\'qish imkoniyatidan tez javob belgilandi (4 marta ketma-ket 0.8 soniyadan kam). Iltimos, e\'tiborli bo\'ling.'
+        );
+        rapidCountRef.current = 0;
+      }
+    } else {
+      setSpeedWarning(null);
+    }
+
     saveDraft(question.id, opt);
   };
 
@@ -33,7 +70,7 @@ export const QuestionCard: React.FC<QuestionCardProps> = ({ question, questionNu
   return (
     <div className="bg-white border border-border rounded-2xl p-6 shadow-xs space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between border-b border-border pb-4">
+      <div className="flex items-center justify-between border-b border-border pb-4 flex-wrap gap-2">
         <div className="flex items-center gap-2">
           <span className="w-8 h-8 rounded-lg bg-primary-50 text-primary-700 font-bold flex items-center justify-center text-sm">
             #{questionNumber}
@@ -42,10 +79,29 @@ export const QuestionCard: React.FC<QuestionCardProps> = ({ question, questionNu
             {question.type === 'multiple_choice' ? 'Variantli Test' : question.type === 'open_text' ? 'Ochiq Savol' : question.type === 'code' ? 'Algoritmik Kod' : 'Fayl Yuklash'}
           </span>
         </div>
-        <span className="px-2.5 py-1 bg-amber-50 text-amber-700 font-bold text-xs rounded-full border border-amber-200">
-          {question.points} {t('contest.points')}
-        </span>
+
+        <div className="flex items-center gap-2">
+          {/* Question live timer badge */}
+          <div className={clsx(
+            "flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold border transition-colors",
+            secondsOnQuestion < 5 ? "bg-amber-50 text-amber-700 border-amber-200" : "bg-slate-50 text-slate-600 border-slate-200"
+          )}>
+            <Clock className="w-3.5 h-3.5" />
+            <span>Sarflandi: {secondsOnQuestion}s</span>
+          </div>
+
+          <span className="px-2.5 py-1 bg-blue-50 text-blue-700 font-bold text-xs rounded-full border border-blue-200">
+            {question.points} {t('contest.points')}
+          </span>
+        </div>
       </div>
+
+      {speedWarning && (
+        <div className="p-3 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-800 text-xs flex items-center gap-2 animate-in fade-in">
+          <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
+          <span>{speedWarning}</span>
+        </div>
+      )}
 
       {/* Content / Problem Statement */}
       <div className="prose max-w-none text-accent-900 font-medium text-base leading-relaxed">

@@ -3,6 +3,7 @@ import { useNavigate, Navigate } from 'react-router-dom';
 import { ShieldCheck, Lock, Mail, ArrowRight, AlertCircle, KeyRound, Server, Eye, EyeOff, Sparkles } from 'lucide-react';
 import { Button } from '../../components/common/Button';
 import { useAuth } from '../../hooks/useAuth';
+import { adminAuthService } from '../../services/adminAuthService';
 
 export const EgaLoginPage: React.FC = () => {
   const navigate = useNavigate();
@@ -41,6 +42,12 @@ export const EgaLoginPage: React.FC = () => {
     }
 
     try {
+      const adminRes = adminAuthService.createAdminSession(trimmedEmail, trimmedPass);
+      if (!adminRes.success) {
+        setError(adminRes.error || "Noto'g'ri Admin Email yoki Master Key kiritildi. Standart: admin@nextolymp.uz / admin123");
+        return;
+      }
+
       await login({
         email: trimmedEmail,
         password: trimmedPass,

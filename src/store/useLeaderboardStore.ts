@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import { LeaderboardUserEntry, INITIAL_LEADERBOARD_ENTRIES } from '../data/initialLeaderboard';
 
 const STORAGE_KEY = 'next_olymp_leaderboard_prod_v1';
+const DELETED_USERS_KEY = 'next_olymp_deleted_user_ids';
 
 interface LeaderboardStore {
   entries: LeaderboardUserEntry[];
@@ -17,22 +18,113 @@ interface LeaderboardStore {
   }) => void;
   applyCheatingPenalty: (userId: string, penaltyXP: number, reason: string) => void;
   awardBonusPoints: (userId: string, bonusXP: number, reason: string) => void;
+  removeUser: (userId: string) => void;
   resetLeaderboard: () => void;
 }
 
+const getDeletedUserIds = (): Set<string> => {
+  try {
+    const saved = localStorage.getItem(DELETED_USERS_KEY);
+    if (saved) {
+      const parsed = JSON.parse(saved);
+      if (Array.isArray(parsed)) return new Set(parsed);
+    }
+  } catch {}
+  return new Set<string>();
+};
+
 const loadLeaderboardFromStorage = (): LeaderboardUserEntry[] => {
+  const map = new Map<string, LeaderboardUserEntry>();
+  const deletedIds = getDeletedUserIds();
+
   try {
     const stored = localStorage.getItem(STORAGE_KEY);
     if (stored) {
       const parsed = JSON.parse(stored);
       if (Array.isArray(parsed)) {
-        return parsed;
+        parsed.forEach((e: LeaderboardUserEntry) => {
+          if (
+            e &&
+            e.userId &&
+            !deletedIds.has(e.userId) &&
+            !deletedIds.has(e.id) &&
+            !e.userId.includes('admin') &&
+            !e.userName?.toLowerCase().includes('admin')
+          ) {
+            map.set(e.userId, e);
+          }
+        });
       }
     }
   } catch (error) {
     console.error('Error loading leaderboard from localStorage:', error);
   }
-  return INITIAL_LEADERBOARD_ENTRIES;
+
+  // Scan all real submissions from localStorage
+  try {
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (key && key.startsWith('submission_completed_') && !key.includes('_att_')) {
+        const val = localStorage.getItem(key);
+        if (val) {
+          const sub = JSON.parse(val);
+          if (
+            sub &&
+            sub.userId &&
+            !deletedIds.has(sub.userId) &&
+            !sub.userId.includes('admin') &&
+            !sub.userName?.toLowerCase().includes('admin')
+          ) {
+            const score = Number(sub.score) || 0;
+            const xp = score * 10;
+            const pct = sub.percentage || 0;
+            const existing = map.get(sub.userId);
+
+            if (existing) {
+              existing.baseScore = Math.max(existing.baseScore, score);
+              existing.totalXP = Math.max(existing.totalXP, xp);
+              existing.accuracyRate = Math.max(existing.accuracyRate, pct);
+              if (sub.userName) existing.userName = sub.userName;
+              if (sub.region) existing.region = sub.region;
+              if (sub.school) existing.school = sub.school;
+              if (sub.grade) existing.grade = sub.grade;
+            } else {
+              map.set(sub.userId, {
+                id: `LB-${sub.userId}`,
+                userId: sub.userId,
+                userName: sub.userName || 'Ishtirokchi',
+                avatarUrl: `https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150&auto=format&fit=crop&q=80`,
+                region: sub.region || 'Toshkent shahri',
+                district: 'Yunusobod tumani',
+                school: sub.school || 'Prezident maktabi',
+                grade: sub.grade || 9,
+                baseScore: score,
+                bonusPoints: 0,
+                cheatingPenalty: 0,
+                totalXP: xp,
+                nationalRank: 1,
+                regionRank: 1,
+                districtRank: 1,
+                testsCompletedCount: 1,
+                accuracyRate: pct,
+                lastActive: sub.completedAt ? new Date(sub.completedAt).toLocaleString() : new Date().toLocaleString(),
+              });
+            }
+          }
+        }
+      }
+    }
+  } catch (e) {
+    console.error('Error scanning submissions for leaderboard:', e);
+  }
+
+  const entries = Array.from(map.values()).filter(
+    (e) => !deletedIds.has(e.userId) && !e.userId.includes('admin') && !e.userName?.toLowerCase().includes('admin')
+  );
+  if (entries.length === 0 && INITIAL_LEADERBOARD_ENTRIES.length > 0) {
+    return INITIAL_LEADERBOARD_ENTRIES.filter((e) => !deletedIds.has(e.userId) && !e.userId.includes('admin'));
+  }
+  return entries;
 };
 
 // Re-calculate ranks for all scopes (Respublika, Viloyat, Tuman)
@@ -166,6 +258,16 @@ export const useLeaderboardStore = create<LeaderboardStore>((set, get) => ({
       return item;
     });
 
+    const ranked = recalculateRanks(updated);
+    set({ entries: ranked });
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(ranked));
+  },
+
+  removeUser: (userId) => {
+    const current = get().entries;
+    const updated = current.filter(
+      (item) => item.userId !== userId && item.id !== userId && item.id !== `LB-${userId}`
+    );
     const ranked = recalculateRanks(updated);
     set({ entries: ranked });
     localStorage.setItem(STORAGE_KEY, JSON.stringify(ranked));

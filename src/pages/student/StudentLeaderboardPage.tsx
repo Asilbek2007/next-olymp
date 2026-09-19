@@ -10,7 +10,6 @@ import {
   ShieldCheck,
   MapPin,
   Building,
-  UserSearch,
   FileSpreadsheet
 } from 'lucide-react';
 import { clsx } from 'clsx';
@@ -44,9 +43,6 @@ export const StudentLeaderboardPage: React.FC = () => {
   const [districtFilter, setDistrictFilter] = useState('all');
   const [gradeFilter, setGradeFilter] = useState<'all' | number>('all');
   const [limitMode, setLimitMode] = useState<'top20' | 'top50' | 'all'>('top20');
-
-  // Quick Friend / Student Lookup by Ism-Familiya
-  const [friendLookupQuery, setFriendLookupQuery] = useState('');
 
   // Current logged in user entry (100% dynamic, bound to authenticated user)
   const userEntry: LeaderboardUserEntry | null = useMemo(() => {
@@ -129,20 +125,12 @@ export const StudentLeaderboardPage: React.FC = () => {
     ).sort();
   }, [allEntriesWithUser, regionFilter]);
 
-  // Friend / Student Lookup result card
-  const searchedStudentResult = useMemo(() => {
-    if (!friendLookupQuery.trim()) return null;
-    const q = friendLookupQuery.toLowerCase().trim();
-    return allEntriesWithUser.find(
-      (e) => e.userName.toLowerCase().includes(q) || e.userId.toLowerCase() === q
-    );
-  }, [allEntriesWithUser, friendLookupQuery]);
-
   // Filtered & Sorted Leaderboard entries
   const filteredEntries = useMemo(() => {
     let list = allEntriesWithUser.filter((e) => {
       const q = search.toLowerCase();
       const matchSearch =
+        !search ||
         e.userName.toLowerCase().includes(q) ||
         e.school.toLowerCase().includes(q) ||
         e.region.toLowerCase().includes(q) ||
@@ -158,15 +146,15 @@ export const StudentLeaderboardPage: React.FC = () => {
     // Sort descending by totalXP
     list.sort((a, b) => b.totalXP - a.totalXP);
 
-    // Apply Top Limit unless active search or friend lookup is active
-    if (limitMode === 'top20' && !search && !friendLookupQuery) {
+    // Apply Top Limit unless active search is present
+    if (limitMode === 'top20' && !search) {
       return list.slice(0, 20);
-    } else if (limitMode === 'top50' && !search && !friendLookupQuery) {
+    } else if (limitMode === 'top50' && !search) {
       return list.slice(0, 50);
     }
 
     return list;
-  }, [allEntriesWithUser, search, regionFilter, districtFilter, gradeFilter, limitMode, friendLookupQuery]);
+  }, [allEntriesWithUser, search, regionFilter, districtFilter, gradeFilter, limitMode]);
 
   // Export Excel
   const handleExportExcel = () => {
@@ -194,32 +182,7 @@ export const StudentLeaderboardPage: React.FC = () => {
   };
 
   return (
-    <div className="flex bg-slate-950 min-h-screen text-slate-100 font-sans">
-      <Sidebar />
-
-      <main className="flex-1 w-full min-w-0 transition-all duration-300 p-6 md:p-8 space-y-6">
-        {/* Header Hero */}
-        <div className="relative overflow-hidden bg-gradient-to-r from-blue-950 via-slate-900 to-indigo-950 text-white rounded-3xl p-6 md:p-8 shadow-xl border border-blue-800/80 flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
-          <div className="space-y-2 relative z-10">
-            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-amber-400/15 border border-amber-400/35 text-amber-300 text-xs font-extrabold uppercase tracking-widest backdrop-blur-xs">
-              <Trophy className="w-3.5 h-3.5 text-amber-400" />
-              <span>O'quvchilar Reyting Portali</span>
-            </div>
-            <h1 className="text-2xl md:text-3xl font-black tracking-tight text-white">Top 20+ O'quvchilar Reytingi</h1>
-            <p className="text-xs md:text-sm text-blue-200 font-medium max-w-xl">
-              Respublika, viloyat va tumanlar kesimida to'plangan haqqoniy ballar (XP), bonuslar va proktorining anti-cheat natijalari
-            </p>
-          </div>
-
-          <button
-            onClick={handleExportExcel}
-            className="flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-xl text-xs transition-all cursor-pointer shadow-md shrink-0 relative z-10"
-          >
-            <FileSpreadsheet className="w-4 h-4" />
-            <span>Excel formatda yuklash</span>
-          </button>
-        </div>
-
+    <div className="space-y-6">
         {/* Current User Personal Rank Card */}
         {userEntry && (
           <div className="p-6 bg-gradient-to-r from-blue-950 via-indigo-950 to-slate-950 text-white rounded-3xl shadow-xl border border-cyan-500/40 flex flex-col md:flex-row items-start md:items-center justify-between gap-6 relative overflow-hidden">
@@ -268,75 +231,6 @@ export const StudentLeaderboardPage: React.FC = () => {
             </div>
           </div>
         )}
-
-        {/* WIDGET: ISHM FAMILIYA BO'YICHA TANISH / DO'ST O'RNINI ANIQLASH */}
-        <div className="p-5 rounded-3xl bg-gradient-to-r from-blue-900/40 via-indigo-900/40 to-purple-900/40 border border-blue-500/40 space-y-3 shadow-lg">
-          <div className="flex flex-col md:flex-row md:items-center justify-between gap-2">
-            <div>
-              <h3 className="text-xs font-black text-cyan-300 uppercase tracking-wider flex items-center gap-2">
-                <UserSearch className="w-4 h-4 text-cyan-400" />
-                <span>🔍 Tanishingiz yoki Do'stingizni Ism-Familiya Orqali Qidirib O'rnini Biling</span>
-              </h3>
-              <p className="text-[11px] text-slate-300 mt-0.5">
-                Ism-familiyasini yozing — tizim darhol uning Respublika, Viloyat va Tuman reytingidagi exact o'rnini ko'rsatib beradi:
-              </p>
-            </div>
-          </div>
-
-          <div className="relative w-full max-w-xl">
-            <Search className="w-4 h-4 absolute left-3.5 top-3 text-cyan-400" />
-            <input
-              type="text"
-              placeholder="Ism-familiyasini yozing (masalan: Jamila Karimova, Bekzod Nazarov, Jasur)..."
-              value={friendLookupQuery}
-              onChange={(e) => setFriendLookupQuery(e.target.value)}
-              className="w-full rounded-2xl pl-10 pr-4 py-2.5 text-xs outline-none border font-bold bg-slate-950 border-cyan-500/50 text-white placeholder:text-slate-500 shadow-inner"
-            />
-          </div>
-
-          {/* Searched Result Card */}
-          {searchedStudentResult && (
-            <div className="p-4 rounded-2xl bg-slate-900 border border-cyan-400/60 shadow-2xl flex flex-col md:flex-row items-start md:items-center justify-between gap-4 animate-fadeIn">
-              <div className="flex items-center gap-3.5">
-                <Avatar name={searchedStudentResult.userName} src={searchedStudentResult.avatarUrl} size="lg" className="border-2 border-cyan-400 shrink-0" />
-                <div>
-                  <div className="text-sm font-extrabold text-white flex items-center gap-2">
-                    <span>{searchedStudentResult.userName}</span>
-                    <span className="px-2 py-0.5 rounded bg-amber-500/20 text-amber-300 text-[10px] font-bold border border-amber-500/40">
-                      {searchedStudentResult.grade}-sinf
-                    </span>
-                  </div>
-                  <div className="text-[11px] text-slate-300 font-semibold mt-0.5">
-                    {searchedStudentResult.school} • {searchedStudentResult.district}, {searchedStudentResult.region}
-                  </div>
-                </div>
-              </div>
-
-              {/* Ranks Breakdown */}
-              <div className="flex items-center gap-4 bg-black/60 px-4 py-2.5 rounded-2xl border border-white/10 text-center font-mono">
-                <div>
-                  <div className="text-base font-black text-amber-400">#{searchedStudentResult.nationalRank}</div>
-                  <div className="text-[9px] text-slate-400 uppercase font-sans">Respublika</div>
-                </div>
-                <div className="w-px h-6 bg-white/20" />
-                <div>
-                  <div className="text-base font-black text-blue-400">#{searchedStudentResult.regionRank}</div>
-                  <div className="text-[9px] text-slate-400 uppercase font-sans">Viloyat ({searchedStudentResult.region})</div>
-                </div>
-                <div className="w-px h-6 bg-white/20" />
-                <div>
-                  <div className="text-base font-black text-purple-300">#{searchedStudentResult.districtRank}</div>
-                  <div className="text-[9px] text-slate-400 uppercase font-sans">Tuman ({searchedStudentResult.district})</div>
-                </div>
-                <div className="w-px h-6 bg-white/20" />
-                <div>
-                  <div className="text-base font-black text-emerald-400">{searchedStudentResult.totalXP.toLocaleString()} XP</div>
-                  <div className="text-[9px] text-slate-400 uppercase font-sans">Jami XP</div>
-                </div>
-              </div>
-            </div>
-          )}
-        </div>
 
         {/* Scope Tabs: Respublika | Viloyat | Tuman */}
         <div className="flex flex-col sm:flex-row items-center justify-between gap-3 p-1.5 rounded-2xl bg-slate-900 border border-slate-800">
@@ -457,7 +351,7 @@ export const StudentLeaderboardPage: React.FC = () => {
               <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-3" />
               <input
                 type="text"
-                placeholder="Jadval bo'yicha tezkor filter..."
+                placeholder="Ism-familiyasini yozing (masalan: Jamila Karimova, Bekzod Nazarov, Jasur)..."
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 className="w-full pl-10 pr-4 py-2 text-xs bg-slate-950 border border-slate-800 rounded-xl focus:outline-none focus:border-amber-400 text-white font-medium"
@@ -504,6 +398,16 @@ export const StudentLeaderboardPage: React.FC = () => {
                 <option key={g} value={g}>{g}-sinf</option>
               ))}
             </select>
+
+            {/* Compact Excel Export */}
+            <button
+              onClick={handleExportExcel}
+              className="flex items-center gap-1.5 px-3.5 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-xl text-xs transition-all cursor-pointer shadow-sm shrink-0 whitespace-nowrap"
+              title="Excel formatda yuklash"
+            >
+              <FileSpreadsheet className="w-3.5 h-3.5" />
+              <span>Excel</span>
+            </button>
           </div>
         </div>
 
@@ -550,7 +454,7 @@ export const StudentLeaderboardPage: React.FC = () => {
                   const isTop2 = scopeRank === 2;
                   const isTop3 = scopeRank === 3;
                   const isCurrentUser = user && (user.id === entry.userId || user.fullName.toLowerCase().includes(entry.userName.toLowerCase()));
-                  const isSearchedTarget = friendLookupQuery && entry.userName.toLowerCase().includes(friendLookupQuery.toLowerCase());
+                  const isSearchedTarget = search && entry.userName.toLowerCase().includes(search.toLowerCase());
 
                   return (
                     <tr
@@ -650,7 +554,6 @@ export const StudentLeaderboardPage: React.FC = () => {
             </tbody>
           </table>
         </div>
-      </main>
-    </div>
+      </div>
   );
 };

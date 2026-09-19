@@ -9,8 +9,6 @@ import { clsx } from 'clsx';
 import {
   LifeBuoy,
   Search,
-  Bot,
-  Key,
   Paperclip,
   Send,
   CheckCircle2,
@@ -20,11 +18,9 @@ import {
   Phone,
   Mail,
   ShieldAlert,
-  Sparkles,
   X,
   FileText,
-  Trash2,
-  CornerDownRight
+  Trash2
 } from 'lucide-react';
 
 export const EgaSupportPage: React.FC = () => {
@@ -32,13 +28,10 @@ export const EgaSupportPage: React.FC = () => {
     tickets,
     selectedTicketId,
     setSelectedTicketId,
-    aiApiKey,
-    setAiApiKey,
     addMessageToTicket,
     updateTicketStatus,
     closeTicket,
-    deleteTicket,
-    generateAiResponseDraft
+    deleteTicket
   } = useSupportStore();
 
   const { theme } = useThemeStore();
@@ -53,45 +46,15 @@ export const EgaSupportPage: React.FC = () => {
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [categoryFilter, setCategoryFilter] = useState<string>('all');
 
-  // AI Modal & Key State
-  const [isApiKeyModalOpen, setIsApiKeyModalOpen] = useState(false);
-  const [tempApiKey, setTempApiKey] = useState(aiApiKey);
-
   // Reply State
   const [replyText, setReplyText] = useState('');
   const [attachedFiles, setAttachedFiles] = useState<{ name: string; size: string; type: string }[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // AI Draft Response Review State
-  const [aiDraftText, setAiDraftText] = useState<string | null>(null);
-  const [isAiGenerating, setIsAiGenerating] = useState(false);
-
   // Selected Ticket computation
   const currentTicket = useMemo(() => {
     return tickets.find((t) => t.id === selectedTicketId) || tickets[0] || null;
   }, [tickets, selectedTicketId]);
-
-  // Auto-generate AI response whenever the selected ticket changes
-  useEffect(() => {
-    if (!currentTicket) return;
-    // Only auto-generate if last message is from the user (needs a reply)
-    const lastMsg = currentTicket.messages[currentTicket.messages.length - 1];
-    if (!lastMsg || lastMsg.sender !== 'user') return;
-
-    setIsAiGenerating(true);
-    setAiDraftText(null);
-    setReplyText('');
-
-    const timer = setTimeout(() => {
-      const draft = generateAiResponseDraft(currentTicket);
-      setAiDraftText(draft);
-      setReplyText(draft);
-      setIsAiGenerating(false);
-    }, 700);
-
-    return () => clearTimeout(timer);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentTicket?.id]);
 
   // Filtered Tickets
   const filteredTickets = useMemo(() => {
@@ -132,27 +95,6 @@ export const EgaSupportPage: React.FC = () => {
     setAttachedFiles((prev) => prev.filter((_, i) => i !== index));
   };
 
-  // Manual regenerate AI response (refresh)
-  const handleRegenerateAiResponse = () => {
-    if (!currentTicket) return;
-    setIsAiGenerating(true);
-    setAiDraftText(null);
-    setTimeout(() => {
-      const draft = generateAiResponseDraft(currentTicket);
-      setAiDraftText(draft);
-      setReplyText(draft);
-      setIsAiGenerating(false);
-    }, 600);
-  };
-
-  // Accept AI draft into reply box
-  const handleApplyAiDraft = () => {
-    if (aiDraftText) {
-      setReplyText(aiDraftText);
-      setAiDraftText(null);
-    }
-  };
-
   // Send Admin Reply
   const handleSendReply = (closeAfterSend = false) => {
     if (!currentTicket || (!replyText.trim() && attachedFiles.length === 0)) return;
@@ -160,7 +102,6 @@ export const EgaSupportPage: React.FC = () => {
     addMessageToTicket(currentTicket.id, replyText.trim(), 'admin', attachedFiles.length > 0 ? attachedFiles : undefined);
     setReplyText('');
     setAttachedFiles([]);
-    setAiDraftText(null);
 
     if (closeAfterSend) {
       closeTicket(currentTicket.id);
@@ -225,24 +166,8 @@ export const EgaSupportPage: React.FC = () => {
               {t("Yordam Xizmati Bo'limi")}
             </h1>
             <p className={clsx("text-[11px] mt-0.5", isDark ? "text-slate-400" : "text-slate-500")}>
-              {t("Foydalanuvchilar murojaatlarini ko'rish va AI avtomatik javob berish")}
+              {t("Foydalanuvchilar murojaatlarini ko'rish va tezkor yordam berish")}
             </p>
-          </div>
-
-          {/* AI Settings & Stats */}
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => {
-                setTempApiKey(aiApiKey);
-                setIsApiKeyModalOpen(true);
-              }}
-              className="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-600/90 hover:bg-indigo-500 text-white font-semibold rounded-lg text-xs transition-all shadow-sm cursor-pointer"
-              title="AI avtomatlashtirish uchun API Kalit sozlamalari"
-            >
-              <Bot className="w-3.5 h-3.5 text-indigo-200" />
-              <span>{t("API Kaliti")}</span>
-              <Key className="w-3 h-3 text-indigo-300" />
-            </button>
           </div>
         </div>
 
@@ -549,10 +474,9 @@ export const EgaSupportPage: React.FC = () => {
                 </div>
 
                 {/* Conversation Body (Message Stream) */}
-                <div className="flex-1 p-4 overflow-y-auto space-y-4 max-h-[360px] custom-scrollbar">
+                <div className="flex-1 p-4 overflow-y-auto space-y-4 max-h-[420px] custom-scrollbar">
                   {currentTicket.messages.map((msg) => {
                     const isUser = msg.sender === 'user';
-                    const isAi = msg.sender === 'ai';
 
                     return (
                       <div
@@ -560,8 +484,8 @@ export const EgaSupportPage: React.FC = () => {
                         className={clsx("flex flex-col", isUser ? "items-start" : "items-end")}
                       >
                         <div className="flex items-center gap-2 mb-1">
-                          <span className={clsx("text-[10px] font-bold flex items-center gap-1", isUser ? "text-amber-400" : isAi ? "text-indigo-400" : "text-emerald-400")}>
-                            {isUser ? <User className="w-3 h-3" /> : isAi ? <Bot className="w-3 h-3" /> : <ShieldAlert className="w-3 h-3" />}
+                          <span className={clsx("text-[10px] font-bold flex items-center gap-1", isUser ? "text-amber-400" : "text-emerald-400")}>
+                            {isUser ? <User className="w-3 h-3" /> : <ShieldAlert className="w-3 h-3" />}
                             {msg.senderName}
                           </span>
                           <span className="text-[9px] text-slate-500 font-mono">{msg.timestamp}</span>
@@ -574,8 +498,6 @@ export const EgaSupportPage: React.FC = () => {
                               ? isDark
                                 ? "bg-[#091126] border-[#182F5C] text-slate-200 rounded-tl-none"
                                 : "bg-slate-100 border-slate-300 text-slate-900 rounded-tl-none"
-                              : isAi
-                              ? "bg-indigo-950/70 border-indigo-800/80 text-indigo-100 rounded-tr-none"
                               : isDark
                               ? "bg-emerald-950/60 border-emerald-800/80 text-emerald-100 rounded-tr-none"
                               : "bg-emerald-50 border-emerald-300 text-emerald-900 rounded-tr-none"
@@ -607,49 +529,6 @@ export const EgaSupportPage: React.FC = () => {
                     );
                   })}
                 </div>
-
-                {/* AI Generated Response Draft Box (Review & Edit Before Sending) */}
-                {aiDraftText !== null && (
-                  <div className={clsx("mx-4 my-2 p-3 rounded-xl border space-y-2", isDark ? "bg-[#091129] border-indigo-500/50" : "bg-indigo-50 border-indigo-300")}>
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-1.5 text-xs font-bold text-indigo-400">
-                        <Sparkles className="w-4 h-4 text-indigo-400 animate-pulse" />
-                        <span>{t("AI Bergan Javob Loyihasi (Ko'rib chiqish va Tahrirlash)")}:</span>
-                      </div>
-                      <button
-                        onClick={() => setAiDraftText(null)}
-                        className="text-slate-400 hover:text-slate-200"
-                      >
-                        <X className="w-3.5 h-3.5" />
-                      </button>
-                    </div>
-
-                    <textarea
-                      rows={3}
-                      value={aiDraftText}
-                      onChange={(e) => setAiDraftText(e.target.value)}
-                      className={clsx(
-                        "w-full rounded-lg px-3 py-2 text-xs outline-none border resize-none font-sans leading-relaxed",
-                        isDark
-                          ? "bg-[#050A18] border-indigo-900/60 focus:border-indigo-400 text-indigo-100"
-                          : "bg-white border-indigo-200 focus:border-indigo-500 text-slate-900"
-                      )}
-                    />
-
-                    <div className="flex items-center justify-between text-[11px]">
-                      <span className="text-slate-400 italic">
-                        * Javob matnini o'zingiz xohlagancha tahrirlashingiz mumkin.
-                      </span>
-                      <button
-                        onClick={handleApplyAiDraft}
-                        className="px-3 py-1 bg-indigo-600 hover:bg-indigo-500 text-white font-bold rounded-lg text-xs transition-all flex items-center gap-1 cursor-pointer"
-                      >
-                        <CornerDownRight className="w-3 h-3" />
-                        <span>{t("Javob maydoniga joylash")}</span>
-                      </button>
-                    </div>
-                  </div>
-                )}
 
                 {/* Reply Input & Controls Area */}
                 <div className={clsx("p-4 border-t space-y-3", isDark ? "border-[#182A4D] bg-[#091024]" : "border-slate-200 bg-slate-50")}>
@@ -685,23 +564,16 @@ export const EgaSupportPage: React.FC = () => {
 
                   {/* Reply Textarea */}
                   <div className="relative">
-                    {isAiGenerating && (
-                      <div className="absolute inset-0 rounded-xl bg-black/30 backdrop-blur-sm z-10 flex items-center justify-center gap-2 text-indigo-300 text-xs font-bold">
-                        <Sparkles className="w-4 h-4 animate-pulse text-indigo-400" />
-                        {t("AI javob tayyorlamoqda...")}
-                      </div>
-                    )}
                     <textarea
                       rows={3}
-                      placeholder={t("AI avtomatik javob tayyorlaydi...")}
+                      placeholder={t("Javob matnini kiriting...")}
                       value={replyText}
                       onChange={(e) => setReplyText(e.target.value)}
                       className={clsx(
                         "w-full rounded-xl px-3 py-2.5 text-xs outline-none border transition-all resize-none pr-10",
                         isDark
                           ? "bg-[#050B18] border-[#1A2F57] focus:border-amber-400 text-white placeholder:text-slate-500"
-                          : "bg-white border-slate-300 focus:border-amber-500 text-slate-900 placeholder:text-slate-400",
-                        aiDraftText ? (isDark ? "border-indigo-500/60" : "border-indigo-400") : ""
+                          : "bg-white border-slate-300 focus:border-amber-500 text-slate-900 placeholder:text-slate-400"
                       )}
                     />
 
@@ -716,29 +588,12 @@ export const EgaSupportPage: React.FC = () => {
                     </button>
                   </div>
 
-                  {/* AI indicator row */}
-                  {aiDraftText && !isAiGenerating && (
-                    <div className="flex items-center gap-1.5 text-[10px] text-indigo-400">
-                      <Sparkles className="w-3 h-3" />
-                      <span>{t("AI tomonidan avtomatik tayyorlangan javob — tahrirlashingiz mumkin")}</span>
-                      <button
-                        type="button"
-                        onClick={handleRegenerateAiResponse}
-                        className="ml-auto flex items-center gap-1 px-2 py-0.5 rounded bg-indigo-500/10 border border-indigo-500/30 hover:bg-indigo-500/20 text-indigo-300 text-[10px] font-semibold transition-all cursor-pointer"
-                        title={t("Qayta yaratish")}
-                      >
-                        <CornerDownRight className="w-3 h-3" />
-                        {t("Qayta yaratish")}
-                      </button>
-                    </div>
-                  )}
-
                   {/* Action Buttons Row */}
                   <div className="flex items-center justify-end gap-2">
                     <button
                       type="button"
                       onClick={() => handleSendReply(false)}
-                      disabled={isAiGenerating || (!replyText.trim() && attachedFiles.length === 0)}
+                      disabled={!replyText.trim() && attachedFiles.length === 0}
                       className="flex items-center gap-1.5 px-4 py-1.5 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold rounded-lg text-xs transition-all shadow-md cursor-pointer disabled:opacity-50"
                     >
                       <Send className="w-3.5 h-3.5" />
@@ -755,83 +610,6 @@ export const EgaSupportPage: React.FC = () => {
             )}
           </div>
         </div>
-
-        {/* Modal: AI API Key Settings */}
-        {isApiKeyModalOpen && (
-          <div className="fixed inset-0 bg-black/70 backdrop-blur-xs z-50 flex items-center justify-center p-4">
-            <div
-              className={clsx(
-                "rounded-2xl max-w-md w-full p-5 shadow-2xl space-y-4 border transition-colors",
-                isDark ? "bg-[#0D1832] border-[#1E3563]" : "bg-white border-slate-200"
-              )}
-            >
-              <div className={clsx("flex items-center justify-between border-b pb-3", isDark ? "border-[#182A4D]" : "border-slate-200")}>
-                <h3 className={clsx("text-sm font-bold flex items-center gap-2", isDark ? "text-white" : "text-slate-900")}>
-                  <Bot className="w-4 h-4 text-indigo-400" />
-                  {t("AI API Kalit Sozlamalari")}
-                </h3>
-                <button
-                  onClick={() => setIsApiKeyModalOpen(false)}
-                  className="text-slate-400 hover:text-slate-600 transition-colors"
-                >
-                  <X className="w-4 h-4" />
-                </button>
-              </div>
-
-              <div className="space-y-3">
-                <p className={clsx("text-[11px] leading-relaxed", isDark ? "text-slate-300" : "text-slate-600")}>
-                  Platformadagi yordam xizmati murojaatlariga avtomatik aqlli javob tayyorlash va ko'rib chiqish uchun Google Gemini yoki OpenAI API kalitingizni kiriting:
-                </p>
-
-                <div>
-                  <label className={clsx("block text-[11px] font-semibold mb-1", isDark ? "text-slate-300" : "text-slate-700")}>
-                    API Kalit (API Key)
-                  </label>
-                  <div className="relative">
-                    <Key className="w-3.5 h-3.5 absolute left-3 top-2.5 text-slate-400" />
-                    <input
-                      type="password"
-                      placeholder="AI-KEY-..."
-                      value={tempApiKey}
-                      onChange={(e) => setTempApiKey(e.target.value)}
-                      className={clsx(
-                        "w-full rounded-lg pl-9 pr-3 py-2 text-xs outline-none border font-mono",
-                        isDark
-                          ? "bg-[#091024] border-[#1A2F57] focus:border-indigo-400 text-white"
-                          : "bg-slate-50 border-slate-300 focus:border-indigo-500 text-slate-900"
-                      )}
-                    />
-                  </div>
-                </div>
-
-                <div className={clsx("flex justify-end gap-2 pt-2 border-t", isDark ? "border-[#182A4D]" : "border-slate-200")}>
-                  <button
-                    type="button"
-                    onClick={() => setIsApiKeyModalOpen(false)}
-                    className={clsx(
-                      "px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer border",
-                      isDark
-                        ? "bg-[#162748] hover:bg-[#1D325C] text-slate-300 border-[#1E365E]"
-                        : "bg-slate-100 hover:bg-slate-200 text-slate-700 border-slate-300"
-                    )}
-                  >
-                    {t("Bekor qilish")}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setAiApiKey(tempApiKey);
-                      setIsApiKeyModalOpen(false);
-                    }}
-                    className="px-4 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white font-bold rounded-lg text-xs transition-all cursor-pointer shadow-md"
-                  >
-                    {t("Saqlash")}
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
       </div>
     </EgaLayout>
   );

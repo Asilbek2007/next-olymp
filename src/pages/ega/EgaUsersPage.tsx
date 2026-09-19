@@ -44,11 +44,12 @@ export const EgaUsersPage: React.FC = () => {
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 15;
 
-  // Column Visibility State (13 requested columns)
+  // Column Visibility State (14 columns)
   const [visibleColumns, setVisibleColumns] = useState({
-    fullName: true,
-    phone: true,
     id: true,
+    fullName: true,
+    gender: true,
+    phone: true,
     role: true,
     package: true,
     status: true,
@@ -339,7 +340,6 @@ export const EgaUsersPage: React.FC = () => {
               <option value="all">{t("Barcha rollar")}</option>
               <option value="student">{t("O'quvchi")}</option>
               <option value="teacher">{t("O'qituvchi")}</option>
-              <option value="admin">{t("Admin")}</option>
             </select>
 
             {/* Gender Filter */}
@@ -387,9 +387,10 @@ export const EgaUsersPage: React.FC = () => {
                   </p>
 
                   {Object.entries({
-                    fullName: t("F.I.Sh."),
-                    phone: t("Telefon"),
                     id: t("ID"),
+                    fullName: t("F.I.Sh."),
+                    gender: t("Jinsi"),
+                    phone: t("Telefon"),
                     role: t("Rol"),
                     package: t("Paket"),
                     status: t("Holati"),
@@ -441,6 +442,7 @@ export const EgaUsersPage: React.FC = () => {
                   <th className="py-2.5 px-3 w-10 text-center">№</th>
                   {visibleColumns.id && <th className="py-2.5 px-3">{t("ID")}</th>}
                   {visibleColumns.fullName && <th className="py-2.5 px-3">{t("F.I.Sh.")}</th>}
+                  {visibleColumns.gender && <th className="py-2.5 px-3">{t("Jinsi")}</th>}
                   {visibleColumns.phone && <th className="py-2.5 px-3">{t("Telefon")}</th>}
                   {visibleColumns.role && <th className="py-2.5 px-3">{t("Rol")}</th>}
                   {visibleColumns.package && <th className="py-2.5 px-3">{t("Paket")}</th>}
@@ -458,7 +460,7 @@ export const EgaUsersPage: React.FC = () => {
               <tbody className={clsx("divide-y", isDark ? "divide-[#152545]" : "divide-slate-200")}>
                 {paginatedUsers.length === 0 ? (
                   <tr>
-                    <td colSpan={14} className="py-8 text-center text-slate-400">
+                    <td colSpan={15} className="py-8 text-center text-slate-400">
                       {t("Foydalanuvchilar topilmadi")}
                     </td>
                   </tr>
@@ -485,10 +487,29 @@ export const EgaUsersPage: React.FC = () => {
                             <div
                               className={clsx(
                                 "w-2 h-2 rounded-full shrink-0",
-                                u.gender === 'male' ? "bg-blue-400" : "bg-pink-400"
+                                u.gender === 'female' ? "bg-pink-400" : "bg-blue-400"
                               )}
                             />
                             <span>{u.fullName}</span>
+                          </td>
+                        )}
+
+                        {visibleColumns.gender && (
+                          <td className="py-2.5 px-3 whitespace-nowrap">
+                            <span
+                              className={clsx(
+                                "inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold border",
+                                u.gender === 'female'
+                                  ? isDark
+                                    ? "bg-pink-950/70 text-pink-300 border-pink-800/60"
+                                    : "bg-pink-50 text-pink-700 border-pink-200"
+                                  : isDark
+                                    ? "bg-blue-950/70 text-blue-300 border-blue-800/60"
+                                    : "bg-blue-50 text-blue-700 border-blue-200"
+                              )}
+                            >
+                              {u.gender === 'female' ? "👧 " + t("Qiz bola") : "👦 " + t("O'g'il bola")}
+                            </span>
                           </td>
                         )}
 

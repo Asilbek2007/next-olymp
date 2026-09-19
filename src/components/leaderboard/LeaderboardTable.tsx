@@ -1,7 +1,7 @@
 import React from 'react';
 import { LeaderboardEntry } from '../../types';
 import { Avatar } from '../common/Avatar';
-import { Trophy, Medal, ShieldCheck, Clock, UserCheck } from 'lucide-react';
+import { Trophy, Medal, Clock } from 'lucide-react';
 import { useAuth } from '../../hooks/useAuth';
 
 interface LeaderboardTableProps {
@@ -16,7 +16,7 @@ export const LeaderboardTable: React.FC<LeaderboardTableProps> = ({ entries, isL
     return (
       <div className="w-full space-y-3">
         {[1, 2, 3, 4, 5].map((i) => (
-          <div key={i} className="h-16 bg-surface animate-pulse rounded-xl" />
+          <div key={i} className="h-16 bg-[#111827] border border-[#1E293B] animate-pulse rounded-xl" />
         ))}
       </div>
     );
@@ -24,12 +24,12 @@ export const LeaderboardTable: React.FC<LeaderboardTableProps> = ({ entries, isL
 
   if (!entries || entries.length === 0) {
     return (
-      <div className="w-full text-center py-16 px-4 rounded-2xl border border-dashed border-border bg-white shadow-xs space-y-3">
-        <div className="w-14 h-14 mx-auto rounded-full bg-amber-50 text-amber-500 flex items-center justify-center border border-amber-200">
+      <div className="w-full text-center py-16 px-4 rounded-xl border border-dashed border-[#1E293B] bg-[#111827] space-y-3">
+        <div className="w-14 h-14 mx-auto rounded-full bg-[#F59E0B]/15 text-[#F59E0B] flex items-center justify-center border border-[#F59E0B]/30">
           <Trophy className="w-7 h-7" />
         </div>
-        <h3 className="text-lg font-bold text-accent-900">Hozircha ishtirokchilar mavjud emas</h3>
-        <p className="text-sm text-accent-500 max-w-md mx-auto">
+        <h3 className="text-lg font-bold text-[#F1F5F9]">Hozircha ishtirokchilar mavjud emas</h3>
+        <p className="text-sm text-[#94A3B8] max-w-md mx-auto">
           Olimpiadalarda qatnashib natija ko'rsating va birinchilardan bo'lib umummilliy reyting jadvalidan joy oling!
         </p>
       </div>
@@ -37,9 +37,9 @@ export const LeaderboardTable: React.FC<LeaderboardTableProps> = ({ entries, isL
   }
 
   return (
-    <div className="w-full overflow-x-auto rounded-2xl border border-border bg-white shadow-xs">
+    <div className="w-full overflow-x-auto rounded-xl border border-[#1E293B] bg-[#111827] shadow-xs">
       <table className="w-full text-left text-sm">
-        <thead className="bg-surface text-accent-600 uppercase text-[11px] font-bold tracking-wider border-b border-border">
+        <thead className="bg-[#0B1120] text-[#94A3B8] uppercase text-[11px] font-bold tracking-wider border-b border-[#1E293B]">
           <tr>
             <th className="px-6 py-4">O'rin</th>
             <th className="px-6 py-4">Ishtirokchi</th>
@@ -49,7 +49,7 @@ export const LeaderboardTable: React.FC<LeaderboardTableProps> = ({ entries, isL
             <th className="px-6 py-4 text-right">Vaqt (Penalty)</th>
           </tr>
         </thead>
-        <tbody className="divide-y divide-border text-accent-900">
+        <tbody className="divide-y divide-[#1E293B] text-[#F1F5F9]">
           {entries.map((entry) => {
             const isTop1 = entry.rank === 1;
             const isTop2 = entry.rank === 2;
@@ -57,62 +57,53 @@ export const LeaderboardTable: React.FC<LeaderboardTableProps> = ({ entries, isL
             
             const isCurrentUser = user && (
               entry.userId === user.id ||
-              entry.userName.toLowerCase() === user.fullName.toLowerCase()
+              entry.userName.toLowerCase() === (user.fullName || '').toLowerCase()
             );
 
             return (
               <tr
-                key={entry.id}
+                key={entry.rank}
                 className={`transition-colors ${
                   isCurrentUser
-                    ? 'bg-cyan-50/90 border-2 border-cyan-500 shadow-md font-bold'
+                    ? 'bg-[#3B82F6]/10 font-bold border-l-4 border-[#3B82F6]'
                     : isTop1
-                    ? 'bg-amber-50/40 hover:bg-amber-50/70'
-                    : isTop2
-                    ? 'bg-slate-50/60 hover:bg-slate-100/80'
-                    : isTop3
-                    ? 'bg-amber-900/5 hover:bg-amber-900/10'
-                    : 'hover:bg-surface/80'
+                    ? 'bg-[#F59E0B]/5 hover:bg-[#F59E0B]/10'
+                    : 'hover:bg-[#1E293B]/40'
                 }`}
               >
-                {/* Rank */}
-                <td className="px-6 py-4 font-bold text-base">
-                  {isTop1 ? (
-                    <div className="flex items-center gap-1.5 text-amber-500">
-                      <Trophy className="w-5 h-5 fill-amber-400" />
-                      <span>1</span>
-                    </div>
-                  ) : isTop2 ? (
-                    <div className="flex items-center gap-1.5 text-slate-500">
-                      <Medal className="w-5 h-5 fill-slate-300" />
-                      <span>2</span>
-                    </div>
-                  ) : isTop3 ? (
-                    <div className="flex items-center gap-1.5 text-amber-700">
-                      <Medal className="w-5 h-5 fill-amber-700" />
-                      <span>3</span>
-                    </div>
-                  ) : (
-                    <span className="text-accent-500 pl-2">{entry.rank}</span>
-                  )}
+                {/* Rank Badge */}
+                <td className="px-6 py-4 font-bold">
+                  <div className="flex items-center gap-2">
+                    {isTop1 ? (
+                      <span className="w-8 h-8 rounded-full bg-[#F59E0B] text-slate-950 flex items-center justify-center font-black text-xs shadow-md">
+                        1
+                      </span>
+                    ) : isTop2 ? (
+                      <span className="w-8 h-8 rounded-full bg-slate-300 text-slate-950 flex items-center justify-center font-black text-xs shadow-md">
+                        2
+                      </span>
+                    ) : isTop3 ? (
+                      <span className="w-8 h-8 rounded-full bg-amber-700 text-white flex items-center justify-center font-black text-xs shadow-md">
+                        3
+                      </span>
+                    ) : (
+                      <span className="w-8 h-8 rounded-full bg-[#0B1120] text-[#94A3B8] border border-[#1E293B] flex items-center justify-center font-bold text-xs">
+                        {entry.rank}
+                      </span>
+                    )}
+                  </div>
                 </td>
 
                 {/* User */}
                 <td className="px-6 py-4">
                   <div className="flex items-center gap-3">
-                    <Avatar name={entry.userName} src={entry.avatarUrl} size="md" />
+                    <Avatar name={entry.userName} src={entry.avatarUrl} size="sm" />
                     <div>
-                      <div className="font-bold text-accent-900 flex items-center gap-2">
+                      <div className="font-bold text-[#F1F5F9] flex items-center gap-2">
                         <span>{entry.userName}</span>
                         {isCurrentUser && (
-                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-cyan-600 text-white text-[10px] font-black uppercase tracking-wider shadow-xs">
-                            <UserCheck className="w-3 h-3 text-cyan-200" />
+                          <span className="px-2 py-0.5 rounded-full text-[10px] bg-[#3B82F6] text-white font-bold uppercase">
                             Siz
-                          </span>
-                        )}
-                        {entry.status === 'verified' && (
-                          <span title="Anti-Cheat Tasdiqlangan">
-                            <ShieldCheck className="w-4 h-4 text-emerald-600" />
                           </span>
                         )}
                       </div>
@@ -121,30 +112,29 @@ export const LeaderboardTable: React.FC<LeaderboardTableProps> = ({ entries, isL
                 </td>
 
                 {/* Grade */}
-                <td className="px-6 py-4 font-semibold text-accent-700">
+                <td className="px-6 py-4 text-[#94A3B8] font-medium">
                   {entry.grade}-sinf
                 </td>
 
                 {/* Region & School */}
                 <td className="px-6 py-4">
-                  <div className="flex flex-col text-xs">
-                    <span className="font-bold text-accent-800">{entry.region}</span>
-                    <span className="text-accent-500">{entry.school}</span>
-                  </div>
+                  <div className="font-medium text-[#F1F5F9]">{entry.region}</div>
+                  <div className="text-xs text-[#94A3B8] line-clamp-1">{entry.school}</div>
                 </td>
 
                 {/* Score */}
                 <td className="px-6 py-4 text-right">
-                  <span className="inline-flex px-3 py-1 bg-primary-50 text-primary-700 font-extrabold text-sm rounded-lg border border-primary-200">
-                    {entry.score} ball
+                  <span className="font-mono text-base font-black text-[#10B981]">
+                    {entry.score}
                   </span>
+                  <span className="text-[10px] text-[#94A3B8] ml-1">XP</span>
                 </td>
 
-                {/* Penalty Time */}
-                <td className="px-6 py-4 text-right font-mono text-xs text-accent-600">
-                  <div className="flex items-center justify-end gap-1">
-                    <Clock className="w-3.5 h-3.5 text-accent-400" />
-                    <span>{Math.floor(entry.penaltyTime / 60)} daq</span>
+                {/* Time Penalty */}
+                <td className="px-6 py-4 text-right font-mono text-xs text-[#94A3B8]">
+                  <div className="inline-flex items-center gap-1">
+                    <Clock className="w-3.5 h-3.5 text-[#64748B]" />
+                    <span>{(entry as any).timeSpentMinutes ?? Math.round((entry.penaltyTime || 0) / 60)} daq</span>
                   </div>
                 </td>
               </tr>

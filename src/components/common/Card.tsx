@@ -13,16 +13,16 @@ export const Card: React.FC<CardProps> = ({
   className,
   ...props
 }) => {
-  const base = "rounded-xl bg-white transition-all duration-200";
+  const base = "rounded-xl bg-[#111827] text-[#F1F5F9] transition-all duration-200";
 
   const variants = {
-    border: "border border-border shadow-xs",
-    shadow: "border border-border/50 shadow-md hover:shadow-lg",
-    flat: "bg-surface border border-transparent",
-    gradient: "bg-gradient-to-br from-white to-surface border border-primary-100 shadow-sm",
+    border: "border border-[#1E293B] shadow-xs",
+    shadow: "border border-[#1E293B] shadow-lg shadow-black/40",
+    flat: "bg-[#111827] border border-transparent",
+    gradient: "bg-gradient-to-br from-[#111827] to-[#0F172A] border border-[#1E293B] shadow-md",
   };
 
-  const hover = hoverEffect ? "hover:-translate-y-1 hover:border-primary-300 hover:shadow-md cursor-pointer" : "";
+  const hover = hoverEffect ? "hover:-translate-y-0.5 hover:border-[#3B82F6]/50 hover:shadow-xl hover:shadow-[#3B82F6]/5 cursor-pointer" : "";
 
   return (
     <div className={clsx(base, variants[variant], hover, className)} {...props}>

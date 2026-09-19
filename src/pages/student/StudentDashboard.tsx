@@ -1,11 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth';
-import { Sidebar } from '../../components/common/Sidebar';
 import { Card } from '../../components/common/Card';
 import { Button } from '../../components/common/Button';
 import { Avatar } from '../../components/common/Avatar';
-import { Trophy, Award, ArrowRight, Sparkles, Clock, BarChart3, ShieldCheck, HelpCircle } from 'lucide-react';
+import { Trophy, Award, ArrowRight, Sparkles, BarChart3, Clock, Calendar } from 'lucide-react';
 import { useOlympiadStore } from '../../store/useOlympiadStore';
 import { certificateService } from '../../services/certificateService';
 import { submissionService } from '../../services/submissionService';
@@ -36,198 +35,198 @@ export const StudentDashboard: React.FC = () => {
   const totalXp = submissions.reduce((acc, curr) => acc + (curr.score ? curr.score * 10 : 0), 0);
 
   return (
-    <div className="flex bg-surface min-h-screen">
-      <Sidebar />
+    <div className="space-y-8">
+      {/* Neo-Blue Dark Welcome Hero Banner */}
+      {/* Compact Welcome Hero */}
+      <div className="relative overflow-hidden bg-gradient-to-r from-[#111827] via-[#1E293B] to-[#111827] text-[#F1F5F9] rounded-xl p-4 sm:p-5 border border-[#1E293B] shadow-md flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+        <div className="flex items-center gap-3.5 relative z-10">
+          <Avatar
+            name={user.fullName || 'User'}
+            src={user.avatarUrl}
+            size="lg"
+            className="ring-2 ring-[#3B82F6]/60 shadow-md shrink-0"
+          />
 
-      <main className="flex-1 w-full min-w-0 transition-all duration-300 p-6 md:p-8 space-y-8">
-        {/* Solid Neo-Blue Dark Welcome Hero Banner */}
-        <div className="relative overflow-hidden bg-gradient-to-r from-blue-950 via-blue-900 to-slate-950 text-white rounded-3xl p-8 md:p-10 shadow-2xl border border-blue-800/80 flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
-          {/* Subtle Ambient Glow */}
-          <div className="absolute -top-16 -right-16 w-80 h-80 bg-cyan-500/20 blur-3xl rounded-full pointer-events-none" />
-
-          <div className="flex items-center gap-6 relative z-10">
-            <Avatar name={user.fullName} src={user.avatarUrl} size="xl" className="border-2 border-cyan-400/80 shadow-xl shrink-0" />
-
-            <div className="space-y-2">
-              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-amber-400/15 border border-amber-400/35 text-amber-300 text-xs font-extrabold uppercase tracking-widest backdrop-blur-xs">
-                <Sparkles className="w-3.5 h-3.5 text-amber-400" />
-                <span>Xush kelibsiz, {user.fullName || 'O\'quvchi'}!</span>
-              </div>
-              
-              <h1 className="text-3xl md:text-4xl font-black text-white tracking-tight leading-tight">
-                Shaxsiy Kabinet
-              </h1>
-              
-              <p className="text-sm text-blue-200 font-medium">
-                {user.school || 'Maktab belgilanmagan'} • <span className="text-white font-bold">{user.grade ? `${user.grade}-sinf` : 'Sinf yo\'q'}</span> • {user.region || 'Hudud belgilanmagan'}
-              </p>
+          <div className="space-y-1">
+            <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-[#F59E0B]/15 border border-[#F59E0B]/30 text-[#F59E0B] text-[10px] font-bold uppercase tracking-wider">
+              <Sparkles className="w-3 h-3 text-[#F59E0B]" />
+              <span>Xush kelibsiz, {user.fullName || 'Foydalanuvchi'}!</span>
             </div>
+            
+            <h1 className="text-lg sm:text-xl font-black text-[#F1F5F9] tracking-tight">
+              Shaxsiy Boshqaruv Paneli
+            </h1>
+            
+            <p className="text-[11px] sm:text-xs text-[#94A3B8] font-medium max-w-xl">
+              Platformadagi musobaqalarda qatnashing, bilimingizni sinang va milliy reytingda yuqori pog'onani egallang.
+            </p>
           </div>
+        </div>
 
-          <div className="relative z-10 shrink-0">
-            <Link to="/student/olympiads">
-              <Button size="lg" variant="primary" className="bg-blue-600 hover:bg-blue-500 text-white font-extrabold shadow-lg shadow-blue-950/60" rightIcon={<ArrowRight className="w-5 h-5" />}>
-                Musobaqalarga kirish
+        <div className="flex items-center gap-3 relative z-10 shrink-0 self-start md:self-auto">
+          <Link to="/student/olympiads">
+            <Button
+              variant="primary"
+              size="sm"
+              className="font-bold shadow-xs"
+              rightIcon={<ArrowRight className="w-3.5 h-3.5" />}
+            >
+              Musobaqalarga kirish
+            </Button>
+          </Link>
+        </div>
+      </div>
+
+      {/* 3 Metrics Cards */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5">
+        <Link to="/student/olympiads">
+          <Card hoverEffect className="p-4 flex items-center gap-3.5 bg-[#111827] border border-[#1E293B] group">
+            <div className="w-10 h-10 rounded-lg bg-[#3B82F6]/15 group-hover:bg-[#3B82F6] text-[#3B82F6] group-hover:text-white border border-[#3B82F6]/30 flex items-center justify-center font-bold shrink-0 transition-colors">
+              <Trophy className="w-5 h-5" />
+            </div>
+            <div>
+              <div className="text-xl sm:text-2xl font-black text-[#F1F5F9] font-mono">{activeOlympiads.length} ta</div>
+              <div className="text-[11px] text-[#94A3B8] font-bold uppercase tracking-wider">Faol Olimpiadalar</div>
+            </div>
+          </Card>
+        </Link>
+
+        <Link to="/certificates">
+          <Card hoverEffect className="p-4 flex items-center gap-3.5 bg-[#111827] border border-[#1E293B] group">
+            <div className="w-10 h-10 rounded-lg bg-[#F59E0B]/15 group-hover:bg-[#F59E0B] text-[#F59E0B] group-hover:text-slate-950 border border-[#F59E0B]/30 flex items-center justify-center font-bold shrink-0 transition-colors">
+              <Award className="w-5 h-5" />
+            </div>
+            <div>
+              <div className="text-xl sm:text-2xl font-black text-[#F1F5F9] font-mono">{certificatesCount} ta</div>
+              <div className="text-[11px] text-[#94A3B8] font-bold uppercase tracking-wider">Sertifikatlar</div>
+            </div>
+          </Card>
+        </Link>
+
+        <Link to="/student/leaderboard">
+          <Card hoverEffect className="p-4 flex items-center gap-3.5 bg-[#111827] border border-[#1E293B] group">
+            <div className="w-10 h-10 rounded-lg bg-[#10B981]/15 group-hover:bg-[#10B981] text-[#10B981] group-hover:text-white border border-[#10B981]/30 flex items-center justify-center font-bold shrink-0 transition-colors">
+              <BarChart3 className="w-5 h-5" />
+            </div>
+            <div>
+              <div className="text-xl sm:text-2xl font-black text-[#10B981] font-mono">{totalXp.toLocaleString()} XP</div>
+              <div className="text-[11px] text-[#94A3B8] font-bold uppercase tracking-wider">Reyting Ballaringiz</div>
+            </div>
+          </Card>
+        </Link>
+      </div>
+
+      {/* Active Contests List */}
+      <div className="space-y-4">
+        <div className="flex items-center justify-between">
+          <h3 className="text-lg font-bold text-[#F1F5F9] tracking-tight">
+            Davom etayotgan va Tavsiya etiladigan Musobaqalar
+          </h3>
+          <Link to="/student/olympiads" className="text-xs font-semibold text-[#3B82F6] hover:underline">
+            Barchasini ko'rish →
+          </Link>
+        </div>
+
+        {activeOlympiads.length === 0 ? (
+          <div className="p-10 rounded-xl bg-[#111827] border border-dashed border-[#1E293B] text-center space-y-3">
+            <div className="w-12 h-12 rounded-xl bg-[#3B82F6]/15 text-[#3B82F6] mx-auto flex items-center justify-center">
+              <Trophy className="w-6 h-6" />
+            </div>
+            <h4 className="text-base font-bold text-[#F1F5F9]">Hozircha faol olimpiada yo'q</h4>
+            <p className="text-xs text-[#94A3B8] max-w-md mx-auto">
+              Yaqin soatlarda yangi fan olimpiadalari boshlanadi. Musobaqalar taqvimi bilan tanishishingiz mumkin.
+            </p>
+            <Link to="/student/olympiads" className="inline-block pt-1">
+              <Button size="sm" variant="primary">
+                Olimpiadalar ro'yxatiga o'tish
               </Button>
             </Link>
           </div>
-        </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {activeOlympiads.slice(0, 4).map((o) => {
+              const targetGrades: number[] = (o as any).targetGrades || (o as any).eligibility?.grades || [];
+              const hasGradeFilter = targetGrades && targetGrades.length > 0 && targetGrades.length < 11;
+              const studentGrade = user?.grade ? Number(user.grade) : null;
+              const isGradeEligible = !studentGrade || !hasGradeFilter || targetGrades.includes(studentGrade);
 
-        {/* Quick Stats Grid */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
-          <Link to="/student/olympiads">
-            <Card className="p-6 flex items-center gap-4 bg-white border border-blue-100 shadow-xs hover:border-blue-500 hover:shadow-lg transition-all duration-300 group">
-              <div className="w-12 h-12 rounded-2xl bg-blue-50 group-hover:bg-blue-600 group-hover:text-white text-blue-600 border border-blue-200 flex items-center justify-center font-bold shrink-0 transition-colors">
-                <Trophy className="w-6 h-6" />
-              </div>
-              <div>
-                <div className="text-3xl font-black text-slate-900 font-mono">{activeOlympiads.length} ta</div>
-                <div className="text-xs text-slate-600 font-bold uppercase tracking-wider mt-0.5">Olimpiadalar Bo'limi</div>
-              </div>
-            </Card>
-          </Link>
+              const attemptsCount = user ? submissionService.getAttemptCount(user.id, o.id) : 0;
+              const retakeAllowed = (o as any).retakeAllowed === true;
+              const maxAttempts = retakeAllowed ? Number((o as any).maxRetakeAttempts || 2) : 1;
+              const hasRemainingAttempts = retakeAllowed && attemptsCount > 0 && attemptsCount < maxAttempts;
+              const isCompleted = attemptsCount > 0 && (!retakeAllowed || attemptsCount >= maxAttempts);
 
-          <Link to="/certificates">
-            <Card className="p-6 flex items-center gap-4 bg-white border border-blue-100 shadow-xs hover:border-blue-500 hover:shadow-lg transition-all duration-300 group">
-              <div className="w-12 h-12 rounded-2xl bg-amber-50 group-hover:bg-amber-500 group-hover:text-white text-amber-600 border border-amber-200 flex items-center justify-center font-bold shrink-0 transition-colors">
-                <Award className="w-6 h-6" />
-              </div>
-              <div>
-                <div className="text-3xl font-black text-slate-900 font-mono">{certificatesCount} ta</div>
-                <div className="text-xs text-slate-600 font-bold uppercase tracking-wider mt-0.5">Sertifikatlar</div>
-              </div>
-            </Card>
-          </Link>
-
-          <Link to="/student/leaderboard">
-            <Card className="p-6 flex items-center gap-4 bg-white border border-blue-100 shadow-xs hover:border-blue-500 hover:shadow-lg transition-all duration-300 group">
-              <div className="w-12 h-12 rounded-2xl bg-emerald-50 group-hover:bg-emerald-600 group-hover:text-white text-emerald-600 border border-emerald-200 flex items-center justify-center font-bold shrink-0 transition-colors">
-                <BarChart3 className="w-6 h-6" />
-              </div>
-              <div>
-                <div className="text-3xl font-black text-emerald-600 font-mono">{totalXp.toLocaleString()} XP</div>
-                <div className="text-xs text-slate-600 font-bold uppercase tracking-wider mt-0.5">Reyting Ballaringiz</div>
-              </div>
-            </Card>
-          </Link>
-        </div>
-
-        {/* Active Registrations / Recommended Contests */}
-        <div className="space-y-4">
-          <div className="flex items-center justify-between">
-            <h3 className="text-xl font-black text-slate-900 tracking-tight">Davom etayotgan va Tavsiya etiladigan Musobaqalar</h3>
-            <Link to="/student/olympiads" className="text-xs font-bold text-blue-600 hover:underline">
-              Barchasini ko'rish →
-            </Link>
-          </div>
-
-          {activeOlympiads.length === 0 ? (
-            <div className="p-10 rounded-2xl bg-white border border-dashed border-slate-300 text-center space-y-3">
-              <div className="w-12 h-12 rounded-2xl bg-blue-50 text-blue-600 mx-auto flex items-center justify-center">
-                <Trophy className="w-6 h-6" />
-              </div>
-              <h4 className="text-base font-bold text-slate-900">Hozircha faol olimpiada yo'q</h4>
-              <p className="text-xs text-slate-500 max-w-md mx-auto">
-                Yaqin soatlarda yangi fan olimpiadalari boshlanadi. Musobaqalar taqvimi bilan tanishishingiz mumkin.
-              </p>
-              <Link to="/student/olympiads" className="inline-block pt-1">
-                <Button size="sm" variant="primary" className="bg-blue-600 hover:bg-blue-500 text-white font-bold">
-                  Olimpiadalar ro'yxatiga o'tish
-                </Button>
-              </Link>
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              {activeOlympiads.map((o) => (
-                <Card key={o.id} className="p-6 space-y-4 bg-white border border-blue-100 shadow-xs hover:border-blue-500 hover:shadow-lg transition-all duration-300 flex flex-col justify-between">
-                  <div className="space-y-3">
-                    <div className="flex items-center justify-between">
-                      <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-blue-50 text-blue-700 border border-blue-200">
-                        {o.subject}
-                      </span>
-                      <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 uppercase">
-                        {o.status}
+              return (
+                <Card key={o.id} hoverEffect className="p-5 flex flex-col justify-between border border-[#1E293B] bg-[#111827] space-y-4">
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between text-xs flex-wrap gap-1">
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <span className="px-2.5 py-0.5 rounded-full bg-[#3B82F6]/15 text-[#60A5FA] border border-[#3B82F6]/30 font-bold uppercase text-[10px]">
+                          {o.subject}
+                        </span>
+                        {hasGradeFilter && (
+                          <span className="px-2 py-0.5 rounded-full bg-purple-500/15 text-purple-400 border border-purple-500/30 text-[10px] font-bold">
+                            {targetGrades.join(', ')}-sinf
+                          </span>
+                        )}
+                        {retakeAllowed && (
+                          <span className="px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-400 border border-amber-500/30 text-[10px] font-bold">
+                            {maxAttempts}x Urinish
+                          </span>
+                        )}
+                      </div>
+                      <span className="text-[#94A3B8] flex items-center gap-1">
+                        <Clock className="w-3.5 h-3.5 text-[#3B82F6]" />
+                        {(o as any).durationMinutes || 60} daqiqa
                       </span>
                     </div>
-                    <div>
-                      <h4 className="font-bold text-lg text-slate-900 leading-snug line-clamp-1">{o.title}</h4>
-                      <p className="text-xs text-slate-600 line-clamp-2 mt-1.5 leading-relaxed">{o.description}</p>
-                    </div>
+
+                    <h4 className="text-base font-bold text-[#F1F5F9]">{o.title}</h4>
+                    <p className="text-xs text-[#94A3B8] line-clamp-2">{o.description}</p>
+
+                    {!isGradeEligible && (
+                      <div className="text-[11px] text-rose-400 font-medium pt-1">
+                        ⚠️ Faqat {targetGrades.join(', ')}-sinflar uchun (Siz: {studentGrade}-sinf)
+                      </div>
+                    )}
                   </div>
 
-                  <div className="pt-4 border-t border-slate-100 flex items-center justify-between">
-                    <div className="flex items-center gap-2 text-xs text-slate-500 font-semibold">
-                      <Clock className="w-3.5 h-3.5 text-blue-600 shrink-0" />
-                      <span>{o.startDate}</span>
-                    </div>
-                    <Link to={`/olympiads/${o.id}`}>
-                      <Button size="sm" variant="primary" className="bg-blue-600 hover:bg-blue-500 text-white font-bold">
-                        Qatnashish
-                      </Button>
-                    </Link>
-                  </div>
-                </Card>
-              ))}
-            </div>
-          )}
-        </div>
-
-        {/* So'nggi Ishtirok Etilgan Olimpiada Natijalari */}
-        <div className="space-y-4">
-          <div className="flex items-center justify-between">
-            <h3 className="text-xl font-black text-slate-900 tracking-tight">
-              So'nggi Ishtirok Etilgan Olimpiada Natijalari
-            </h3>
-            {submissions.length > 0 && (
-              <Link to="/results" className="text-xs font-bold text-blue-600 hover:underline">
-                Barcha natijalarni ko'rish →
-              </Link>
-            )}
-          </div>
-
-          {submissions.length === 0 ? (
-            <div className="p-8 rounded-2xl bg-white border border-dashed border-slate-300 text-center space-y-2">
-              <div className="w-10 h-10 rounded-xl bg-slate-100 text-slate-400 mx-auto flex items-center justify-center">
-                <BarChart3 className="w-5 h-5" />
-              </div>
-              <h4 className="text-sm font-bold text-slate-800">Hozircha topshirilgan testlar natijalari yo'q</h4>
-              <p className="text-xs text-slate-500 max-w-sm mx-auto">
-                Olimpiadalarda ishtirok eting va to'plagan ballaringiz hamda anti-cheat tahlillari shu yerda aks etadi.
-              </p>
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {submissions.map((sub, idx) => (
-                <Card key={idx} className="p-5 bg-white border border-slate-200 shadow-xs hover:border-blue-400 transition-all space-y-3">
-                  <div className="flex items-center justify-between border-b border-slate-100 pb-2.5">
-                    <div>
-                      <span className="text-[10px] font-bold text-blue-600 uppercase tracking-wider">
-                        Musobaqa ID: {sub.olympiadId}
-                      </span>
-                      <h4 className="font-bold text-sm text-slate-900">Natija qayd etildi</h4>
-                    </div>
-                    <span className="px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 font-bold text-[10px] border border-emerald-200 flex items-center gap-1">
-                      <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
-                      <span>Tasdiqlangan</span>
+                  <div className="pt-3 border-t border-[#1E293B] flex items-center justify-between">
+                    <span className="text-xs text-[#94A3B8] flex items-center gap-1">
+                      <Calendar className="w-3.5 h-3.5 text-[#F59E0B]" />
+                      {o.startDate}
                     </span>
-                  </div>
 
-                  <div className="grid grid-cols-2 gap-2 text-center text-xs">
-                    <div className="p-2 bg-blue-50/50 rounded-xl border border-blue-100">
-                      <span className="text-[10px] text-slate-500 font-medium">To'plangan Ball</span>
-                      <p className="text-base font-black text-blue-600 font-mono">{sub.score} / {sub.maxScore || 100}</p>
-                    </div>
-                    <div className="p-2 bg-emerald-50/50 rounded-xl border border-emerald-100">
-                      <span className="text-[10px] text-slate-500 font-medium">Anti-Cheat Status</span>
-                      <p className="text-xs font-bold text-emerald-600 mt-1">Toza (Passed)</p>
-                    </div>
+                    {!isGradeEligible ? (
+                      <Button size="sm" variant="secondary" disabled className="opacity-50 text-xs">
+                        Sinf mos emas
+                      </Button>
+                    ) : isCompleted ? (
+                      <Link to="/results">
+                        <Button size="sm" variant="outline" className="bg-emerald-500/15 text-emerald-300 border-emerald-500/30">
+                          Natijani ko'rish
+                        </Button>
+                      </Link>
+                    ) : hasRemainingAttempts ? (
+                      <Link to={`/olympiads/${o.id}/participate`}>
+                        <Button size="sm" variant="primary" className="bg-amber-600 hover:bg-amber-500 text-white">
+                          Qayta topshirish ({attemptsCount + 1}/{maxAttempts})
+                        </Button>
+                      </Link>
+                    ) : (
+                      <Link to={`/olympiads/${o.id}/participate`}>
+                        <Button size="sm" variant="primary">
+                          Ishtirok etish
+                        </Button>
+                      </Link>
+                    )}
                   </div>
                 </Card>
-              ))}
-            </div>
-          )}
-        </div>
-      </main>
+              );
+            })}
+          </div>
+        )}
+      </div>
     </div>
   );
 };

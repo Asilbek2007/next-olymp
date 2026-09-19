@@ -44,7 +44,7 @@ export const RulesPage: React.FC = () => {
               </h3>
               <ul className="list-disc pl-5 text-xs text-amber-950 space-y-1">
                 <li><strong>Tab-Switching (Oynadan chiqish):</strong> Test davomida brauzer oynasini yopish yoki boshqa ilovaga o'tish 1-marta ogohlantirish, 3-marta diskvalifikatsiyaga sabab bo'ladi.</li>
-                <li><strong>Kamera va Yuz AI deteksiyasi:</strong> Kamera kadrida ishtirokchi yuzi 15 soniyadan ortiq ko'rinmay qolsa yoki ikkinchi shaxs aniqlansa qoidabuzarlik qayd etiladi.</li>
+                <li><strong>Kamera va Yuz holati nazorati:</strong> Kamera kadrida ishtirokchi yuzi 15 soniyadan ortiq ko'rinmay qolsa yoki ikkinchi shaxs aniqlansa qoidabuzarlik qayd etiladi.</li>
                 <li><strong>DevTools va Inspect block:</strong> Dasturchi vositalarini ochishga urinish darhol testni to'xtatadi.</li>
                 <li><strong>Klipbord nazorati:</strong> Matnni nusxalash yoki tashlash (Copy-Paste) bloklangan.</li>
               </ul>

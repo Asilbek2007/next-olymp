@@ -19,18 +19,17 @@ import {
   Pencil,
   Trash2,
   Eye,
-  Sparkles,
   Globe,
   MapPin,
   Calendar,
   Clock,
   BookOpen,
   X,
-  Bot,
   Grid,
   List
 } from 'lucide-react';
 import { OlympiadFullEditor } from '../../components/ega/OlympiadFullEditor';
+import { submissionService } from '../../services/submissionService';
 import * as XLSX from 'xlsx';
 
 export const EgaCompetitionsPage: React.FC = () => {
@@ -40,8 +39,7 @@ export const EgaCompetitionsPage: React.FC = () => {
     updateOlympiad,
     deleteOlympiad,
     togglePinOlympiad,
-    toggleOlympiadStatus,
-    generateAiOlympiadDraft
+    toggleOlympiadStatus
   } = useOlympiadStore();
 
   const { theme } = useThemeStore();
@@ -62,10 +60,10 @@ export const EgaCompetitionsPage: React.FC = () => {
 
   // Modals State
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
-  const [isAiModalOpen, setIsAiModalOpen] = useState(false);
-  const [aiPromptInput, setAiPromptInput] = useState('');
   const [editingOlympiad, setEditingOlympiad] = useState<OlympiadItem | null>(null);
   const [viewingOlympiad, setViewingOlympiad] = useState<OlympiadItem | null>(null);
+  const [viewParticipantTab, setViewParticipantTab] = useState<'all' | 'completed' | 'in_progress' | 'registered'>('all');
+  const [viewSearchTerm, setViewSearchTerm] = useState('');
 
   // Add Form State
   const [newTitle, setNewTitle] = useState('');
@@ -138,31 +136,6 @@ export const EgaCompetitionsPage: React.FC = () => {
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, worksheet, 'OLIMPIADALAR');
     XLSX.writeFile(workbook, 'Olimpiadalar_ruyhati.xlsx');
-  };
-
-  // Generate AI Draft
-  const handleGenerateAiDraft = () => {
-    if (!aiPromptInput.trim()) return;
-    const draft = generateAiOlympiadDraft(aiPromptInput.trim());
-
-    const created = addOlympiad({
-      title: draft.title || 'Yangi AI Olimpiada',
-      subject: draft.subject || 'Matematika',
-      format: draft.format || 'online',
-      image: draft.image || 'https://images.unsplash.com/photo-1635070041078-e363dbe005cb?auto=format&fit=crop&w=600&q=80',
-      price: draft.price || 35000,
-      status: draft.status || 'ochiq',
-      isPinned: false,
-      startDate: draft.startDate || '2025-10-01 10:00',
-      endDate: draft.endDate || '2025-10-01 18:00',
-      registrationStartDate: '2025-09-15 09:00',
-      registrationEndDate: '2025-09-30 23:59',
-      description: draft.description || '',
-      organizer: draft.organizer || 'NextOlymp Kengashi'
-    });
-
-    setIsAiModalOpen(false);
-    setSelectedOlympiadForEdit(created);
   };
 
   // Direct Full Page Create
@@ -240,15 +213,6 @@ export const EgaCompetitionsPage: React.FC = () => {
           </div>
 
           <div className="flex items-center gap-2">
-            <button
-              onClick={() => setIsAiModalOpen(true)}
-              className="flex items-center gap-1.5 px-3 py-1.5 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white font-bold rounded-lg text-xs transition-all cursor-pointer shadow-sm"
-              title="AI yordamida olimpiada yaratish"
-            >
-              <Sparkles className="w-3.5 h-3.5 text-amber-300" />
-              <span>{t("✨ AI Olimpiada Yaratish")}</span>
-            </button>
-
             <button
               onClick={handleExportExcel}
               className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-lg text-xs transition-all cursor-pointer shadow-sm"
@@ -823,128 +787,315 @@ export const EgaCompetitionsPage: React.FC = () => {
           </div>
         )}
 
-        {/* Modal 3: Olympiadni Ko'rish (Detail View Inside Olympiad) */}
-        {viewingOlympiad && (
-          <div className="fixed inset-0 bg-black/70 backdrop-blur-xs z-50 flex items-center justify-center p-4">
-            <div
-              className={clsx(
-                "rounded-2xl max-w-xl w-full p-5 shadow-2xl space-y-4 border transition-colors max-h-[90vh] overflow-y-auto custom-scrollbar",
-                isDark ? "bg-[#0D1832] border-[#1E3563]" : "bg-white border-slate-200"
-              )}
-            >
-              <div className={clsx("flex items-center justify-between border-b pb-3", isDark ? "border-[#182A4D]" : "border-slate-200")}>
-                <h3 className={clsx("text-sm font-bold flex items-center gap-2", isDark ? "text-white" : "text-slate-900")}>
-                  <Eye className="w-4 h-4 text-amber-400" />
-                  {viewingOlympiad.title} ({viewingOlympiad.id})
-                </h3>
-                <button onClick={() => setViewingOlympiad(null)} className="text-slate-400 hover:text-slate-600 transition-colors">
-                  <X className="w-4 h-4" />
-                </button>
-              </div>
+        {/* Modal 3: Olympiadni Ko'rish (Rich Participant Directory & Live Tracking) */}
+        {viewingOlympiad && (() => {
+          const allParticipants = submissionService.getOlympiadAllParticipants(viewingOlympiad.id);
+          const completedCount = allParticipants.filter((p) => p.status === 'completed').length;
+          const inProgressCount = allParticipants.filter((p) => p.status === 'in_progress').length;
+          const registeredCount = allParticipants.filter((p) => p.status === 'registered').length;
 
-              <div className="space-y-4">
-                <div className="relative h-44 rounded-xl overflow-hidden">
-                  <img src={viewingOlympiad.image} alt={viewingOlympiad.title} className="w-full h-full object-cover" />
-                  <div className="absolute top-3 left-3 flex gap-2">
-                    <span className="px-2.5 py-1 rounded bg-black/70 backdrop-blur-md text-amber-300 font-bold text-xs">
-                      {viewingOlympiad.format.toUpperCase()}
-                    </span>
-                    <span className="px-2.5 py-1 rounded bg-emerald-600 text-white font-bold text-xs">
-                      {viewingOlympiad.status.toUpperCase()}
-                    </span>
-                  </div>
-                </div>
+          const filtered = allParticipants.filter((p) => {
+            const matchesTab =
+              viewParticipantTab === 'all' ||
+              (viewParticipantTab === 'completed' && p.status === 'completed') ||
+              (viewParticipantTab === 'in_progress' && p.status === 'in_progress') ||
+              (viewParticipantTab === 'registered' && p.status === 'registered');
 
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-center">
-                  <div className="p-2.5 rounded-lg bg-blue-500/10 border border-blue-500/20">
-                    <div className="text-[10px] text-slate-400">Ro'yxatdan o'tganlar</div>
-                    <div className="font-bold text-blue-400 text-sm font-mono mt-0.5">{viewingOlympiad.registeredCount.toLocaleString()}</div>
-                  </div>
-                  <div className="p-2.5 rounded-lg bg-emerald-500/10 border border-emerald-500/20">
-                    <div className="text-[10px] text-slate-400">Topshirganlar</div>
-                    <div className="font-bold text-emerald-400 text-sm font-mono mt-0.5">{viewingOlympiad.submittedCount.toLocaleString()}</div>
-                  </div>
-                  <div className="p-2.5 rounded-lg bg-purple-500/10 border border-purple-500/20">
-                    <div className="text-[10px] text-slate-400">To'laganlar</div>
-                    <div className="font-bold text-purple-300 text-sm font-mono mt-0.5">{viewingOlympiad.paidCount.toLocaleString()}</div>
-                  </div>
-                  <div className="p-2.5 rounded-lg bg-amber-500/10 border border-amber-500/20">
-                    <div className="text-[10px] text-slate-400">Jami Tushum</div>
-                    <div className="font-bold text-amber-300 text-xs font-mono mt-1">{formatUZS(viewingOlympiad.totalRevenue)}</div>
-                  </div>
-                </div>
+            const q = viewSearchTerm.toLowerCase();
+            const matchesSearch =
+              !q ||
+              p.name.toLowerCase().includes(q) ||
+              p.phone.includes(q) ||
+              p.region.toLowerCase().includes(q) ||
+              p.school.toLowerCase().includes(q);
 
-                <div className="space-y-2 text-xs leading-relaxed">
-                  <div className="font-bold text-slate-300">Tavsif:</div>
-                  <p className="p-3 rounded-lg bg-black/20 text-slate-200 border border-white/10">{viewingOlympiad.description}</p>
-                </div>
+            return matchesTab && matchesSearch;
+          });
 
-                <div className="flex justify-end pt-2">
+          const handleExportModalExcel = () => {
+            const exportData = filtered.map((p, idx) => ({
+              '№': idx + 1,
+              'Ishtirokchi ID': p.id,
+              'F.I.Sh.': p.name,
+              'Telefon': p.phone,
+              'Viloyat': p.region,
+              'Maktab': p.school,
+              'Sinf': `${p.grade}-sinf`,
+              'Holati': p.status === 'completed' ? 'Topshirgan' : p.status === 'in_progress' ? 'Hozir yechmoqda' : 'Ro\'yxatdan o\'tgan',
+              'To\'g\'ri javoblar': p.correctAnswers !== undefined ? `${p.correctAnswers} / ${p.totalQuestions || 30}` : '-',
+              'Natija (%)': p.percentage !== undefined ? `${p.percentage}%` : '-',
+              'To\'plagan ball': p.score !== undefined ? `${p.score} ball` : '-',
+              'Topshirgan vaqti': p.submittedAt || p.registeredAt || '-',
+              'Diplom / Sertifikat': p.certificateType || '-'
+            }));
+
+            const worksheet = XLSX.utils.json_to_sheet(exportData);
+            const workbook = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(workbook, worksheet, 'ISHTIROKCHILAR');
+            XLSX.writeFile(workbook, `${viewingOlympiad.id}_Ishtirokchilar_Ruyhati.xlsx`);
+          };
+
+          return (
+            <div className="fixed inset-0 bg-black/75 backdrop-blur-xs z-50 flex items-center justify-center p-3 sm:p-5">
+              <div
+                className={clsx(
+                  "rounded-2xl max-w-4xl w-full p-5 shadow-2xl space-y-4 border transition-colors max-h-[92vh] overflow-y-auto custom-scrollbar",
+                  isDark ? "bg-[#0D1832] border-[#1E3563]" : "bg-white border-slate-200"
+                )}
+              >
+                {/* Header */}
+                <div className={clsx("flex items-center justify-between border-b pb-3", isDark ? "border-[#182A4D]" : "border-slate-200")}>
+                  <div>
+                    <h3 className={clsx("text-base font-bold flex items-center gap-2", isDark ? "text-white" : "text-slate-900")}>
+                      <Eye className="w-4 h-4 text-amber-400" />
+                      {viewingOlympiad.title} <span className="text-xs font-mono text-amber-400 font-semibold">({viewingOlympiad.id})</span>
+                    </h3>
+                    <p className="text-[11px] text-slate-400 mt-0.5">
+                      {t("Ishtirokchilar ro'yxati, real-time qatnashayotganlar va imtihon natijalari")}
+                    </p>
+                  </div>
                   <button
                     onClick={() => setViewingOlympiad(null)}
-                    className="px-4 py-1.5 bg-amber-500 text-slate-950 font-bold rounded-lg text-xs"
+                    className="p-1 rounded-lg text-slate-400 hover:text-white hover:bg-white/10 transition-colors"
                   >
-                    Yopish
+                    <X className="w-5 h-5" />
+                  </button>
+                </div>
+
+                {/* 4 Summary Cards */}
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+                  <div className="p-3 rounded-xl bg-blue-500/10 border border-blue-500/20 text-center">
+                    <div className="text-[10px] text-slate-400 font-semibold uppercase">{t("Ro'yxatdan o'tganlar")}</div>
+                    <div className="font-bold text-blue-400 text-lg font-mono mt-0.5">{allParticipants.length} <span className="text-[10px] text-slate-400">ta</span></div>
+                  </div>
+                  <div className="p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-center">
+                    <div className="text-[10px] text-slate-400 font-semibold uppercase">{t("Topshirganlar")}</div>
+                    <div className="font-bold text-emerald-400 text-lg font-mono mt-0.5">{completedCount} <span className="text-[10px] text-slate-400">ta</span></div>
+                  </div>
+                  <div className="p-3 rounded-xl bg-amber-500/10 border border-amber-500/20 text-center">
+                    <div className="text-[10px] text-slate-400 font-semibold uppercase">{t("Hozir Yechmoqda")}</div>
+                    <div className="font-bold text-amber-400 text-lg font-mono mt-0.5 flex items-center justify-center gap-1">
+                      {inProgressCount > 0 && <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />}
+                      {inProgressCount} <span className="text-[10px] text-slate-400">ta</span>
+                    </div>
+                  </div>
+                  <div className="p-3 rounded-xl bg-purple-500/10 border border-purple-500/20 text-center">
+                    <div className="text-[10px] text-slate-400 font-semibold uppercase">{t("Jami Tushum")}</div>
+                    <div className="font-bold text-purple-300 text-xs font-mono mt-1.5">{formatUZS(viewingOlympiad.totalRevenue)}</div>
+                  </div>
+                </div>
+
+                {/* Filter Tabs & Search Bar */}
+                <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-2">
+                  <div className="flex items-center gap-1.5 p-1 rounded-xl bg-black/20 border border-white/5 w-full sm:w-auto overflow-x-auto">
+                    <button
+                      type="button"
+                      onClick={() => setViewParticipantTab('all')}
+                      className={clsx(
+                        "px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer whitespace-nowrap",
+                        viewParticipantTab === 'all'
+                          ? "bg-amber-500 text-slate-950 shadow-sm"
+                          : "text-slate-400 hover:text-white"
+                      )}
+                    >
+                      Barchasi ({allParticipants.length})
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setViewParticipantTab('completed')}
+                      className={clsx(
+                        "px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer whitespace-nowrap",
+                        viewParticipantTab === 'completed'
+                          ? "bg-emerald-500 text-slate-950 shadow-sm"
+                          : "text-slate-400 hover:text-white"
+                      )}
+                    >
+                      Topshirganlar ({completedCount})
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setViewParticipantTab('in_progress')}
+                      className={clsx(
+                        "px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer whitespace-nowrap",
+                        viewParticipantTab === 'in_progress'
+                          ? "bg-amber-500 text-slate-950 shadow-sm"
+                          : "text-slate-400 hover:text-white"
+                      )}
+                    >
+                      Hozir Yechmoqda ({inProgressCount})
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setViewParticipantTab('registered')}
+                      className={clsx(
+                        "px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer whitespace-nowrap",
+                        viewParticipantTab === 'registered'
+                          ? "bg-blue-500 text-slate-950 shadow-sm"
+                          : "text-slate-400 hover:text-white"
+                      )}
+                    >
+                      Kutayotganlar ({registeredCount})
+                    </button>
+                  </div>
+
+                  <div className="flex items-center gap-2 w-full sm:w-auto">
+                    <div className="relative w-full sm:w-60">
+                      <Search className="w-3.5 h-3.5 absolute left-3 top-2.5 text-slate-400" />
+                      <input
+                        type="text"
+                        placeholder="F.I.Sh. yoki maktab bo'yicha..."
+                        value={viewSearchTerm}
+                        onChange={(e) => setViewSearchTerm(e.target.value)}
+                        className={clsx(
+                          "w-full rounded-xl pl-9 pr-3 py-1.5 text-xs outline-none border transition-colors",
+                          isDark ? "bg-[#091024] border-[#1A2F57] text-white" : "bg-slate-50 border-slate-300 text-slate-900"
+                        )}
+                      />
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={handleExportModalExcel}
+                      className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-xl text-xs shadow-xs transition-all cursor-pointer shrink-0"
+                      title="Ishtirokchilar ro'yxatini Excel'da yuklash"
+                    >
+                      <FileSpreadsheet className="w-3.5 h-3.5" />
+                      <span className="hidden sm:inline">Excel</span>
+                    </button>
+                  </div>
+                </div>
+
+                {/* Participants Table */}
+                <div className="rounded-xl border overflow-hidden border-[#182A4D]">
+                  <div className="overflow-x-auto custom-scrollbar max-h-[360px]">
+                    <table className="w-full text-left text-xs">
+                      <thead
+                        className={clsx(
+                          "text-[11px] uppercase tracking-wider border-b font-semibold whitespace-nowrap sticky top-0 z-10",
+                          isDark ? "bg-[#101E3C] text-slate-400 border-[#182A4D]" : "bg-slate-100 text-slate-600 border-slate-200"
+                        )}
+                      >
+                        <tr>
+                          <th className="py-2.5 px-3 w-10 text-center">№</th>
+                          <th className="py-2.5 px-3">Ishtirokchi (F.I.Sh.)</th>
+                          <th className="py-2.5 px-3">Hudud / Maktab</th>
+                          <th className="py-2.5 px-3">Sinf</th>
+                          <th className="py-2.5 px-3">Holati</th>
+                          <th className="py-2.5 px-3">Natija (To'g'ri / Ball)</th>
+                          <th className="py-2.5 px-3">Foiz</th>
+                          <th className="py-2.5 px-3">Vaqti</th>
+                          <th className="py-2.5 px-3 text-right">Diplom / Sertifikat</th>
+                        </tr>
+                      </thead>
+
+                      <tbody className={clsx("divide-y", isDark ? "divide-[#152545]" : "divide-slate-200")}>
+                        {filtered.length === 0 ? (
+                          <tr>
+                            <td colSpan={9} className="py-8 text-center text-slate-400">
+                              {t("Ishtirokchilar topilmadi")}
+                            </td>
+                          </tr>
+                        ) : (
+                          filtered.map((p, idx) => (
+                            <tr key={p.id} className={clsx("transition-colors", isDark ? "hover:bg-[#132244]" : "hover:bg-slate-50")}>
+                              <td className="py-2.5 px-3 text-center text-slate-400 font-mono text-[11px]">
+                                {idx + 1}
+                              </td>
+
+                              <td className="py-2.5 px-3 whitespace-nowrap">
+                                <div className="font-bold text-white text-xs">{p.name}</div>
+                                <div className="text-[10px] text-slate-400 font-mono">{p.phone} · {p.id}</div>
+                              </td>
+
+                              <td className="py-2.5 px-3 whitespace-nowrap">
+                                <div className="font-semibold text-slate-300">{p.region}</div>
+                                <div className="text-[10px] text-slate-400">{p.school}</div>
+                              </td>
+
+                              <td className="py-2.5 px-3 whitespace-nowrap">
+                                <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/40">
+                                  {p.grade}-sinf
+                                </span>
+                              </td>
+
+                              <td className="py-2.5 px-3 whitespace-nowrap">
+                                <span
+                                  className={clsx(
+                                    "px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider border inline-flex items-center gap-1",
+                                    p.status === 'completed'
+                                      ? "bg-emerald-950/70 text-emerald-400 border-emerald-800/60"
+                                      : p.status === 'in_progress'
+                                      ? "bg-amber-950/70 text-amber-400 border-amber-800/60 animate-pulse"
+                                      : "bg-blue-950/70 text-blue-400 border-blue-800/60"
+                                  )}
+                                >
+                                  {p.status === 'completed' ? "🟢 Topshirgan" : p.status === 'in_progress' ? "🟡 Yechmoqda" : "🔵 Kutilmoqda"}
+                                </span>
+                              </td>
+
+                              <td className="py-2.5 px-3 whitespace-nowrap font-mono font-bold">
+                                {p.correctAnswers !== undefined ? (
+                                  <span className="text-emerald-400">{p.correctAnswers} / {p.totalQuestions || 30} <span className="text-[10px] text-slate-400 font-normal">({p.score} ball)</span></span>
+                                ) : (
+                                  <span className="text-slate-500">-</span>
+                                )}
+                              </td>
+
+                              <td className="py-2.5 px-3 whitespace-nowrap font-mono font-bold">
+                                {p.percentage !== undefined ? (
+                                  <span className={clsx(p.percentage >= 80 ? "text-emerald-400" : p.percentage >= 60 ? "text-amber-400" : "text-rose-400")}>
+                                    {p.percentage}%
+                                  </span>
+                                ) : (
+                                  <span className="text-slate-500">-</span>
+                                )}
+                              </td>
+
+                              <td className="py-2.5 px-3 whitespace-nowrap font-mono text-[10px] text-slate-400">
+                                {p.submittedAt || p.registeredAt || '-'}
+                              </td>
+
+                              <td className="py-2.5 px-3 whitespace-nowrap text-right">
+                                {p.certificateType ? (
+                                  <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-purple-500/20 text-purple-300 border border-purple-500/40">
+                                    {p.certificateType}
+                                  </span>
+                                ) : (
+                                  <span className="text-slate-500 text-[10px]">-</span>
+                                )}
+                              </td>
+                            </tr>
+                          ))
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+
+                {/* Footer Buttons */}
+                <div className={clsx("flex items-center justify-between pt-2 border-t", isDark ? "border-[#182A4D]" : "border-slate-200")}>
+                  <button
+                    onClick={() => {
+                      setSelectedOlympiadForEdit(viewingOlympiad);
+                      setViewingOlympiad(null);
+                    }}
+                    className="px-3.5 py-1.5 bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/40 font-bold rounded-xl text-xs transition-all cursor-pointer flex items-center gap-1.5"
+                  >
+                    <Pencil className="w-3.5 h-3.5" />
+                    <span>To'liq tahrirlash & Anti-Cheat sozlash</span>
+                  </button>
+
+                  <button
+                    onClick={() => setViewingOlympiad(null)}
+                    className="px-4 py-1.5 bg-slate-700 hover:bg-slate-600 text-white font-bold rounded-xl text-xs transition-all cursor-pointer"
+                  >
+                    {t("Yopish")}
                   </button>
                 </div>
               </div>
             </div>
-          </div>
-        )}
-
-        {/* Modal 4: AI Generator Modal */}
-        {isAiModalOpen && (
-          <div className="fixed inset-0 bg-black/70 backdrop-blur-xs z-50 flex items-center justify-center p-4">
-            <div
-              className={clsx(
-                "rounded-2xl max-w-md w-full p-5 shadow-2xl space-y-4 border transition-colors",
-                isDark ? "bg-[#0D1832] border-[#1E3563]" : "bg-white border-slate-200"
-              )}
-            >
-              <div className={clsx("flex items-center justify-between border-b pb-3", isDark ? "border-[#182A4D]" : "border-slate-200")}>
-                <h3 className={clsx("text-sm font-bold flex items-center gap-2", isDark ? "text-white" : "text-slate-900")}>
-                  <Bot className="w-5 h-5 text-indigo-400" />
-                  <span>AI Olimpiada Generatori</span>
-                </h3>
-                <button onClick={() => setIsAiModalOpen(false)} className="text-slate-400 hover:text-slate-600 transition-colors">
-                  <X className="w-4 h-4" />
-                </button>
-              </div>
-
-              <div className="space-y-3">
-                <p className="text-xs text-slate-300 leading-relaxed">
-                  AI yordamida yangi olimpiada yaratish uchun buyruq bering (masalan: *"Buxoro viloyati uchun ingliz tili olimpiadasi yarat"*):
-                </p>
-
-                <textarea
-                  rows={3}
-                  placeholder="AI uchun buyruq yozing..."
-                  value={aiPromptInput}
-                  onChange={(e) => setAiPromptInput(e.target.value)}
-                  className={clsx(
-                    "w-full rounded-lg px-3 py-2 text-xs outline-none border resize-none",
-                    isDark ? "bg-[#091024] border-[#1A2F57] text-white" : "bg-slate-50 border-slate-300 text-slate-900"
-                  )}
-                />
-
-                <div className="flex justify-end gap-2 pt-2">
-                  <button
-                    onClick={() => setIsAiModalOpen(false)}
-                    className="px-3 py-1.5 rounded-lg text-xs font-semibold border bg-slate-800 text-slate-300"
-                  >
-                    Bekor qilish
-                  </button>
-                  <button
-                    onClick={handleGenerateAiDraft}
-                    className="px-4 py-1.5 bg-gradient-to-r from-purple-600 to-indigo-600 text-white font-bold rounded-lg text-xs shadow-md"
-                  >
-                    AI Bilan Yaratish
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
+          );
+        })()}
       </div>
     </EgaLayout>
   );
