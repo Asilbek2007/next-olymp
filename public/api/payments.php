@@ -33,22 +33,22 @@ if ($method === 'POST') {
         exit;
     }
 
-    $id = $data['id'] ?? ('pay_' . time() . '_' . rand(100, 999));
-    $userId = $data['user_id'];
-    $olympiadId = $data['olympiad_id'] ?? 1;
+    $userId = (int)$data['user_id'];
+    $olympiadId = (int)($data['olympiad_id'] ?? 1);
     $amount = (float)$data['amount'];
     $provider = in_array($data['provider'] ?? '', ['click', 'payme', 'uzum']) ? $data['provider'] : 'payme';
     $status = $data['status'] ?? 'paid';
     $transactionId = $data['transaction_id'] ?? ('tx_' . bin2hex(random_bytes(8)));
 
-    $sql = "INSERT INTO payments (id, user_id, olympiad_id, amount, provider, status, transaction_id) VALUES (?, ?, ?, ?, ?, ?, ?)";
+    $sql = "INSERT INTO payments (user_id, olympiad_id, amount, provider, status, transaction_id) VALUES (?, ?, ?, ?, ?, ?)";
     $stmt = $pdo->prepare($sql);
-    $stmt->execute([$id, $userId, $olympiadId, $amount, $provider, $status, $transactionId]);
+    $stmt->execute([$userId, $olympiadId, $amount, $provider, $status, $transactionId]);
+    $insertedId = (int)$pdo->lastInsertId();
 
     echo json_encode([
         'status' => 'success',
         'message' => 'To\'lov muvaffaqiyatli qabul qilindi',
-        'id' => $id,
+        'id' => $insertedId,
         'transaction_id' => $transactionId
     ]);
     exit;

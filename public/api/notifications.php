@@ -33,19 +33,19 @@ if ($method === 'POST') {
         exit;
     }
 
-    $id = $data['id'] ?? ('notif_' . time() . '_' . rand(100, 999));
-    $userId = $data['user_id'] ?? null;
+    $userId = !empty($data['user_id']) ? (int)$data['user_id'] : null;
     $title = trim($data['title']);
     $message = trim($data['message']);
 
-    $sql = "INSERT INTO notifications (id, user_id, title, message, is_read) VALUES (?, ?, ?, ?, 0)";
+    $sql = "INSERT INTO notifications (user_id, title, message, is_read) VALUES (?, ?, ?, 0)";
     $stmt = $pdo->prepare($sql);
-    $stmt->execute([$id, $userId, $title, $message]);
+    $stmt->execute([$userId, $title, $message]);
+    $insertedId = (int)$pdo->lastInsertId();
 
     echo json_encode([
         'status' => 'success',
         'message' => 'Xabarnoma muvaffaqiyatli yaratildi',
-        'id' => $id
+        'id' => $insertedId
     ]);
     exit;
 }

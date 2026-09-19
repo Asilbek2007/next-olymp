@@ -45,21 +45,21 @@ if ($method === 'POST') {
         exit;
     }
 
-    $id = $data['id'] ?? ('sec_' . time() . '_' . rand(100, 999));
-    $userId = $data['user_id'] ?? ($data['studentId'] ?? null);
+    $userId = !empty($data['user_id']) ? (int)$data['user_id'] : null;
     $ipAddress = $_SERVER['REMOTE_ADDR'] ?? ($data['ip_address'] ?? '127.0.0.1');
     $eventType = $data['event_type'] ?? ($data['type'] ?? 'tab_switch');
     $details = $data['details'] ?? ($data['message'] ?? '');
     $severity = $data['severity'] ?? 'medium';
 
-    $sql = "INSERT INTO security_logs (id, user_id, ip_address, event_type, details, severity) VALUES (?, ?, ?, ?, ?, ?)";
+    $sql = "INSERT INTO security_logs (user_id, ip_address, event_type, details, severity) VALUES (?, ?, ?, ?, ?)";
     $stmt = $pdo->prepare($sql);
-    $stmt->execute([$id, $userId, $ipAddress, $eventType, $details, $severity]);
+    $stmt->execute([$userId, $ipAddress, $eventType, $details, $severity]);
+    $insertedId = (int)$pdo->lastInsertId();
 
     echo json_encode([
         'status' => 'success',
         'message' => 'Xavfsizlik hodisasi MySQL bazasiga saqlandi',
-        'id' => $id
+        'id' => $insertedId
     ]);
     exit;
 }
