@@ -41,7 +41,9 @@ export interface Olympiad {
   description: string;
   startDate: string;
   endDate: string;
-  status: OlympiadStatus;
+  registrationStartDate?: string;
+  registrationEndDate?: string;
+  status: OlympiadStatus | 'ochiq' | 'yopiq';
   durationMinutes: number;
   totalQuestions: number;
   maxScore: number;
@@ -55,6 +57,7 @@ export interface Olympiad {
   retakeAllowed?: boolean;
   maxRetakeAttempts?: number;
   isFreeForAll?: boolean;
+  isFree?: boolean;
   price?: number;
   antiCheatConfig?: AntiCheatConfig;
   prizes: Prize[];

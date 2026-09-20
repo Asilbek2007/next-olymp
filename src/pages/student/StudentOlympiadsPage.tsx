@@ -40,32 +40,50 @@ export const StudentOlympiadsPage: React.FC = () => {
 
   const olympiads = (localOlympiads || [])
     .filter((o) => matchSubject(o.subject, selectedSubject))
+    .map((o) => {
+      const now = Date.now();
+      const stTime = o.startDate ? new Date(o.startDate.replace(' ', 'T')).getTime() : 0;
+      const endTime = o.endDate ? new Date(o.endDate.replace(' ', 'T')).getTime() : Infinity;
+      const regEndTime = o.registrationEndDate ? new Date(o.registrationEndDate.replace(' ', 'T')).getTime() : Infinity;
+      const regStartTime = o.registrationStartDate ? new Date(o.registrationStartDate.replace(' ', 'T')).getTime() : 0;
+
+      let mappedStatus: OlympiadStatus = 'active';
+      if (o.status === 'yopiq' || (endTime && now > endTime)) {
+        mappedStatus = 'finished';
+      } else if (stTime && now < stTime) {
+        mappedStatus = 'upcoming';
+      } else {
+        mappedStatus = 'active';
+      }
+
+      const totalQ = o.questions && o.questions.length > 0 ? o.questions.length : ((o as any).totalQuestions || (o as any).total_questions || 25);
+      const durMin = (o as any).durationMinutes || (o as any).duration_minutes || 60;
+
+      return {
+        ...o,
+        subject: o.subject || 'other',
+        status: mappedStatus,
+        isDateFinished: endTime ? now > endTime : false,
+        isRegistrationExpired: regEndTime ? now > regEndTime : false,
+        isUpcoming: stTime ? now < stTime : false,
+        isLive: (stTime ? now >= stTime : true) && (endTime ? now <= endTime : true) && o.status !== 'yopiq',
+        startDate: o.startDate || new Date().toISOString(),
+        endDate: o.endDate || new Date(Date.now() + 86400000).toISOString(),
+        durationMinutes: durMin,
+        totalQuestions: totalQ,
+        maxScore: (o as any).maxScore || (o as any).max_score || 100,
+        participantsCount: (o as any).participantsCount || (o.registeredCount || 0),
+        organizer: o.organizer || "Next Olymp Hakamlar Hay'ati",
+      };
+    })
     .filter((o) => {
       if (selectedStatus === 'all') return true;
-      const s = (o.status || '').toLowerCase();
-      const mappedStatus = (s === 'ochiq' || s === 'active') ? 'active' : (s === 'upcoming' || s === 'kutilmoqda') ? 'upcoming' : 'finished';
-      return mappedStatus === selectedStatus;
+      return o.status === selectedStatus;
     })
     .filter((o) => {
       if (!searchQuery) return true;
       const q = searchQuery.toLowerCase();
       return (o.title || '').toLowerCase().includes(q) || (o.description || '').toLowerCase().includes(q) || (o.subject || '').toLowerCase().includes(q);
-    })
-    .map((o) => {
-      const s = (o.status || '').toLowerCase();
-      const mappedStatus: OlympiadStatus = (s === 'ochiq' || s === 'active') ? 'active' : (s === 'upcoming' || s === 'kutilmoqda') ? 'upcoming' : 'finished';
-      return {
-        ...o,
-        subject: o.subject || 'other',
-        status: mappedStatus,
-        startDate: o.startDate || new Date().toISOString(),
-        endDate: o.endDate || new Date(Date.now() + 86400000).toISOString(),
-        durationMinutes: (o as any).durationMinutes || 60,
-        totalQuestions: (o as any).questionsCount || (o as any).totalQuestions || (o.questions ? o.questions.length : 25),
-        maxScore: (o as any).maxScore || 100,
-        participantsCount: (o as any).participantsCount || (o.registeredCount || 0),
-        organizer: o.organizer || 'Next Olymp Hakamlar Hay\'ati',
-      };
     });
 
   const subjectsList: { id: Subject | 'all'; name: string }[] = [
@@ -270,6 +288,24 @@ export const StudentOlympiadsPage: React.FC = () => {
                           Natijani ko'rish
                         </Button>
                       </Link>
+                    ) : (o.status === 'finished' || o.isDateFinished) ? (
+                      <Button
+                        size="sm"
+                        variant="secondary"
+                        disabled
+                        className="opacity-60 cursor-not-allowed text-xs bg-slate-800 text-slate-400 border border-slate-700"
+                      >
+                        Musobaqa yakunlangan
+                      </Button>
+                    ) : (o.isRegistrationExpired && attemptsCount === 0) ? (
+                      <Button
+                        size="sm"
+                        variant="secondary"
+                        disabled
+                        className="opacity-60 cursor-not-allowed text-xs bg-slate-800 text-slate-400 border border-slate-700"
+                      >
+                        Ro'yxatdan o'tish yopilgan
+                      </Button>
                     ) : hasRemainingAttempts ? (
                       <Link to={`/olympiads/${o.id}/participate`}>
                         <Button
@@ -288,7 +324,7 @@ export const StudentOlympiadsPage: React.FC = () => {
                           variant="primary"
                           rightIcon={<ArrowRight className="w-4 h-4" />}
                         >
-                          Qatnashish
+                          {o.isUpcoming ? "Ro'yxatdan o'tish" : "Qatnashish"}
                         </Button>
                       </Link>
                     )}

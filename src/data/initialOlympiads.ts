@@ -18,6 +18,9 @@ export interface OlympiadItem {
   description: string;
   location?: string;
   organizer?: string;
+  durationMinutes?: number; // Ajratilgan vaqt (daqiqada)
+  totalQuestions?: number; // Savollar soni
+
 
   // Extended properties for detailed editing page
   allowedLanguages?: string[]; // e.g. ["O'zbek tili", "Rus tili", "Ingliz tili", "Qoraqalpoq tili", "Tojik tili"]

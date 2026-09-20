@@ -224,7 +224,7 @@ export const OlympiadFullEditor: React.FC<OlympiadFullEditorProps> = ({ olympiad
     olympiad.aiAnalysisEnabled !== false
   );
   const [resultsPublishDate, setResultsPublishDate] = useState<string>(
-    olympiad.resultsPublishDate || '2025-09-16 10:00'
+    olympiad.resultsPublishDate || '2026-09-25 10:00'
   );
 
   // Retake Policy Settings (Ha / Yo'q & Urinishlar soni)
@@ -233,6 +233,11 @@ export const OlympiadFullEditor: React.FC<OlympiadFullEditorProps> = ({ olympiad
   );
   const [maxRetakeAttempts, setMaxRetakeAttempts] = useState<number>(
     olympiad.maxRetakeAttempts || 2
+  );
+
+  // Duration in minutes
+  const [durationMinutes, setDurationMinutes] = useState<number>(
+    olympiad.durationMinutes || (olympiad as any).duration_minutes || 60
   );
 
   // Languages state
@@ -272,13 +277,13 @@ export const OlympiadFullEditor: React.FC<OlympiadFullEditorProps> = ({ olympiad
 
   // Schedule Dates (5 Timestamps)
   const [registrationStartDate, setRegistrationStartDate] = useState<string>(
-    olympiad.registrationStartDate || '2025-09-01 09:00'
+    olympiad.registrationStartDate || '2026-09-01 09:00'
   );
   const [registrationEndDate, setRegistrationEndDate] = useState<string>(
-    olympiad.registrationEndDate || '2025-09-14 23:59'
+    olympiad.registrationEndDate || '2026-09-24 23:59'
   );
-  const [startDate, setStartDate] = useState<string>(olympiad.startDate);
-  const [endDate, setEndDate] = useState<string>(olympiad.endDate);
+  const [startDate, setStartDate] = useState<string>(olympiad.startDate || '2026-09-25 09:00');
+  const [endDate, setEndDate] = useState<string>(olympiad.endDate || '2026-09-30 23:59');
 
   // Date conversion helpers for datetime-local input
   const toDatetimeInput = (val?: string) => {
@@ -663,6 +668,8 @@ export const OlympiadFullEditor: React.FC<OlympiadFullEditorProps> = ({ olympiad
       registrationEndDate,
       startDate,
       endDate,
+      durationMinutes,
+      totalQuestions: questionsList.length,
       questions: questionsList,
       certificateConfig: {
         fontFamily: certFont,
@@ -1861,6 +1868,55 @@ export const OlympiadFullEditor: React.FC<OlympiadFullEditorProps> = ({ olympiad
                   )}
                 />
                 <p className="text-[10px] text-slate-400">{t("Olimpiada savollari yopilishi va javoblarni qabul qilish o'chishi")}</p>
+              </div>
+
+              {/* 5. Exam Duration in Minutes */}
+              <div className="p-3.5 rounded-xl bg-purple-500/10 border border-purple-500/30 space-y-2 md:col-span-2">
+                <div className="flex items-center justify-between">
+                  <label className="block text-xs font-extrabold text-purple-300 flex items-center gap-1.5">
+                    <Clock className="w-3.5 h-3.5 text-purple-400" />
+                    <span>5. {t("Imtihon Davomiyligi (Ajratilgan vaqt)")} *</span>
+                  </label>
+                  <span className="text-[11px] text-purple-300 font-mono font-bold bg-purple-500/20 px-2.5 py-0.5 rounded-lg border border-purple-500/30">
+                    {durationMinutes} daqiqa ({Math.floor(durationMinutes / 60) > 0 ? `${Math.floor(durationMinutes / 60)} soat ` : ''}{durationMinutes % 60 > 0 ? `${durationMinutes % 60} daq` : ''})
+                  </span>
+                </div>
+                <div className="flex items-center gap-3">
+                  <input
+                    type="number"
+                    min={5}
+                    max={300}
+                    required
+                    value={durationMinutes}
+                    onChange={(e) => setDurationMinutes(Math.max(1, Number(e.target.value)))}
+                    className={clsx(
+                      "w-36 rounded-lg px-3 py-2 text-xs outline-none border font-mono font-bold text-purple-400 cursor-pointer",
+                      isDark ? "bg-[#091024] border-[#1A2F57]" : "bg-white border-slate-300 text-slate-900"
+                    )}
+                  />
+                  <div className="flex flex-wrap gap-1.5">
+                    {[30, 45, 60, 90, 120, 180].map((mins) => (
+                      <button
+                        key={mins}
+                        type="button"
+                        onClick={() => setDurationMinutes(mins)}
+                        className={clsx(
+                          "px-2.5 py-1 rounded-lg text-[11px] font-bold transition-all cursor-pointer",
+                          durationMinutes === mins
+                            ? "bg-purple-600 text-white shadow-xs"
+                            : isDark
+                            ? "bg-[#091024] border border-[#1A2F57] text-slate-400 hover:text-white"
+                            : "bg-slate-100 border border-slate-300 text-slate-700 hover:text-slate-900"
+                        )}
+                      >
+                        {mins} daq
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <p className="text-[10px] text-slate-400">
+                  {t("O'quvchi imtihonni boshlagach taymer aynan shu vaqtdan orqaga hisoblaydi va o'quvchi kartalarida ko'rsatiladi.")}
+                </p>
               </div>
             </div>
 

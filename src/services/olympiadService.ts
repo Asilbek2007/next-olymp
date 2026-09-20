@@ -25,6 +25,7 @@ export const olympiadService = {
         sLower.includes('informat') ? 'informatics' : 'other';
 
       const status: OlympiadStatus = (item.status === 'ochiq' ? 'active' : 'finished');
+      const totalQ = item.questions && item.questions.length > 0 ? item.questions.length : ((item as any).totalQuestions || (item as any).total_questions || 25);
 
       return {
         ...item,
@@ -35,9 +36,9 @@ export const olympiadService = {
         status,
         startDate: item.startDate || new Date().toISOString(),
         endDate: item.endDate || new Date(Date.now() + 86400000).toISOString(),
-        durationMinutes: (item as any).durationMinutes || 60,
-        totalQuestions: (item as any).questionsCount || (item.questions ? item.questions.length : 25),
-        maxScore: (item as any).maxScore || 100,
+        durationMinutes: (item as any).durationMinutes || (item as any).duration_minutes || 60,
+        totalQuestions: totalQ,
+        maxScore: (item as any).maxScore || (item as any).max_score || 100,
         participantsCount: item.registeredCount || 0,
         retakeAllowed: item.retakeAllowed ?? false,
         maxRetakeAttempts: item.maxRetakeAttempts || 2,
@@ -86,6 +87,7 @@ export const olympiadService = {
           sLower.includes('informat') ? 'informatics' : 'other';
 
         const status: OlympiadStatus = (storeItem.status === 'ochiq' ? 'active' : 'finished');
+        const totalQ = storeItem.questions && storeItem.questions.length > 0 ? storeItem.questions.length : ((storeItem as any).totalQuestions || (storeItem as any).total_questions || 25);
 
         return {
           ...storeItem,
@@ -96,9 +98,9 @@ export const olympiadService = {
           status,
           startDate: storeItem.startDate || new Date().toISOString(),
           endDate: storeItem.endDate || new Date(Date.now() + 86400000).toISOString(),
-          durationMinutes: (storeItem as any).durationMinutes || 60,
-          totalQuestions: (storeItem as any).questionsCount || (storeItem.questions ? storeItem.questions.length : 25),
-          maxScore: (storeItem as any).maxScore || 100,
+          durationMinutes: (storeItem as any).durationMinutes || (storeItem as any).duration_minutes || 60,
+          totalQuestions: totalQ,
+          maxScore: (storeItem as any).maxScore || (storeItem as any).max_score || 100,
           participantsCount: storeItem.registeredCount || 0,
           retakeAllowed: storeItem.retakeAllowed ?? false,
           maxRetakeAttempts: storeItem.maxRetakeAttempts || 2,
@@ -169,9 +171,6 @@ export const olympiadService = {
 
   async getQuestionsByOlympiadId(olympiadId: string): Promise<Question[]> {
     await new Promise((resolve) => setTimeout(resolve, 50));
-    if (MOCK_QUESTIONS[olympiadId] && MOCK_QUESTIONS[olympiadId].length > 0) {
-      return MOCK_QUESTIONS[olympiadId];
-    }
     try {
       const storeItem = useOlympiadStore.getState().olympiads?.find((o) => o.id === olympiadId);
       if (storeItem?.questions && storeItem.questions.length > 0) {
@@ -184,10 +183,13 @@ export const olympiadService = {
     } catch {
       // fallback
     }
+
+    if (MOCK_QUESTIONS[olympiadId] && MOCK_QUESTIONS[olympiadId].length > 0) {
+      return MOCK_QUESTIONS[olympiadId];
+    }
+
     return (
-      MOCK_QUESTIONS[olympiadId] ||
       MOCK_QUESTIONS['OLY-101'] ||
-      MOCK_QUESTIONS['olymp-math-2026'] ||
       DEFAULT_SAMPLE_QUESTIONS
     );
   },

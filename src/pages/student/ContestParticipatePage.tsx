@@ -116,7 +116,31 @@ export const ContestParticipatePage: React.FC = () => {
   const [isRegistering, setIsRegistering] = useState(false);
   const [currentStep, setCurrentStep] = useState<'registration' | 'exam_briefing'>('registration');
 
+  // Real-time Date and Window Calculation
+  const now = Date.now();
+  const startTime = useMemo(() => {
+    return olympiad?.startDate ? new Date(olympiad.startDate.replace(' ', 'T')).getTime() : null;
+  }, [olympiad?.startDate]);
+  const endTime = useMemo(() => {
+    return olympiad?.endDate ? new Date(olympiad.endDate.replace(' ', 'T')).getTime() : null;
+  }, [olympiad?.endDate]);
+  const regEndTime = useMemo(() => {
+    return olympiad?.registrationEndDate ? new Date(olympiad.registrationEndDate.replace(' ', 'T')).getTime() : null;
+  }, [olympiad?.registrationEndDate]);
+
+  const isDateFinished = (olympiad?.status === 'yopiq') || (endTime ? now > endTime : false);
+  const isRegistrationExpired = regEndTime ? now > regEndTime : false;
+  const isUpcoming = startTime ? now < startTime : false;
+
   const handleRegisterOlympiad = () => {
+    if (isDateFinished) {
+      alert("⚠️ Ushbu musobaqa muddati yakunlangan!");
+      return;
+    }
+    if (isRegistrationExpired && !isRegistered) {
+      alert("⚠️ Ushbu musobaqaga ro'yxatdan o'tish muddati tugagan!");
+      return;
+    }
     if (!isGradeEligible) {
       alert(`⚠️ Ushbu olimpiada faqat ${targetGrades.join(', ')}-sinflar uchun mo'ljallangan! Sizning sinfingiz: ${studentGrade}-sinf.`);
       return;
@@ -194,6 +218,25 @@ export const ContestParticipatePage: React.FC = () => {
   const [timeLeftToStart, setTimeLeftToStart] = useState<number | null>(null);
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
+
+  // Countdown timer if contest is upcoming
+  useEffect(() => {
+    if (!startTime) {
+      setTimeLeftToStart(null);
+      return;
+    }
+    const updateTimer = () => {
+      const diffSec = Math.floor((startTime - Date.now()) / 1000);
+      if (diffSec > 0) {
+        setTimeLeftToStart(diffSec);
+      } else {
+        setTimeLeftToStart(0);
+      }
+    };
+    updateTimer();
+    const interval = setInterval(updateTimer, 1000);
+    return () => clearInterval(interval);
+  }, [startTime]);
 
   // Pre-exam camera check handler
   const handleTestCamera = async () => {
@@ -614,6 +657,29 @@ export const ContestParticipatePage: React.FC = () => {
                   {olympiad.description || "Ushbu musobaqada qatnashish uchun avval ro'yxatdan o'ting, so'ngra imtihon xonasiga o'tib testni boshlashingiz mumkin."}
                 </p>
 
+                {/* Date / Status Banners */}
+                {isDateFinished ? (
+                  <div className="p-3.5 rounded-xl bg-rose-500/20 border border-rose-500/50 text-rose-200 flex items-start gap-3 mt-3">
+                    <AlertTriangle className="w-5 h-5 text-rose-400 shrink-0 mt-0.5" />
+                    <div className="text-xs space-y-1">
+                      <div className="font-bold text-white text-sm">🛑 Musobaqa Yakunlangan</div>
+                      <p>
+                        Ushbu olimpiada muddati o'tgan ({olympiad.endDate || 'Muddati tugagan'}). Yangi ro'yxatdan o'tish yoki topshirish imkoni mavjud emas.
+                      </p>
+                    </div>
+                  </div>
+                ) : isRegistrationExpired && !isRegistered ? (
+                  <div className="p-3.5 rounded-xl bg-amber-500/20 border border-amber-500/50 text-amber-200 flex items-start gap-3 mt-3">
+                    <Clock className="w-5 h-5 text-amber-400 shrink-0 mt-0.5" />
+                    <div className="text-xs space-y-1">
+                      <div className="font-bold text-white text-sm">⏳ Ro'yxatdan O'tish Muddati Tugagan</div>
+                      <p>
+                        Ushbu musobaqaga ro'yxatdan o'tish yopilgan ({olympiad.registrationEndDate || 'Yopilgan'}).
+                      </p>
+                    </div>
+                  </div>
+                ) : null}
+
                 {/* Grade Eligibility Alert */}
                 {!isGradeEligible ? (
                   <div className="p-3.5 rounded-xl bg-rose-500/20 border border-rose-500/50 text-rose-200 flex items-start gap-3 mt-3">
@@ -641,7 +707,7 @@ export const ContestParticipatePage: React.FC = () => {
                     <Clock className="w-4 h-4 text-blue-400" />
                     <span>Ajratilgan vaqt</span>
                   </div>
-                  <div className="text-lg font-black text-white">{olympiad.durationMinutes || 60} daqiqa</div>
+                  <div className="text-lg font-black text-white">{olympiad.durationMinutes || (olympiad as any).duration_minutes || 60} daqiqa</div>
                 </div>
 
                 <div className="p-3.5 rounded-xl bg-[#0B1120] border border-[#1E293B] space-y-1">
@@ -754,19 +820,19 @@ export const ContestParticipatePage: React.FC = () => {
                   <Button
                     onClick={handleRegisterOlympiad}
                     isLoading={isRegistering}
-                    disabled={!isGradeEligible || isRegistering}
+                    disabled={!isGradeEligible || isDateFinished || (isRegistrationExpired && !isRegistered) || isRegistering}
                     variant="primary"
                     size="lg"
                     className={clsx(
                       "w-full sm:w-auto text-white font-bold px-8 shadow-lg",
-                      !isGradeEligible
+                      !isGradeEligible || isDateFinished || (isRegistrationExpired && !isRegistered)
                         ? "bg-slate-700 opacity-60 cursor-not-allowed"
                         : !isFree && !isPaid
                         ? "bg-gradient-to-r from-emerald-600 via-teal-600 to-indigo-600 hover:from-emerald-500 hover:to-indigo-500 shadow-emerald-500/30 ring-2 ring-emerald-400/30 animate-pulse"
                         : "bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 shadow-blue-500/25"
                     )}
                     leftIcon={
-                      !isGradeEligible ? (
+                      !isGradeEligible || isDateFinished || (isRegistrationExpired && !isRegistered) ? (
                         <AlertTriangle className="w-4 h-4 text-rose-400" />
                       ) : !isFree && !isPaid ? (
                         <CreditCard className="w-4 h-4 text-emerald-300" />
@@ -777,6 +843,10 @@ export const ContestParticipatePage: React.FC = () => {
                   >
                     {!isGradeEligible
                       ? "Sinfingizga mos emas"
+                      : isDateFinished
+                      ? "Musobaqa yakunlangan 🔒"
+                      : isRegistrationExpired && !isRegistered
+                      ? "Ro'yxatdan o'tish yopilgan ⏳"
                       : !isFree && !isPaid
                       ? `PayX Bilan To'lov Qilish (${olympiadPrice.toLocaleString()} UZS) 💳`
                       : "Olimpiadaga Ro'yxatdan O'tish 📝"}
@@ -792,6 +862,15 @@ export const ContestParticipatePage: React.FC = () => {
                       Natijani Ko'rish 📊
                     </Button>
                   </Link>
+                ) : isDateFinished ? (
+                  <Button
+                    variant="secondary"
+                    size="lg"
+                    disabled
+                    className="w-full sm:w-auto font-black opacity-60 cursor-not-allowed bg-slate-800 text-slate-400 border border-slate-700"
+                  >
+                    Musobaqa Yakunlangan 🔒
+                  </Button>
                 ) : (
                   <Button
                     variant="primary"
@@ -963,7 +1042,24 @@ export const ContestParticipatePage: React.FC = () => {
               </div>
 
               {/* Countdown or Ready to start block */}
-              {timeLeftToStart && timeLeftToStart > 0 ? (
+              {isDateFinished ? (
+                <div className="p-4 rounded-xl bg-rose-500/10 border border-rose-500/30 flex items-center justify-between text-xs text-rose-300">
+                  <div className="flex items-center gap-2">
+                    <AlertTriangle className="w-5 h-5 text-rose-400 shrink-0" />
+                    <div>
+                      <div className="font-bold text-rose-200">Musobaqa muddati yakunlangan</div>
+                      <div className="text-[11px] text-rose-400">Ushbu olimpiadada qatnashish vaqti tugagan ({olympiad.endDate || 'Tugagan'}).</div>
+                    </div>
+                  </div>
+                  {attemptsUsed > 0 && (
+                    <Link to="/results">
+                      <Button size="sm" variant="outline" className="bg-rose-500/20 text-rose-300 border-rose-500/40 text-xs">
+                        Natijani Ko'rish
+                      </Button>
+                    </Link>
+                  )}
+                </div>
+              ) : timeLeftToStart && timeLeftToStart > 0 ? (
                 <div className="p-4 rounded-xl bg-amber-500/10 border border-amber-500/30 text-center space-y-2">
                   <div className="text-xs font-bold text-amber-400 uppercase tracking-wider flex items-center justify-center gap-2">
                     <Clock className="w-4 h-4 animate-spin" />
@@ -973,7 +1069,7 @@ export const ContestParticipatePage: React.FC = () => {
                     {formatCountdown(timeLeftToStart)}
                   </div>
                   <p className="text-[11px] text-slate-400">
-                    Vaqt yetganda quyidagi boshlash tugmasi avtomatik faollashadi.
+                    Boshlanish vaqti: <strong>{olympiad.startDate}</strong>. Vaqt yetganda boshlash tugmasi faollashadi.
                   </p>
                 </div>
               ) : (
@@ -1021,17 +1117,17 @@ export const ContestParticipatePage: React.FC = () => {
 
               {/* Consent Checkbox */}
               <div
-                onClick={() => isRegistered && canAttempt && setRulesAccepted(!rulesAccepted)}
+                onClick={() => isRegistered && canAttempt && !isDateFinished && setRulesAccepted(!rulesAccepted)}
                 className={clsx(
                   "p-3.5 rounded-xl border flex items-start gap-3 transition-all select-none",
-                  isRegistered && canAttempt
+                  isRegistered && canAttempt && !isDateFinished
                     ? "bg-[#0B1120] border-[#1E293B] hover:border-blue-500/50 cursor-pointer"
                     : "bg-[#0B1120]/50 border-slate-800 opacity-60 cursor-not-allowed"
                 )}
               >
                 <button
                   type="button"
-                  disabled={!isRegistered || !canAttempt}
+                  disabled={!isRegistered || !canAttempt || isDateFinished}
                   className="mt-0.5 text-blue-500 hover:text-blue-400 shrink-0"
                 >
                   {rulesAccepted ? (
@@ -1073,12 +1169,25 @@ export const ContestParticipatePage: React.FC = () => {
                   <Button
                     variant="primary"
                     size="lg"
-                    disabled={!isRegistered || !rulesAccepted || (!!timeLeftToStart && timeLeftToStart > 0)}
+                    disabled={!isRegistered || !rulesAccepted || isDateFinished || (!!timeLeftToStart && timeLeftToStart > 0)}
                     onClick={handleStartExam}
-                    className="w-full sm:w-auto font-black shadow-lg shadow-blue-500/25 px-8 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500"
+                    className={clsx(
+                      "w-full sm:w-auto font-black shadow-lg px-8 transition-all",
+                      isDateFinished
+                        ? "bg-slate-700 opacity-60 cursor-not-allowed text-slate-400"
+                        : timeLeftToStart && timeLeftToStart > 0
+                        ? "bg-amber-600/80 opacity-80 cursor-not-allowed text-white"
+                        : "bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 shadow-blue-500/25 text-white"
+                    )}
                     rightIcon={<ArrowRight className="w-4 h-4" />}
                   >
-                    {isRetake ? `Qayta Topshirish (${attemptsUsed + 1}/${maxAttempts}-urinish) 🚀` : "Olimpiadani Boshlash 🚀"}
+                    {isDateFinished
+                      ? "Musobaqa Yakunlangan 🔒"
+                      : timeLeftToStart && timeLeftToStart > 0
+                      ? `Boshlanishiga: ${formatCountdown(timeLeftToStart)} ⏳`
+                      : isRetake
+                      ? `Qayta Topshirish (${attemptsUsed + 1}/${maxAttempts}-urinish) 🚀`
+                      : "Olimpiadani Boshlash 🚀"}
                   </Button>
                 )}
               </div>
