@@ -64,20 +64,22 @@ if ($method === 'POST') {
             exit;
         }
 
+        $gender = $data['gender'] ?? 'male';
         $passwordHash = password_hash($password, PASSWORD_BCRYPT);
         $avatarUrl = 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150&auto=format&fit=crop&q=80';
 
-        $insertSql = "INSERT INTO users (
-            id, full_name, fullName, phone, email, password_hash, password,
-            role, grade, region, district, school, avatar_url, avatarUrl, created_at, createdAt
+        $insertSql = "INSERT INTO `users` (
+            `id`, `full_name`, `phone`, `email`, `password_hash`,
+            `role`, `gender`, `grade`, `region`, `district`, `school`, `status`, `package`, `avatar_url`, `created_at`
         ) VALUES (
-            ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
+            ?, ?, ?, ?, ?,
+            ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
         )";
 
         $stmt = $pdo->prepare($insertSql);
         $stmt->execute([
-            $id, $fullName, $fullName, $phone, $email, $passwordHash, $password,
-            $role, $grade, $region, $district, $school, $avatarUrl, $avatarUrl, $createdAt, $createdAt
+            $id, $fullName, $phone, $email, $passwordHash,
+            $role, $gender, $grade, $region, $district, $school, 'active', 'Bepul', $avatarUrl, $createdAt
         ]);
 
         $token = 'jwt_' . md5($id . time()) . '_' . bin2hex(random_bytes(16));

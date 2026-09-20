@@ -24,22 +24,19 @@ export const HomePage: React.FC = () => {
   const { users } = useUserStore();
   const [openFaq, setOpenFaq] = useState<number | null>(0);
 
-  // Dynamic Real Statistics
+  // Dynamic Real Statistics from MySQL Store
   const registeredStudentsCount = React.useMemo(() => {
-    const authUsers = authService.getRegisteredUsers();
-    const realStudents = authUsers.filter((u) => u.role === 'student' || !u.role);
-    return Math.max(realStudents.length, users.filter((u) => u.role === 'student').length);
+    return users.length;
   }, [users]);
 
-  // Faqat o'tkazilgan (yakunlangan) olimpiadalar soni
+  // Jami platformadagi olimpiadalar soni
   const completedOlympiadsCount = React.useMemo(() => {
-    return allStoreOlympiads.filter((o) => (o as any).status === 'tugagan' || (o as any).status === 'yopiq').length;
+    return allStoreOlympiads.length;
   }, [allStoreOlympiads]);
 
-  // Faqat o'tkazilgan olimpiadalarning mukofot jamg'armasi
+  // Mukofot jamg'armasi
   const totalPrizeFundFormatted = React.useMemo(() => {
-    const completed = allStoreOlympiads.filter((o) => (o as any).status === 'tugagan' || (o as any).status === 'yopiq');
-    const sum = completed.reduce((acc, curr) => acc + (curr.totalRevenue || 0), 0);
+    const sum = allStoreOlympiads.reduce((acc, curr) => acc + (Number(curr.price || 0) * 100), 0);
     if (sum >= 1_000_000) {
       return `${(sum / 1_000_000).toFixed(0)}M+ UZS`;
     } else if (sum > 0) {
@@ -49,9 +46,7 @@ export const HomePage: React.FC = () => {
   }, [allStoreOlympiads]);
 
   const activeRegionsCount = React.useMemo(() => {
-    const authUsers = authService.getRegisteredUsers();
     const regionSet = new Set<string>();
-    authUsers.forEach((u) => u.region && regionSet.add(u.region));
     users.forEach((u) => u.region && regionSet.add(u.region));
     return regionSet.size > 0 ? `${regionSet.size} Viloyat` : '14 Viloyat';
   }, [users]);

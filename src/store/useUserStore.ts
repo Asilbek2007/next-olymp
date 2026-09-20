@@ -30,21 +30,21 @@ export const useUserStore = create<UserState>((set, get) => ({
 
       if (usersList && usersList.length > 0) {
         const cleanUsers: UserItem[] = usersList
-          .filter((u: any) => u && u.id && u.role !== 'admin' && !u.id.includes('admin'))
+          .filter((u: any) => u && u.id)
           .map((u: any) => ({
-            id: u.id,
+            id: String(u.id),
             fullName: u.fullName || u.full_name || u.name || 'Ishtirokchi',
             gender: u.gender || 'male',
             phone: u.phone || '+998 90 123 45 67',
-            role: u.role === 'teacher' ? 'teacher' : 'student',
+            role: u.role || 'student',
             package: u.package || 'Bepul',
             status: u.status || 'active',
             region: u.region || 'Toshkent shahri',
             district: u.district || 'Yunusobod tumani',
             school: u.school || 'Prezident maktabi',
-            grade: u.grade || 9,
-            createdAt: u.createdAt ? u.createdAt.split(' ')[0].split('T')[0] : (u.created_at ? u.created_at.split(' ')[0] : new Date().toISOString().split('T')[0]),
-            participationCount: u.participationCount || 0,
+            grade: Number(u.grade) || 9,
+            createdAt: u.createdAt ? String(u.createdAt).split(' ')[0] : (u.created_at ? String(u.created_at).split(' ')[0] : new Date().toISOString().split('T')[0]),
+            participationCount: Number(u.participationCount) || 0,
           }));
 
         set({ users: cleanUsers, loading: false });

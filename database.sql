@@ -19,19 +19,19 @@ DROP TABLE IF EXISTS `users`;
 CREATE TABLE `users` (
     `id` VARCHAR(64) PRIMARY KEY,
     `full_name` VARCHAR(150) NOT NULL,
-    `fullName` VARCHAR(150) DEFAULT NULL,
     `phone` VARCHAR(30) UNIQUE NOT NULL,
     `email` VARCHAR(191) NULL,
     `password_hash` VARCHAR(255) NOT NULL,
-    `password` VARCHAR(255) DEFAULT NULL,
     `role` ENUM('student', 'teacher', 'admin') DEFAULT 'student',
+    `gender` VARCHAR(16) DEFAULT 'male',
     `region` VARCHAR(100) DEFAULT '',
     `district` VARCHAR(100) DEFAULT '',
     `school` VARCHAR(150) DEFAULT '',
     `grade` INT DEFAULT 9,
     `score` INT DEFAULT 0,
+    `status` VARCHAR(32) DEFAULT 'active',
+    `package` VARCHAR(32) DEFAULT 'Bepul',
     `avatar_url` TEXT DEFAULT NULL,
-    `avatarUrl` TEXT DEFAULT NULL,
     `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
