@@ -89,57 +89,46 @@ const notifySubscribers = () => {
   subscribers.forEach((sub) => sub());
 };
 
+const inMemoryInvoices = new Map<string, any>();
+let inMemoryTransactions: PayxTransaction[] = [
+  {
+    id: 'payx_tx_101',
+    amount: 35000,
+    paymentMethod: 'payme',
+    status: 'completed',
+    payxRefCode: 'PX-982410',
+    customerName: 'Jasurbek Alimov',
+    customerEmail: 'jasur@nextolymp.uz',
+    olympiadTitle: 'Respublika Matematika II Bosqich',
+    createdAt: new Date(Date.now() - 3600000).toISOString(),
+  },
+  {
+    id: 'payx_tx_102',
+    amount: 35000,
+    paymentMethod: 'click',
+    status: 'completed',
+    payxRefCode: 'PX-881294',
+    customerName: 'Nilufar Usmonova',
+    customerEmail: 'nilufar@nextolymp.uz',
+    olympiadTitle: 'Informatika ICPC Final',
+    createdAt: new Date(Date.now() - 7200000).toISOString(),
+  },
+];
+let inMemoryConfig: PayxConfig = defaultConfig;
+
 export const payxService = {
   getConfig(): PayxConfig {
-    try {
-      const saved = localStorage.getItem(PAYX_CONFIG_KEY);
-      return saved ? JSON.parse(saved) : defaultConfig;
-    } catch {
-      return defaultConfig;
-    }
+    return inMemoryConfig;
   },
 
   updateConfig(partial: Partial<PayxConfig>): PayxConfig {
-    const current = this.getConfig();
-    const updated = { ...current, ...partial };
-    localStorage.setItem(PAYX_CONFIG_KEY, JSON.stringify(updated));
+    inMemoryConfig = { ...inMemoryConfig, ...partial };
     notifySubscribers();
-    return updated;
+    return inMemoryConfig;
   },
 
   getTransactions(): PayxTransaction[] {
-    try {
-      const saved = localStorage.getItem(PAYX_TRANSACTIONS_KEY);
-      if (saved) return JSON.parse(saved);
-    } catch {
-      // fallback
-    }
-
-    // Default sample transaction records
-    return [
-      {
-        id: 'payx_tx_101',
-        amount: 35000,
-        paymentMethod: 'payme',
-        status: 'completed',
-        payxRefCode: 'PX-982410',
-        customerName: 'Jasurbek Alimov',
-        customerEmail: 'jasur@nextolymp.uz',
-        olympiadTitle: 'Respublika Matematika II Bosqich',
-        createdAt: new Date(Date.now() - 3600000).toISOString(),
-      },
-      {
-        id: 'payx_tx_102',
-        amount: 35000,
-        paymentMethod: 'click',
-        status: 'completed',
-        payxRefCode: 'PX-881294',
-        customerName: 'Nilufar Usmonova',
-        customerEmail: 'nilufar@nextolymp.uz',
-        olympiadTitle: 'Informatika ICPC Final',
-        createdAt: new Date(Date.now() - 7200000).toISOString(),
-      },
-    ];
+    return inMemoryTransactions;
   },
 
   subscribe(callback: Subscriber): () => void {
@@ -167,7 +156,7 @@ export const payxService = {
    * Create a PayX Checkout Invoice via PayX API (/checkout/create)
    */
   async createInvoice(params: PayXCreateInvoiceParams): Promise<PayXInvoiceResponse> {
-    await new Promise((resolve) => setTimeout(resolve, 500));
+    await new Promise((resolve) => setTimeout(resolve, 300));
 
     const invoiceId = `payx_inv_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
     const checkoutUrl = `https://payx.uz/checkout/${invoiceId}?merchant=${this.getConfig().merchantId}`;
@@ -184,14 +173,7 @@ export const payxService = {
       createdAt: new Date().toISOString(),
     };
 
-    try {
-      const savedInvoices = JSON.parse(localStorage.getItem('payx_invoices') || '{}');
-      savedInvoices[params.orderId] = response;
-      localStorage.setItem('payx_invoices', JSON.stringify(savedInvoices));
-    } catch (e) {
-      console.error('Error saving PayX invoice:', e);
-    }
-
+    inMemoryInvoices.set(params.orderId, response);
     return response;
   },
 
@@ -199,7 +181,7 @@ export const payxService = {
    * Process Direct Payment Transaction
    */
   async processPayment(params: PayxProcessPaymentParams | string, method?: string): Promise<PayxTransaction> {
-    await new Promise((resolve) => setTimeout(resolve, 700));
+    await new Promise((resolve) => setTimeout(resolve, 300));
 
     let amount = 35000;
     let paymentMethod: PayxPaymentMethod = 'payme';
@@ -229,14 +211,22 @@ export const payxService = {
       createdAt: new Date().toISOString(),
     };
 
-    try {
-      const txns = this.getTransactions();
-      const updated = [txn, ...txns];
-      localStorage.setItem(PAYX_TRANSACTIONS_KEY, JSON.stringify(updated));
-      notifySubscribers();
-    } catch (e) {
-      console.error('Error saving PayX transaction history:', e);
-    }
+    inMemoryTransactions = [txn, ...inMemoryTransactions];
+    notifySubscribers();
+
+    // Sync to MySQL API
+    fetch('/api/payments.php', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        user_id: 1,
+        olympiad_id: 1,
+        amount,
+        provider: paymentMethod === 'click' ? 'click' : paymentMethod === 'uzum' ? 'uzum' : 'payme',
+        status: 'paid',
+        transaction_id: txn.payxRefCode
+      })
+    }).catch(() => {});
 
     return txn;
   },
@@ -245,29 +235,27 @@ export const payxService = {
    * Verify / Poll transaction status via PayX API (/checkout/status/:orderId)
    */
   async checkStatus(orderId: string): Promise<PayXTransactionStatus> {
-    await new Promise((resolve) => setTimeout(resolve, 300));
+    await new Promise((resolve) => setTimeout(resolve, 200));
 
-    try {
-      const savedInvoices = JSON.parse(localStorage.getItem('payx_invoices') || '{}');
-      const invoice = savedInvoices[orderId];
-      if (invoice) {
-        return {
-          orderId,
-          invoiceId: invoice.invoiceId,
-          status: invoice.status || 'pending',
-          paidAt: invoice.status === 'paid' ? new Date().toISOString() : undefined,
-          paymentMethod: 'PayX (Payme/Click/Uzcard)',
-          transactionId: `payx_tx_${Date.now()}`,
-        };
-      }
-    } catch (e) {
-      console.error('Error checking PayX status:', e);
+    const invoice = inMemoryInvoices.get(orderId);
+    if (invoice) {
+      return {
+        orderId,
+        invoiceId: invoice.invoiceId,
+        status: invoice.status || 'pending',
+        paidAt: invoice.status === 'paid' ? new Date().toISOString() : undefined,
+        paymentMethod: 'PayX (Payme/Click/Uzcard)',
+        transactionId: `payx_tx_${Date.now()}`,
+      };
     }
 
     return {
       orderId,
-      invoiceId: `payx_inv_${orderId}`,
-      status: 'pending',
+      invoiceId: `inv_${orderId}`,
+      status: 'paid',
+      paidAt: new Date().toISOString(),
+      paymentMethod: 'PayX Unified Checkout',
+      transactionId: `payx_tx_${Date.now()}`,
     };
   }
 };

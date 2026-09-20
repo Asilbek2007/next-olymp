@@ -194,7 +194,7 @@ export const useContestStore = create<ContestState>((set, get) => ({
     const currentUser = useAuthStore.getState().user;
     const olympiadId = get().olympiadId || 'olymp-current';
 
-    // Save live incident directly to submissionService & localStorage
+    // Save live incident directly to API via submissionService
     try {
       const typeLabel =
         type === 'TAB_SWITCH' ? 'Brauzer oynasi almashtirildi (Tab Switch)' :
