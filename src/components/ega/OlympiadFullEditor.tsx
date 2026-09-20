@@ -582,7 +582,7 @@ export const OlympiadFullEditor: React.FC<OlympiadFullEditorProps> = ({ olympiad
 
   // Real Dynamic Participants List from Submissions
   const participantsList = useMemo(() => {
-    return submissionService.getOlympiadSubmissions(olympiad.id);
+    return submissionService.getOlympiadAllParticipants(olympiad.id);
   }, [olympiad.id]);
 
   // Filtered Participants List
@@ -595,7 +595,7 @@ export const OlympiadFullEditor: React.FC<OlympiadFullEditorProps> = ({ olympiad
         p.phone.includes(q) ||
         p.region.toLowerCase().includes(q) ||
         p.school.toLowerCase().includes(q) ||
-        p.certificateType.toLowerCase().includes(q)
+        (p.certificateType && p.certificateType.toLowerCase().includes(q))
       );
     });
   }, [participantsList, participantSearchTerm]);
@@ -3149,11 +3149,11 @@ export const OlympiadFullEditor: React.FC<OlympiadFullEditorProps> = ({ olympiad
                         <td className="py-3 px-3 whitespace-nowrap">
                           <span className={clsx(
                             "px-2 py-0.5 rounded text-[10px] font-bold border",
-                            isFreeForAll || price === 0 || p.paymentType.includes('Bepul')
+                            isFreeForAll || price === 0 || (p.paymentType && p.paymentType.includes('Bepul'))
                               ? "bg-emerald-500/20 text-emerald-300 border-emerald-500/40"
                               : "bg-purple-500/20 text-purple-300 border-purple-500/40"
                           )}>
-                            {isFreeForAll || price === 0 ? "Bepul" : p.paymentType}
+                            {isFreeForAll || price === 0 ? "Bepul" : (p.paymentType || 'Karta')}
                           </span>
                         </td>
 

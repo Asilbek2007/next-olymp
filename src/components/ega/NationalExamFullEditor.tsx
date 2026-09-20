@@ -156,7 +156,7 @@ export const NationalExamFullEditor: React.FC<NationalExamFullEditorProps> = ({ 
   const participantsList = useMemo(() => {
     const rawList = submissionService.getOlympiadSubmissions(exam.id);
     return rawList.map((p) => {
-      const percentage = p.percentage;
+      const percentage = p.percentage || 0;
       const rasch = Math.round((percentage / 100) * 75 * 10) / 10;
       const gradeLetter = percentage >= 86 ? 'A+ (A\'lo)' : percentage >= 70 ? 'A (Juda yaxshi)' : percentage >= 55 ? 'B+ (Yaxshi)' : percentage >= 45 ? 'B (Qoniqarli)' : 'C (Ishtirok)';
       return {

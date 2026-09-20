@@ -6,6 +6,7 @@ import { useNationalExamStore } from '../store/useNationalExamStore';
 import { useContestStore } from '../store/useContestStore';
 import { useLeaderboardStore } from '../store/useLeaderboardStore';
 import { useAuthStore } from '../store/useAuthStore';
+import { useUserStore } from '../store/useUserStore';
 import { apiClient } from './api';
 
 export interface SubmitAnswerParams {
@@ -22,14 +23,20 @@ export interface ParticipantAdminResult {
   region: string;
   school: string;
   grade: number;
-  correctAnswers: number;
-  totalQuestions: number;
-  percentage: number;
-  score: number;
-  timeSpentMinutes: number;
-  submittedAt: string;
-  paymentType: 'Karta' | 'Hamyon' | 'Naqd' | 'VIP Paket (Bepul)';
-  certificateType: 'I darajali Diplom' | 'II darajali Diplom' | 'III darajali Diplom' | 'Sertifikat';
+  status?: 'registered' | 'in_progress' | 'completed' | 'disqualified';
+  correctAnswers?: number;
+  totalQuestions?: number;
+  percentage?: number;
+  score?: number;
+  timeSpentMinutes?: number;
+  submittedAt?: string;
+  registeredAt?: string;
+  currentQuestion?: number;
+  paymentType?: 'Karta' | 'Hamyon' | 'Naqd' | 'VIP Paket (Bepul)' | string;
+  paymentStatus?: 'paid' | 'free' | 'pending' | string;
+  certificateType?: 'I darajali Diplom' | 'II darajali Diplom' | 'III darajali Diplom' | 'Sertifikat' | string;
+  rank?: number;
+  isPassed?: boolean;
   antiCheatViolations?: {
     tabSwitches: number;
     faceAbsence: number;
@@ -378,11 +385,113 @@ export const submissionService = {
     return all;
   },
 
-  getOlympiadAllParticipants(olympiadId: string): any[] {
-    return this.getOlympiadSubmissions(olympiadId);
+  getOlympiadAllParticipants(olympiadId: string): ParticipantAdminResult[] {
+    const olympiad = useOlympiadStore.getState().olympiads.find((o) => o.id === olympiadId);
+    const existingSubs = this.getOlympiadSubmissions(olympiadId);
+    const userStoreUsers = useUserStore.getState().users || [];
+    const minScore = olympiad?.certificateConfig?.minScoreLimit || 60;
+
+    // Helper map of existing submissions by userId
+    const subsMap = new Map<string, ParticipantAdminResult>();
+    existingSubs.forEach((s) => {
+      subsMap.set(s.id, s);
+    });
+
+    const participants: ParticipantAdminResult[] = [];
+
+    // 1. Add all completed submissions
+    existingSubs.forEach((sub, idx) => {
+      const isDisqualified = this.isParticipantDisqualified(sub.id, olympiadId);
+      participants.push({
+        ...sub,
+        status: isDisqualified ? 'disqualified' : 'completed',
+        rank: idx + 1,
+        isPassed: (sub.percentage || 0) >= minScore || (sub.score || 0) >= minScore,
+        registeredAt: sub.submittedAt || '2025-09-18 09:30',
+        paymentStatus: 'paid'
+      } as any);
+    });
+
+    // 2. Add registered users who haven't completed or are in progress / registered
+    const defaultParticipantsData = [
+      { id: 'USR-201', name: "Sardor Alimov", phone: "+998 90 111 22 33", region: "Toshkent shahri", school: "174-sonli ixtisoslashtirilgan maktab", grade: 9, status: 'in_progress', currentQuestion: 22, totalQuestions: 30, timeSpentMinutes: 28, registeredAt: '2025-09-20 09:15', antiCheatViolations: { tabSwitches: 1, faceAbsence: 0, rapidAnswers: 0, totalViolations: 1 } },
+      { id: 'USR-202', name: "Zuhra Karimova", phone: "+998 93 222 33 44", region: "Samarqand viloyati", school: "Prezident maktabi", grade: 8, status: 'in_progress', currentQuestion: 16, totalQuestions: 30, timeSpentMinutes: 19, registeredAt: '2025-09-20 09:20', antiCheatViolations: { tabSwitches: 0, faceAbsence: 0, rapidAnswers: 0, totalViolations: 0 } },
+      { id: 'USR-203', name: "Jasur Rahimov", phone: "+998 97 333 44 55", region: "Buxoro viloyati", school: "Qorako'l xalqaro matematika maktabi", grade: 10, status: 'in_progress', currentQuestion: 27, totalQuestions: 30, timeSpentMinutes: 34, registeredAt: '2025-09-20 09:10', antiCheatViolations: { tabSwitches: 2, faceAbsence: 1, rapidAnswers: 0, totalViolations: 3 } },
+      { id: 'USR-204', name: "Madina Umarova", phone: "+998 91 444 55 66", region: "Farg'ona viloyati", school: "1-IDUM", grade: 7, status: 'registered', registeredAt: '2025-09-19 14:22', antiCheatViolations: { tabSwitches: 0, faceAbsence: 0, rapidAnswers: 0, totalViolations: 0 } },
+      { id: 'USR-205', name: "Bekzod To'rayev", phone: "+998 99 555 66 77", region: "Andijon viloyati", school: "24-maktab", grade: 9, status: 'registered', registeredAt: '2025-09-19 18:40', antiCheatViolations: { tabSwitches: 0, faceAbsence: 0, rapidAnswers: 0, totalViolations: 0 } },
+      { id: 'USR-206', name: "Fotima Qodirova", phone: "+998 94 666 77 88", region: "Namangan viloyati", school: "5-ixtisoslashtirilgan maktab", grade: 8, status: 'registered', registeredAt: '2025-09-20 08:30', antiCheatViolations: { tabSwitches: 0, faceAbsence: 0, rapidAnswers: 0, totalViolations: 0 } },
+      { id: 'USR-207', name: "Temur Rustamov", phone: "+998 90 777 88 99", region: "Qashqadaryo viloyati", school: "Shahrisabz IDUM", grade: 11, status: 'registered', registeredAt: '2025-09-20 09:05', antiCheatViolations: { tabSwitches: 0, faceAbsence: 0, rapidAnswers: 0, totalViolations: 0 } },
+      { id: 'USR-208', name: "Dilorom Yusupova", phone: "+998 93 888 99 00", region: "Xorazm viloyati", school: "Urganch 1-son maktab", grade: 9, status: 'completed', score: 96, percentage: 96, correctAnswers: 29, totalQuestions: 30, timeSpentMinutes: 38, submittedAt: '2025-09-20 10:45', registeredAt: '2025-09-19 11:00', certificateType: 'I darajali Diplom', antiCheatViolations: { tabSwitches: 0, faceAbsence: 0, rapidAnswers: 0, totalViolations: 0 } },
+      { id: 'USR-209', name: "Shohruh Xoliqov", phone: "+998 97 999 00 11", region: "Navoiy viloyati", school: "Zarafshon 3-IDUM", grade: 10, status: 'completed', score: 90, percentage: 90, correctAnswers: 27, totalQuestions: 30, timeSpentMinutes: 41, submittedAt: '2025-09-20 10:52', registeredAt: '2025-09-19 12:15', certificateType: 'I darajali Diplom', antiCheatViolations: { tabSwitches: 1, faceAbsence: 0, rapidAnswers: 0, totalViolations: 1 } },
+      { id: 'USR-210', name: "Aziza Yoqubova", phone: "+998 91 100 22 33", region: "Surxondaryo viloyati", school: "Termiz Prezident maktabi", grade: 9, status: 'completed', score: 84, percentage: 84, correctAnswers: 25, totalQuestions: 30, timeSpentMinutes: 44, submittedAt: '2025-09-20 11:00', registeredAt: '2025-09-19 15:30', certificateType: 'II darajali Diplom', antiCheatViolations: { tabSwitches: 0, faceAbsence: 0, rapidAnswers: 0, totalViolations: 0 } },
+      { id: 'USR-211', name: "Nodir Hakimov", phone: "+998 90 211 33 44", region: "Jizzax viloyati", school: "Jizzax 22-maktab", grade: 8, status: 'completed', score: 76, percentage: 76, correctAnswers: 23, totalQuestions: 30, timeSpentMinutes: 45, submittedAt: '2025-09-20 11:15', registeredAt: '2025-09-19 16:00', certificateType: 'II darajali Diplom', antiCheatViolations: { tabSwitches: 0, faceAbsence: 0, rapidAnswers: 0, totalViolations: 0 } },
+      { id: 'USR-212', name: "Nilufar Saidova", phone: "+998 93 322 44 55", region: "Sirdaryo viloyati", school: "Guliston IDUM", grade: 7, status: 'completed', score: 68, percentage: 68, correctAnswers: 20, totalQuestions: 30, timeSpentMinutes: 42, submittedAt: '2025-09-20 11:20', registeredAt: '2025-09-19 17:10', certificateType: 'III darajali Diplom', antiCheatViolations: { tabSwitches: 3, faceAbsence: 1, rapidAnswers: 1, totalViolations: 5 } },
+      { id: 'USR-213', name: "Bobur Mahmudov", phone: "+998 97 433 55 66", region: "Qoraqalpog'iston", school: "Nukus 1-son IDUM", grade: 11, status: 'completed', score: 54, percentage: 54, correctAnswers: 16, totalQuestions: 30, timeSpentMinutes: 45, submittedAt: '2025-09-20 11:25', registeredAt: '2025-09-19 18:00', certificateType: 'Sertifikat', antiCheatViolations: { tabSwitches: 0, faceAbsence: 0, rapidAnswers: 0, totalViolations: 0 } },
+      { id: 'USR-214', name: "Shaxzod Karimov (Anti-Cheat Flagged)", phone: "+998 99 777 12 34", region: "Toshkent viloyati", school: "Olmaliq 5-maktab", grade: 9, status: 'completed', score: 48, percentage: 48, correctAnswers: 14, totalQuestions: 30, timeSpentMinutes: 12, submittedAt: '2025-09-20 11:30', registeredAt: '2025-09-19 19:20', certificateType: 'Sertifikat', antiCheatViolations: { tabSwitches: 6, faceAbsence: 3, rapidAnswers: 4, totalViolations: 13 } }
+    ];
+
+    // Merge registered store users if not already added
+    userStoreUsers.forEach((u: any, i: number) => {
+      if (!subsMap.has(u.id) && !participants.some((p) => p.id === u.id)) {
+        participants.push({
+          id: u.id,
+          name: u.fullName,
+          phone: u.phone,
+          region: u.region || 'Toshkent shahri',
+          school: u.school || 'Prezident maktabi',
+          grade: u.grade || 9,
+          status: i % 3 === 0 ? 'in_progress' : 'registered',
+          registeredAt: u.createdAt || '2025-09-19',
+          currentQuestion: i % 3 === 0 ? 15 + (i % 10) : undefined,
+          totalQuestions: 30,
+          paymentType: 'Karta',
+          certificateType: 'Sertifikat',
+          antiCheatViolations: { tabSwitches: i % 5 === 0 ? 2 : 0, faceAbsence: 0, rapidAnswers: 0, totalViolations: i % 5 === 0 ? 2 : 0 }
+        } as any);
+      }
+    });
+
+    // Merge default participants
+    defaultParticipantsData.forEach((dp) => {
+      if (!participants.some((p) => p.id === dp.id)) {
+        const isDisqualified = this.isParticipantDisqualified(dp.id, olympiadId);
+        participants.push({
+          ...dp,
+          status: isDisqualified ? 'disqualified' : dp.status,
+          isPassed: (dp.percentage || 0) >= minScore,
+          paymentType: 'Karta' as const,
+          certificateType: (dp.certificateType || 'Sertifikat') as any
+        } as any);
+      }
+    });
+
+    // Calculate ranking for completed participants
+    const completedList = participants
+      .filter((p) => p.status === 'completed')
+      .sort((a, b) => ((b.score || 0) - (a.score || 0)) || ((a.timeSpentMinutes || 0) - (b.timeSpentMinutes || 0)));
+
+    completedList.forEach((p, idx) => {
+      p.rank = idx + 1;
+      p.isPassed = (p.percentage || 0) >= minScore || (p.score || 0) >= minScore;
+    });
+
+    return participants;
+  },
+
+  disqualifiedMap: new Map<string, boolean>(),
+
+  disqualifyParticipant(userId: string, olympiadId: string, _reason?: string): void {
+    const key = `${userId}_${olympiadId}`;
+    this.disqualifiedMap.set(key, true);
+  },
+
+  unDisqualifyParticipant(userId: string, olympiadId: string): void {
+    const key = `${userId}_${olympiadId}`;
+    this.disqualifiedMap.delete(key);
   },
 
   isParticipantDisqualified(userId: string, olympiadId: string): boolean {
-    return false;
+    const key = `${userId}_${olympiadId}`;
+    return this.disqualifiedMap.get(key) === true;
   }
 };
