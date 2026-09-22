@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { OlympiadItem } from '../data/initialOlympiads';
 import { apiClient } from '../services/api';
+import { submissionService } from '../services/submissionService';
 
 const STORAGE_KEY = 'next_olymp_olympiads';
 
@@ -138,6 +139,9 @@ export const useOlympiadStore = create<OlympiadStore>((set, get) => ({
     const updated = get().olympiads.filter((o) => o.id !== id);
     persistOlympiads(updated);
     set({ olympiads: updated });
+
+    // Clean up local submissions, cache, cheat logs, and registrations for this olympiad
+    submissionService.deleteOlympiadData(id);
 
     // Delete from MySQL via apiClient if available
     apiClient.delete(`/olympiads.php?id=${encodeURIComponent(id)}`).catch((e) => console.warn('API delete warning:', e));

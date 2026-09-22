@@ -565,47 +565,62 @@ export const submissionService = {
     const fromCache = olympiadSubmissionsCache.get(olympiadId);
     if (fromCache && fromCache.length > 0) return fromCache;
 
-    const list: ParticipantAdminResult[] = userSubmissionsCache
-      .filter((s) => s.olympiadId === olympiadId || s.olympiad_id === olympiadId)
-      .map((s: any, idx: number) => {
-        const score = Number(s.score || 0);
-        const maxScore = Number(s.maxScore || (s.total_questions ? s.total_questions * 4 : 100));
-        const pct = maxScore > 0 ? Math.round((score / maxScore) * 100) : 0;
-        const certType = pct >= 80 ? 'I darajali Diplom' : pct >= 65 ? 'II darajali Diplom' : pct >= 50 ? 'III darajali Diplom' : 'Sertifikat';
-
-        return {
-          id: s.userId || s.user_id || `STU-${idx + 100}`,
-          name: s.userName || s.user_name || 'Ishtirokchi',
-          phone: s.phone || '+998 90 123 45 67',
-          region: s.region || 'Toshkent sh.',
-          school: s.school || 'Prezident maktabi',
-          grade: s.grade || 9,
-          status: 'completed' as const,
-          correctAnswers: s.correctAnswersCount ?? Math.round((pct / 100) * (s.total_questions || 25)),
-          totalQuestions: s.total_questions || 25,
-          percentage: pct,
-          score,
-          timeSpentMinutes: s.timeSpentMinutes || 15,
-          submittedAt: s.submitted_at ? new Date(s.submitted_at).toLocaleString() : new Date().toLocaleString(),
-          paymentType: (s.paymentType || 'Karta') as any,
-          certificateType: certType as any,
-          antiCheatViolations: {
-            tabSwitches: 0,
-            faceAbsence: 0,
-            rapidAnswers: 0,
-            totalViolations: 0
-          }
-        };
-      });
-
-    // Populate registered users from localStorage or fallback list so table is never empty
-    let registeredUsers: any[] = [];
+    let localSubs: any[] = [];
     try {
-      const raw = localStorage.getItem('next_olymp_users');
-      if (raw) registeredUsers = JSON.parse(raw);
+      localSubs = JSON.parse(localStorage.getItem('next_olymp_user_submissions') || '[]');
     } catch {}
 
-    if (!registeredUsers || registeredUsers.length === 0) {
+    const allSubs = [...userSubmissionsCache, ...localSubs];
+    const seen = new Set<string>();
+    const uniqueSubs = allSubs.filter((s) => {
+      if (s.olympiadId !== olympiadId && s.olympiad_id !== olympiadId) return false;
+      const sUser = s.userId || s.user_id || s.id;
+      if (seen.has(sUser)) return false;
+      seen.add(sUser);
+      return true;
+    });
+
+    const list: ParticipantAdminResult[] = uniqueSubs.map((s: any, idx: number) => {
+      const score = Number(s.score || 0);
+      const maxScore = Number(s.maxScore || (s.total_questions ? s.total_questions * 4 : 100));
+      const pct = maxScore > 0 ? Math.round((score / maxScore) * 100) : 0;
+      const certType = pct >= 80 ? 'I darajali Diplom' : pct >= 65 ? 'II darajali Diplom' : pct >= 50 ? 'III darajali Diplom' : 'Sertifikat';
+
+      return {
+        id: s.userId || s.user_id || `STU-${idx + 100}`,
+        name: s.userName || s.user_name || 'Ishtirokchi',
+        phone: s.phone || '+998 90 123 45 67',
+        region: s.region || 'Toshkent sh.',
+        school: s.school || 'Prezident maktabi',
+        grade: s.grade || 9,
+        status: (s.status as any) || 'completed',
+        correctAnswers: s.correctAnswersCount ?? Math.round((pct / 100) * (s.total_questions || 25)),
+        totalQuestions: s.total_questions || 25,
+        percentage: pct,
+        score,
+        timeSpentMinutes: s.timeSpentMinutes || 15,
+        submittedAt: s.submitted_at ? new Date(s.submitted_at).toLocaleString() : new Date().toLocaleString(),
+        paymentType: (s.paymentType || 'Karta') as any,
+        certificateType: certType as any,
+        antiCheatViolations: {
+          tabSwitches: 0,
+          faceAbsence: 0,
+          rapidAnswers: 0,
+          totalViolations: 0
+        }
+      };
+    });
+
+    // Populate registered users specific to this olympiad
+    let registeredUsers: any[] = [];
+    try {
+      const rawReg = localStorage.getItem(`next_olymp_registrations_${olympiadId}`);
+      if (rawReg) registeredUsers = JSON.parse(rawReg);
+    } catch {}
+
+    // Only populate default demo mock users for initial demo olympiads if no submissions/registrations exist
+    const isDemoOlympiad = olympiadId === 'OLY-101' || olympiadId === 'OLY-102';
+    if (isDemoOlympiad && list.length === 0 && registeredUsers.length === 0) {
       registeredUsers = [
         { id: 'USR-1082', fullName: 'Asilbek Olimov', phone: '+998 99 174 99 33', region: 'Toshkent shahri', school: 'Mirzo Ulug\'bek tumani 1-maktab', grade: 11 },
         { id: 'USR-1081', fullName: 'Madina Toirova', phone: '+998 91 234 56 78', region: 'Samarqand viloyati', school: 'Samarqand sh. 14-IDUM', grade: 9 },
@@ -642,9 +657,50 @@ export const submissionService = {
     });
 
     combined.sort((a, b) => (b.score || 0) - (a.score || 0));
-    olympiadSubmissionsCache.set(olympiadId, combined);
+    if (combined.length > 0) {
+      olympiadSubmissionsCache.set(olympiadId, combined);
+    }
 
     return combined;
+  },
+
+  deleteOlympiadData(olympiadId: string): void {
+    // 1. Remove from in-memory cache
+    olympiadSubmissionsCache.delete(olympiadId);
+
+    // 2. Clear from userSubmissionsCache array
+    for (let i = userSubmissionsCache.length - 1; i >= 0; i--) {
+      const s = userSubmissionsCache[i];
+      if (s && (s.olympiadId === olympiadId || s.olympiad_id === olympiadId)) {
+        userSubmissionsCache.splice(i, 1);
+      }
+    }
+
+    // 3. Purge from localStorage submissions
+    try {
+      const raw = localStorage.getItem('next_olymp_user_submissions');
+      if (raw) {
+        const subs = JSON.parse(raw);
+        if (Array.isArray(subs)) {
+          const filtered = subs.filter((s: any) => s.olympiadId !== olympiadId && s.olympiad_id !== olympiadId);
+          localStorage.setItem('next_olymp_user_submissions', JSON.stringify(filtered));
+        }
+      }
+    } catch {}
+
+    // 4. Purge cheat logs for this olympiad
+    try {
+      const allLogs = loadCheatLogsFromStorage();
+      if (allLogs[olympiadId]) {
+        delete allLogs[olympiadId];
+        saveCheatLogsToStorage(allLogs);
+      }
+    } catch {}
+
+    // 5. Remove registrations for this olympiad
+    try {
+      localStorage.removeItem(`next_olymp_registrations_${olympiadId}`);
+    } catch {}
   },
 
   saveLiveCheatLog(olympiadId: string, log: any): void {
