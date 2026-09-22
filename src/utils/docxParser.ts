@@ -37,8 +37,20 @@ export async function parseDocxQuestions(file: File, olympiadId: string): Promis
   const optionRegex = /^([A-Z])[\.\)]\s*(.*)/i;
   // Correct answer line regex: e.g. "To'g'ri javob: B", "Javob: B"
   const correctAnswerLineRegex = /^(?:To['’`]?g['’`]?ri\s+javob|Javob|Answer):\s*([A-Z])/i;
-  // Points regex: e.g. "[10 ball]", "[15 points]", "[10]"
-  const pointsRegex = /\[(\d+)\s*(?:ball|ballari|points|pts)?\]/i;
+  // Points regex: e.g. "[2.5 ball]", "[10 ball]", "[2.5 points]", "[2,5 ball]", "(2.5 ball)"
+  const pointsRegex = /(?:\[|\()?\s*([\d\.,]+)\s*(?:ball|ballari|balli|point|points|pts)\s*(?:\]|\))?/i;
+
+  function parsePointsFromText(text: string): { cleanText: string; points?: number } {
+    const pMatch = text.match(pointsRegex);
+    if (pMatch) {
+      const parsedVal = parseFloat(pMatch[1].replace(',', '.'));
+      if (!isNaN(parsedVal) && parsedVal > 0) {
+        const clean = text.replace(pMatch[0], '').trim();
+        return { cleanText: clean, points: parsedVal };
+      }
+    }
+    return { cleanText: text };
+  }
 
   function finalizeCurrentQuestion() {
     if (!currentQuestion) return;
@@ -64,8 +76,8 @@ export async function parseDocxQuestions(file: File, olympiadId: string): Promis
       olympiadId,
       roundId: 'r1',
       type: currentQuestion.options.length > 0 ? 'multiple_choice' : 'open_text',
-      content: currentQuestion.content,
-      points: currentQuestion.points || 10,
+      content: currentQuestion.content.trim(),
+      points: currentQuestion.points !== undefined ? currentQuestion.points : 10,
       order: questions.length + 1,
       options: currentQuestion.options.length > 0 ? optionsTextList : undefined,
       correctAnswer: correctAns
@@ -106,18 +118,12 @@ export async function parseDocxQuestions(file: File, olympiadId: string): Promis
       // Finalize previous question if any
       finalizeCurrentQuestion();
 
-      let qText = line.replace(/^(?:\d+[\.\)]|Savol\s*\d+:?)\s*/i, '').trim();
-      let pts = 10;
-
-      const pMatch = qText.match(pointsRegex);
-      if (pMatch) {
-        pts = parseInt(pMatch[1], 10) || 10;
-        qText = qText.replace(pointsRegex, '').trim();
-      }
+      const rawQText = line.replace(/^(?:\d+[\.\)]|Savol\s*\d+:?)\s*/i, '').trim();
+      const { cleanText, points } = parsePointsFromText(rawQText);
 
       currentQuestion = {
-        content: qText,
-        points: pts,
+        content: cleanText,
+        points: points !== undefined ? points : 10,
         options: []
       };
       continue;
@@ -129,13 +135,11 @@ export async function parseDocxQuestions(file: File, olympiadId: string): Promis
         const lastOpt = currentQuestion.options[currentQuestion.options.length - 1];
         lastOpt.text += ' ' + line;
       } else {
-        const pMatch = line.match(pointsRegex);
-        if (pMatch) {
-          currentQuestion.points = parseInt(pMatch[1], 10) || currentQuestion.points;
-          currentQuestion.content += ' ' + line.replace(pointsRegex, '').trim();
-        } else {
-          currentQuestion.content += ' ' + line;
+        const { cleanText, points } = parsePointsFromText(line);
+        if (points !== undefined) {
+          currentQuestion.points = points;
         }
+        currentQuestion.content += ' ' + cleanText;
       }
     }
   }

@@ -281,9 +281,30 @@ export const StudentResultsPage: React.FC = () => {
                 {/* Options List */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
                   {q.options?.map((opt: string, idx: number) => {
-                    const optLetter = String.fromCharCode(65 + idx);
-                    const isUserAns = q.userAnswer === optLetter;
-                    const isCorrectAns = q.correctAnswer === optLetter;
+                    const optLetter = String.fromCharCode(65 + idx); // 'A', 'B', 'C', 'D'
+                    const optText = (opt || '').trim().toLowerCase();
+                    const userAnsStr = String(q.userAnswer || '').trim().toLowerCase();
+                    const correctAnsStr = String(q.correctAnswer || '').trim().toLowerCase();
+
+                    const isUserAns = Boolean(
+                      userAnsStr && (
+                        userAnsStr === optLetter.toLowerCase() ||
+                        userAnsStr === optText ||
+                        userAnsStr === String(idx + 1) ||
+                        userAnsStr.startsWith(optLetter.toLowerCase() + ')') ||
+                        userAnsStr.startsWith(optLetter.toLowerCase() + '.')
+                      )
+                    );
+
+                    const isCorrectAns = Boolean(
+                      correctAnsStr && (
+                        correctAnsStr === optLetter.toLowerCase() ||
+                        correctAnsStr === optText ||
+                        correctAnsStr === String(idx + 1) ||
+                        correctAnsStr.startsWith(optLetter.toLowerCase() + ')') ||
+                        correctAnsStr.startsWith(optLetter.toLowerCase() + '.')
+                      )
+                    );
 
                     return (
                       <div
@@ -294,21 +315,36 @@ export const StudentResultsPage: React.FC = () => {
                             ? "bg-emerald-500/20 border-emerald-500 text-emerald-200 font-bold"
                             : isUserAns && !q.isCorrect
                             ? "bg-rose-500/20 border-rose-500 text-rose-200 font-bold"
+                            : isUserAns
+                            ? "bg-emerald-500/20 border-emerald-500 text-emerald-200 font-bold"
                             : "bg-black/20 border-white/5 text-slate-300"
                         )}
                       >
-                        <span>{opt}</span>
-                        <div className="flex items-center gap-1 font-mono text-[10px] shrink-0">
+                        <div className="flex items-center gap-2">
+                          <span className={clsx(
+                            "w-5 h-5 rounded-md flex items-center justify-center font-bold font-mono text-[10px]",
+                            isCorrectAns
+                              ? "bg-emerald-500 text-slate-950"
+                              : isUserAns
+                              ? "bg-rose-500 text-white"
+                              : "bg-white/10 text-slate-400"
+                          )}>
+                            {optLetter}
+                          </span>
+                          <span>{opt}</span>
+                        </div>
+
+                        <div className="flex items-center gap-1 font-mono text-[10px] shrink-0 ml-2">
                           {isUserAns && (
                             <span className={clsx(
-                              "px-1.5 py-0.5 rounded font-bold",
+                              "px-1.5 py-0.5 rounded font-bold whitespace-nowrap",
                               q.isCorrect ? "bg-emerald-500 text-slate-950" : "bg-rose-500 text-white"
                             )}>
-                              Sizning javobingiz: {optLetter}
+                              {q.isCorrect ? `Sizning to'g'ri javobingiz: ${optLetter}` : `Sizning javobingiz: ${optLetter} (Xato)`}
                             </span>
                           )}
                           {isCorrectAns && !isUserAns && (
-                            <span className="px-1.5 py-0.5 rounded bg-emerald-500 text-slate-950 font-bold">
+                            <span className="px-1.5 py-0.5 rounded bg-emerald-500 text-slate-950 font-bold whitespace-nowrap">
                               To'g'ri javob: {optLetter}
                             </span>
                           )}
