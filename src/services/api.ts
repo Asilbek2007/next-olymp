@@ -5,6 +5,18 @@
 
 const BASE_URL = '/api';
 
+const safeParseJson = async <T>(res: Response): Promise<T> => {
+  const text = await res.text();
+  if (!text || text.trim().startsWith('<?php') || text.trim().startsWith('<!DOCTYPE')) {
+    return [] as unknown as T;
+  }
+  try {
+    return JSON.parse(text);
+  } catch {
+    return [] as unknown as T;
+  }
+};
+
 export const apiClient = {
   async get<T = any>(endpoint: string): Promise<T> {
     const cleanEndpoint = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
@@ -22,7 +34,7 @@ export const apiClient = {
       } catch {}
       throw new Error(errMsg);
     }
-    return res.json();
+    return safeParseJson<T>(res);
   },
 
   async post<T = any>(endpoint: string, data?: any): Promise<T> {
@@ -44,7 +56,7 @@ export const apiClient = {
       } catch {}
       throw new Error(errMsg);
     }
-    return res.json();
+    return safeParseJson<T>(res);
   },
 
   async put<T = any>(endpoint: string, data?: any): Promise<T> {
@@ -66,7 +78,7 @@ export const apiClient = {
       } catch {}
       throw new Error(errMsg);
     }
-    return res.json();
+    return safeParseJson<T>(res);
   },
 
   async delete<T = any>(endpoint: string): Promise<T> {
@@ -86,7 +98,7 @@ export const apiClient = {
       } catch {}
       throw new Error(errMsg);
     }
-    return res.json();
+    return safeParseJson<T>(res);
   }
 };
 

@@ -78,15 +78,25 @@ export const EgaSupportPage: React.FC = () => {
   const resolvedCount = useMemo(() => tickets.filter((t) => t.status === 'hal_etildi').length, [tickets]);
   const closedCount = useMemo(() => tickets.filter((t) => t.status === 'yopildi').length, [tickets]);
 
-  // Handle File Selection
+  // Handle File Selection (Strict image format validation)
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
       const file = e.target.files[0];
+      const fileName = file.name.toLowerCase();
+      const allowedExtensions = ['.jpg', '.jpeg', '.png', '.webp'];
+      const isImageExt = allowedExtensions.some(ext => fileName.endsWith(ext));
+      const isImageMime = file.type.startsWith('image/');
+
+      if (!isImageExt || !isImageMime) {
+        alert("⚠️ Xavfsizlik qoidasi: Faqat JPG, JPEG, PNG va WEBP rasm fayllarini yuklash mumkin!");
+        e.target.value = '';
+        return;
+      }
+
       const fileSizeMB = (file.size / (1024 * 1024)).toFixed(1);
-      const fileType = file.type.includes('image') ? 'image' : 'pdf';
       setAttachedFiles((prev) => [
         ...prev,
-        { name: file.name, size: `${fileSizeMB} MB`, type: fileType }
+        { name: file.name, size: `${fileSizeMB} MB`, type: 'image' }
       ]);
     }
   };
@@ -558,6 +568,7 @@ export const EgaSupportPage: React.FC = () => {
                   <input
                     type="file"
                     ref={fileInputRef}
+                    accept="image/jpeg,image/png,image/webp,image/jpg,.jpg,.jpeg,.png,.webp"
                     onChange={handleFileChange}
                     className="hidden"
                   />

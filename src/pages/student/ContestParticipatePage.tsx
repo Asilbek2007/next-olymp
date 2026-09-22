@@ -1,9 +1,10 @@
-import React, { useEffect, useState, useRef, useMemo } from 'react';
+import React, { useEffect, useState, useRef, useMemo, useCallback } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useOlympiadDetail, useOlympiadQuestions } from '../../hooks/useOlympiad';
 import { useContestStore } from '../../store/useContestStore';
 import { useAntiCheat } from '../../hooks/useAntiCheat';
+import { useAudioProctoring } from '../../hooks/useAudioProctoring';
 import { useSubmission } from '../../hooks/useSubmission';
 import { Timer } from '../../components/contest/Timer';
 import { QuestionCard } from '../../components/contest/QuestionCard';
@@ -46,6 +47,8 @@ import {
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { submissionService } from '../../services/submissionService';
+import { getMediaPipeFaceLandmarker } from '../../services/mediaPipeVisionService';
+import { analyzeFaceLandmarks } from '../../services/edgeProctoringService';
 
 export const ContestParticipatePage: React.FC = () => {
   const { t, i18n } = useTranslation();
@@ -128,9 +131,10 @@ export const ContestParticipatePage: React.FC = () => {
     return olympiad?.registrationEndDate ? new Date(olympiad.registrationEndDate.replace(' ', 'T')).getTime() : null;
   }, [olympiad?.registrationEndDate]);
 
-  const isDateFinished = (olympiad?.status === 'yopiq') || (endTime ? now > endTime : false);
-  const isRegistrationExpired = regEndTime ? now > regEndTime : false;
-  const isUpcoming = startTime ? now < startTime : false;
+  const isAlwaysOpen = Boolean((olympiad as any)?.isAlwaysOpen);
+  const isDateFinished = !isAlwaysOpen && ((olympiad?.status === 'yopiq') || (endTime ? now > endTime : false));
+  const isRegistrationExpired = !isAlwaysOpen && (regEndTime ? now > regEndTime : false);
+  const isUpcoming = !isAlwaysOpen && (startTime ? now < startTime : false);
 
   const handleRegisterOlympiad = () => {
     if (isDateFinished) {
@@ -310,11 +314,19 @@ export const ContestParticipatePage: React.FC = () => {
     return '';
   };
 
-  // Advanced Camera, Face & Head Movement Monitor
+  // Advanced Camera, MediaPipe Face & Anti-Cheat Monitor
   useEffect(() => {
     let interval: any = null;
-    let missingFaceTicks = 0;
-    let multipleFaceTicks = 0;
+    let missingFaceConsecutive = 0;
+    let multipleFaceConsecutive = 0;
+    let lookingAwayConsecutive = 0;
+    let faceLandmarker: any = null;
+    let isDetecting = false;
+
+    // Load MediaPipe asynchronously
+    getMediaPipeFaceLandmarker().then((landmarker) => {
+      faceLandmarker = landmarker;
+    });
 
     const startCamera = async () => {
       try {
@@ -337,175 +349,127 @@ export const ContestParticipatePage: React.FC = () => {
     if (hasStarted && !isSubmitted) {
       startCamera();
 
-      // Continuous face, head-presence & illumination analysis (every 2.5s)
+      const config = olympiad?.antiCheatConfig;
+      const gracePeriodSec = config?.maxAbsenceGracePeriod ?? (config?.proctoringMode === 'STRICT' ? 1.5 : config?.proctoringMode === 'STANDARD' ? 3.0 : 4.0);
+      const graceTicks = Math.max(1, Math.round(gracePeriodSec / 0.5));
+      const maxViolations = config?.maxViolationsAllowed || 3;
+
+      // Continuous face, head-presence & landmark analysis (every 500ms, configurable grace period)
       interval = setInterval(async () => {
-        if (!videoRef.current || videoRef.current.readyState < 2) return;
+        if (!videoRef.current || videoRef.current.readyState < 2 || isDetecting) return;
 
+        // Skip AI face checking if proctoring mode is DISABLED
+        if (config?.proctoringMode === 'DISABLED' || config?.enabled === false) return;
+
+        isDetecting = true;
         try {
-          const canvas = document.createElement('canvas');
-          canvas.width = 160;
-          canvas.height = 120;
-          const ctx = canvas.getContext('2d');
-          if (!ctx) return;
+          // If MediaPipe is loaded, run high-precision FaceLandmarker detection
+          if (faceLandmarker) {
+            const results = faceLandmarker.detectForVideo(videoRef.current, performance.now());
+            const analysis = analyzeFaceLandmarks(results?.faceLandmarks || [], config);
 
-          ctx.drawImage(videoRef.current, 0, 0, 160, 120);
-
-          // 1. Try Native FaceDetector API if supported by browser (Chrome/Edge/Android)
-          if (typeof (window as any).FaceDetector === 'function') {
-            try {
-              const detector = new (window as any).FaceDetector({ fastMode: true, maxDetectedFaces: 4 });
-              const faces = await detector.detect(canvas);
-
-              if (!faces || faces.length === 0) {
-                missingFaceTicks++;
-                if (missingFaceTicks >= 1) {
+            if (analysis.anomalyDetected) {
+              if (analysis.anomalyType === 'no_face') {
+                missingFaceConsecutive++;
+                // Dynamic grace period
+                if (missingFaceConsecutive >= graceTicks) {
                   const snap = captureSnapshot();
                   useContestStore.getState().recordGuardViolation(
                     'NO_FACE_DETECTED',
-                    'Kadrda yuz aniqlanmadi yoki bosh kadrni tark etdi! Iltimos, kamera oldida to\'g\'riga qarab o\'tiring.',
-                    3,
+                    analysis.anomalyReason || 'Kadrda yuz aniqlanmadi yoki yuzingiz qo\'l/to\'siq bilan yopilgan! Iltimos, kamera oldida to\'g\'riga qarab o\'tiring.',
+                    maxViolations,
                     snap
                   );
-                  missingFaceTicks = 0;
+                  missingFaceConsecutive = 0;
                 }
-                return;
-              } else if (faces.length > 1) {
-                multipleFaceTicks++;
-                if (multipleFaceTicks >= 1) {
+              } else if (analysis.anomalyType === 'multiple_faces') {
+                multipleFaceConsecutive++;
+                if (multipleFaceConsecutive >= graceTicks) {
                   const snap = captureSnapshot();
                   useContestStore.getState().recordGuardViolation(
                     'MULTIPLE_FACES_DETECTED',
                     'Kadrda begona shaxs aniqlandi! Imtihonni faqat yolg\'iz topshirish shart.',
-                    3,
+                    maxViolations,
                     snap
                   );
-                  multipleFaceTicks = 0;
+                  multipleFaceConsecutive = 0;
                 }
-                return;
-              } else if (faces.length === 1) {
-                // Check if face is properly centered or cut in half / partial
-                const bb = faces[0].boundingBox;
-                const isTooSmall = bb.width < 38 || bb.height < 38;
-                const isCutAtTopOrBottom = bb.y <= 6 || (bb.y + bb.height) >= 114;
-                const isCutAtSides = bb.x <= 6 || (bb.x + bb.width) >= 154;
-
-                if (isTooSmall || isCutAtTopOrBottom || isCutAtSides) {
-                  missingFaceTicks++;
-                  if (missingFaceTicks >= 1) {
-                    const snap = captureSnapshot();
-                    useContestStore.getState().recordGuardViolation(
-                      'HALF_FACE_DETECTED',
-                      'Yuzingiz to\'liq ko\'rinmayapti (yarmi kadrni tark etgan yoki chetda)! Iltimos, butun yuzingizni kameraning markazida to\'liq ko\'rsatib o\'tiring.',
-                      3,
-                      snap
-                    );
-                    missingFaceTicks = 0;
-                  }
-                  return;
+              } else if (analysis.anomalyType === 'looking_away') {
+                lookingAwayConsecutive++;
+                if (lookingAwayConsecutive >= (graceTicks + 2)) {
+                  const snap = captureSnapshot();
+                  useContestStore.getState().recordGuardViolation(
+                    'LOOKING_AWAY',
+                    'Monitordan chetga qarash holati aniqlandi! Iltimos, faqat imtihon savollariga qarang.',
+                    maxViolations,
+                    snap
+                  );
+                  lookingAwayConsecutive = 0;
                 }
-
-                missingFaceTicks = 0;
-                multipleFaceTicks = 0;
-                return;
               }
-            } catch {
-              // Fallback to biometric heuristic
-            }
-          }
-
-          // 2. High-Accuracy Multi-Zone Biometric & Facial Feature Grid (Detects Half Face, Cut Off, & Covering)
-          const frameData = ctx.getImageData(0, 0, 160, 120).data;
-          let totalLuminance = 0;
-          let totalSkin = 0;
-          let topSkin = 0;
-          let middleSkin = 0;
-          let bottomSkin = 0;
-          let leftSkin = 0;
-          let centerSkin = 0;
-          let rightSkin = 0;
-          let totalEdgeGradient = 0;
-
-          for (let y = 0; y < 120; y++) {
-            for (let x = 0; x < 160; x++) {
-              const i = (y * 160 + x) * 4;
-              const r = frameData[i];
-              const g = frameData[i + 1];
-              const b = frameData[i + 2];
-              const lum = (r + g + b) / 3;
-              totalLuminance += lum;
-
-              // Simple horizontal edge gradient to detect facial features (eyes, nose, mouth)
-              if (x < 159) {
-                const rNext = frameData[i + 4];
-                const gNext = frameData[i + 5];
-                const bNext = frameData[i + 6];
-                const lumNext = (rNext + gNext + bNext) / 3;
-                totalEdgeGradient += Math.abs(lum - lumNext);
-              }
-
-              // Standard Human Skin-Tone Biometric Rule (RGB Space)
-              const isSkin =
-                r > 60 &&
-                g > 30 &&
-                b > 15 &&
-                r > g &&
-                g >= b * 0.65 &&
-                (r - g) > 6 &&
-                (r - b) > 6 &&
-                (Math.max(r, g, b) - Math.min(r, g, b)) > 10;
-
-              if (isSkin) {
-                totalSkin++;
-                if (y < 40) topSkin++;
-                else if (y < 80) middleSkin++;
-                else bottomSkin++;
-
-                if (x < 50) leftSkin++;
-                else if (x < 110) centerSkin++;
-                else rightSkin++;
-              }
-            }
-          }
-
-          const avgLuminance = totalLuminance / (160 * 120);
-          const avgEdgeGradient = totalEdgeGradient / (160 * 120);
-
-          // DETECTION CRITERIA:
-          // 1. Camera covered / Pitch black: avgLuminance < 12
-          const isCameraCovered = avgLuminance < 12 || avgEdgeGradient < 2.0;
-          
-          // 2. Head absent / No face
-          const isFaceMissing = totalSkin < 100 || (centerSkin + middleSkin) < 50;
-
-          // 3. Half Face / Partial Face / Skewed Position (Forehead only, chin only, or cut off on sides)
-          const isHalfFaceVertical = (topSkin > 120 && bottomSkin < 20 && middleSkin < 60) || (bottomSkin > 120 && topSkin < 20 && middleSkin < 60);
-          const isHalfFaceHorizontal = (leftSkin > 140 && rightSkin < 15 && centerSkin < 50) || (rightSkin > 140 && leftSkin < 15 && centerSkin < 50);
-          const isHalfFace = isHalfFaceVertical || isHalfFaceHorizontal;
-
-          if (isCameraCovered || isFaceMissing || isHalfFace) {
-            missingFaceTicks++;
-            if (missingFaceTicks >= 1) {
-              const snap = captureSnapshot();
-              const reasonMsg = isCameraCovered
-                ? 'Kamera ob\'ektivi qo\'l yoki boshqa narsa bilan to\'sib qo\'yildi! Kamerani yopmang.'
-                : isHalfFace
-                ? 'Yuzingiz to\'liq ko\'rinmayapti (faqat yarmi ko\'rinmoqda)! Iltimos, butun yuzingizni kameraning o\'rtasida to\'liq ko\'rsating.'
-                : 'Kadrda yuz aniqlanmadi yoki bosh kadrni tark etdi! Kamera to\'g\'risida to\'g\'ri o\'tiring.';
-              
-              useContestStore.getState().recordGuardViolation(
-                isHalfFace ? 'HALF_FACE_DETECTED' : 'NO_FACE_DETECTED',
-                reasonMsg,
-                3,
-                snap
-              );
-              missingFaceTicks = 0;
+            } else {
+              missingFaceConsecutive = 0;
+              multipleFaceConsecutive = 0;
+              lookingAwayConsecutive = 0;
             }
           } else {
-            missingFaceTicks = 0;
-            multipleFaceTicks = 0;
+            // Fast fallback while MediaPipe is warming up
+            const canvas = document.createElement('canvas');
+            canvas.width = 160;
+            canvas.height = 120;
+            const ctx = canvas.getContext('2d');
+            if (ctx) {
+              ctx.drawImage(videoRef.current, 0, 0, 160, 120);
+              const frameData = ctx.getImageData(0, 0, 160, 120).data;
+              let totalLuminance = 0;
+              let totalEdgeGradient = 0;
+
+              for (let y = 0; y < 120; y++) {
+                for (let x = 0; x < 160; x++) {
+                  const i = (y * 160 + x) * 4;
+                  const r = frameData[i];
+                  const g = frameData[i + 1];
+                  const b = frameData[i + 2];
+                  const lum = (r + g + b) / 3;
+                  totalLuminance += lum;
+
+                  if (x < 159) {
+                    const rNext = frameData[i + 4];
+                    const gNext = frameData[i + 5];
+                    const bNext = frameData[i + 6];
+                    const lumNext = (rNext + gNext + bNext) / 3;
+                    totalEdgeGradient += Math.abs(lum - lumNext);
+                  }
+                }
+              }
+
+              const avgLuminance = totalLuminance / (160 * 120);
+              const avgEdgeGradient = totalEdgeGradient / (160 * 120);
+
+              // If camera lens is completely covered (black screen or flat blurred image)
+              if (avgLuminance < 14 || avgEdgeGradient < 2.2) {
+                missingFaceConsecutive++;
+                if (missingFaceConsecutive >= graceTicks) {
+                  const snap = captureSnapshot();
+                  useContestStore.getState().recordGuardViolation(
+                    'NO_FACE_DETECTED',
+                    'Kamera ob\'ektivi qo\'l yoki boshqa narsa bilan to\'sib qo\'yildi! Kamerani yopmang.',
+                    maxViolations,
+                    snap
+                  );
+                  missingFaceConsecutive = 0;
+                }
+              } else {
+                missingFaceConsecutive = 0;
+              }
+            }
           }
-        } catch {}
-      }, Math.max(100, Math.round(((olympiad?.antiCheatConfig?.heartbeatIntervalSec || 0.5) * 1000))));
+        } catch (err) {
+          console.warn('Face detection loop error:', err);
+        } finally {
+          isDetecting = false;
+        }
+      }, 500);
     }
 
     return () => {
@@ -514,7 +478,7 @@ export const ContestParticipatePage: React.FC = () => {
         streamRef.current.getTracks().forEach((t) => t.stop());
       }
     };
-  }, [hasStarted, isSubmitted, olympiad?.antiCheatConfig?.heartbeatIntervalSec]);
+  }, [hasStarted, isSubmitted]);
 
   // Ensure video element rebinds if re-rendered
   useEffect(() => {
@@ -551,6 +515,42 @@ export const ContestParticipatePage: React.FC = () => {
     requireFullscreen: true,
     onCaptureSnapshot: captureSnapshot,
   });
+
+  // Real-time Voice & Audio AI Proctoring during the exam
+  const audioConfig = olympiad?.antiCheatConfig;
+  const audioProctoringEnabled = hasStarted && !isSubmitted && audioConfig?.proctoringMode !== 'DISABLED' && audioConfig?.requireVoiceBiometrics !== false;
+
+  const handleAudioViolation = useCallback((v: { type: string; detail: string; confidence: number }) => {
+    const snap = captureSnapshot();
+    const maxViolations = audioConfig?.maxViolationsAllowed || 3;
+    useContestStore.getState().recordGuardViolation(
+      v.type,
+      v.detail,
+      maxViolations,
+      snap
+    );
+  }, [audioConfig, captureSnapshot]);
+
+  const { startMonitoring: startAudioMonitoring, stopMonitoring: stopAudioMonitoring } = useAudioProctoring({
+    enabled: audioProctoringEnabled,
+    contestId: id || olympiad?.id,
+    olympiadId: id || olympiad?.id,
+    similarityThreshold: audioConfig?.voiceSimilarityThreshold || 0.70,
+    detectUnknownSpeakers: audioConfig?.detectUnknownSpeakers !== false,
+    detectMultipleSpeakers: audioConfig?.detectMultipleSpeakers !== false,
+    onViolation: handleAudioViolation
+  });
+
+  useEffect(() => {
+    if (audioProctoringEnabled) {
+      startAudioMonitoring();
+    } else {
+      stopAudioMonitoring();
+    }
+    return () => {
+      stopAudioMonitoring();
+    };
+  }, [audioProctoringEnabled, startAudioMonitoring, stopAudioMonitoring]);
 
   if (!olympiad || !questions || questions.length === 0) {
     return (
@@ -591,8 +591,8 @@ export const ContestParticipatePage: React.FC = () => {
               <span>Olimpiadalar ro'yxatiga qaytish</span>
             </Link>
             <div className="flex items-center gap-2 px-3 py-1 rounded-full bg-blue-500/10 border border-blue-500/30 text-blue-400 text-xs font-bold">
-              <ShieldCheck className="w-3.5 h-3.5" />
-              <span>ExamGuard Himoyasi (0.5s Realtime AI)</span>
+              <ShieldCheck className="w-3.5 h-3.5 text-blue-400" />
+              <span>ExamGuard Anti-Cheat Himoyasi</span>
             </div>
           </div>
 
@@ -658,7 +658,22 @@ export const ContestParticipatePage: React.FC = () => {
                 </p>
 
                 {/* Date / Status Banners */}
-                {isDateFinished ? (
+                {isAlwaysOpen ? (
+                  <div className="p-3.5 rounded-xl bg-gradient-to-r from-emerald-950/40 via-teal-950/30 to-emerald-900/20 border border-emerald-500/50 text-emerald-200 flex items-start gap-3 mt-3">
+                    <Sparkles className="w-5 h-5 text-emerald-400 shrink-0 mt-0.5" />
+                    <div className="text-xs space-y-1">
+                      <div className="font-bold text-white text-sm flex items-center gap-2">
+                        <span>🟢 24/7 Doimiy Ochiq Test</span>
+                        <span className="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 text-[10px]">
+                          Cheklovsiz kirish
+                        </span>
+                      </div>
+                      <p className="text-emerald-300/80">
+                        Ushbu musobaqa 24/7 doimiy ochiq. Siz istalgan vaqtda kirib, tayyorgarlik ko'rib test topshirishingiz mumkin.
+                      </p>
+                    </div>
+                  </div>
+                ) : isDateFinished ? (
                   <div className="p-3.5 rounded-xl bg-rose-500/20 border border-rose-500/50 text-rose-200 flex items-start gap-3 mt-3">
                     <AlertTriangle className="w-5 h-5 text-rose-400 shrink-0 mt-0.5" />
                     <div className="text-xs space-y-1">
@@ -700,8 +715,8 @@ export const ContestParticipatePage: React.FC = () => {
                 )}
               </div>
 
-              {/* 5 Metric Cards */}
-              <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
+              {/* 4 Clean Metric Cards */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                 <div className="p-3.5 rounded-xl bg-[#0B1120] border border-[#1E293B] space-y-1">
                   <div className="flex items-center gap-1.5 text-slate-400 text-xs font-medium">
                     <Clock className="w-4 h-4 text-blue-400" />
@@ -724,14 +739,6 @@ export const ContestParticipatePage: React.FC = () => {
                     <span>Maksimal ball</span>
                   </div>
                   <div className="text-lg font-black text-white">{olympiad.maxScore || 100} ball</div>
-                </div>
-
-                <div className="p-3.5 rounded-xl bg-[#0B1120] border border-[#1E293B] space-y-1">
-                  <div className="flex items-center gap-1.5 text-slate-400 text-xs font-medium">
-                    <ShieldCheck className="w-4 h-4 text-purple-400" />
-                    <span>Anti-Cheat AI</span>
-                  </div>
-                  <div className="text-lg font-black text-white">0.5s Realtime</div>
                 </div>
 
                 <div className="p-3.5 rounded-xl bg-[#0B1120] border border-[#1E293B] space-y-1">
@@ -891,122 +898,102 @@ export const ContestParticipatePage: React.FC = () => {
           {/* ═══════════════════════════════════════════════════════════════════ */}
           {currentStep === 'exam_briefing' && (
             <div className="bg-[#111827] border border-[#1E293B] rounded-2xl p-6 sm:p-8 shadow-2xl space-y-6">
-              {/* Step 2 Title */}
-              <div className="border-b border-[#1E293B] pb-6 space-y-2">
-                <div className="inline-flex items-center gap-2 px-3 py-1 rounded-lg bg-amber-500/10 border border-amber-500/30 text-amber-400 text-xs font-bold uppercase tracking-wider">
-                  <Shield className="w-3.5 h-3.5 text-amber-400" />
-                  <span>2-Bosqich: Imtihon Qoidalari, Anti-Cheat va Boshlash</span>
+              {/* Step 2 Header & Compact Language Switcher */}
+              <div className="border-b border-[#1E293B] pb-6 space-y-3">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                  <div className="inline-flex items-center gap-2 px-3 py-1 rounded-lg bg-amber-500/10 border border-amber-500/30 text-amber-400 text-xs font-bold uppercase tracking-wider">
+                    <Shield className="w-3.5 h-3.5 text-amber-400" />
+                    <span>2-Bosqich: Imtihon Xonasi & Tayyorgarlik</span>
+                  </div>
+
+                  {/* Compact Language Selection Pills */}
+                  <div className="flex items-center gap-1.5 bg-[#0B1120] p-1 rounded-xl border border-[#1E293B]">
+                    <span className="text-[10px] font-bold text-slate-400 px-2 uppercase">Til:</span>
+                    {allowedLangs.map((lang: string) => {
+                      const code = lang.includes("O'zbek") ? "UZ" : lang.includes("Rus") ? "RU" : lang.includes("Ingliz") ? "EN" : "UZ";
+                      const flag = code === "UZ" ? "🇺🇿" : code === "RU" ? "🇷🇺" : "🇬🇧";
+                      const isSelected = selectedExamLang === lang;
+
+                      return (
+                        <button
+                          key={lang}
+                          type="button"
+                          onClick={() => handleLanguageChange(lang)}
+                          className={clsx(
+                            "px-2.5 py-1 rounded-lg text-xs font-black transition-all flex items-center gap-1 cursor-pointer",
+                            isSelected
+                              ? "bg-[#3B82F6] text-white shadow-xs"
+                              : "text-slate-400 hover:text-white hover:bg-[#111827]"
+                          )}
+                        >
+                          <span>{flag}</span>
+                          <span>{code}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
                 </div>
+
                 <h2 className="text-2xl sm:text-3xl font-black text-white tracking-tight">
                   {olympiad.title} — Imtihon Xonasi
                 </h2>
                 <p className="text-xs sm:text-sm text-slate-400">
-                  Imtihonni boshlashdan oldin tilni tanlang, texnik tayyorgarlikni tekshiring va halollik kodeksini tasdiqlang.
+                  Imtihonni boshlashdan oldin texnik tayyorgarlikni tekshiring hamda xavfsizlik qoidalariga rozilik berib testni boshlang.
                 </p>
               </div>
 
-              {/* Allowed Languages Selector */}
-              <div className="p-4 rounded-xl bg-[#0B1120] border border-[#1E293B] space-y-2">
-                <div className="text-xs font-bold text-slate-300 flex items-center justify-between">
-                  <span className="flex items-center gap-2">
-                    <Sparkles className="w-4 h-4 text-cyan-400" />
-                    <span>Topshirish Tili (Olimpiada savollari va interfeys):</span>
-                  </span>
-                  <span className="text-[11px] text-cyan-400 font-mono font-bold">{selectedExamLang}</span>
-                </div>
-                <div className="flex flex-wrap gap-2 pt-1">
-                  {allowedLangs.map((lang: string) => {
-                    const isSelected = selectedExamLang === lang;
-                    return (
-                      <button
-                        key={lang}
-                        type="button"
-                        onClick={() => handleLanguageChange(lang)}
-                        className={clsx(
-                          "px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer",
-                          isSelected
-                            ? "bg-cyan-500 text-slate-950 shadow-md shadow-cyan-500/30 scale-105 font-black"
-                            : "bg-[#111827] text-slate-300 border border-[#1E293B] hover:border-cyan-500/50"
-                        )}
-                      >
-                        <span>{lang.includes("O'zbek") ? "🇺🇿" : lang.includes("Rus") ? "🇷🇺" : lang.includes("Ingliz") ? "🇬🇧" : "🌐"}</span>
-                        <span>{lang}</span>
-                        {isSelected && <CheckCircle2 className="w-3.5 h-3.5 ml-1" />}
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-
-              {/* Rules and Guidelines Section */}
-              <div className="space-y-3.5 pt-1">
-                <h3 className="text-sm font-bold text-white flex items-center gap-2">
+              {/* Concise Security Rules Checklist */}
+              <div className="p-4 rounded-xl bg-[#0B1120] border border-[#1E293B] space-y-3">
+                <div className="text-xs font-bold text-slate-300 flex items-center gap-2">
                   <Shield className="w-4 h-4 text-amber-400" />
-                  <span>Imtihonda Qatnashishning Qat'iy Xavfsizlik Qoidalari:</span>
-                </h3>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
-                  <div className="p-3.5 rounded-xl bg-[#0B1120] border border-[#1E293B] space-y-1.5">
-                    <div className="font-bold text-rose-400 flex items-center gap-2">
-                      <AlertTriangle className="w-4 h-4 shrink-0" />
-                      <span>1. G'irromlik va nohalol harakatlar taqiqlanadi</span>
-                    </div>
-                    <p className="text-slate-400 leading-relaxed">
-                      Boshqa brauzer oynasiga o'tish (Tab Switch), sahifani yangilash yoki tashqi yordam vositalaridan foydalanish taqiqlangan. 3 martadan ko'p qoidabuzarlikda natija bekor qilinadi.
-                    </p>
-                  </div>
-
-                  <div className="p-3.5 rounded-xl bg-[#0B1120] border border-[#1E293B] space-y-1.5">
-                    <div className="font-bold text-blue-400 flex items-center gap-2">
-                      <Wifi className="w-4 h-4 shrink-0" />
-                      <span>2. Barqaror va uzluksiz internet</span>
-                    </div>
-                    <p className="text-slate-400 leading-relaxed">
-                      Imtihon davomida har 5-10 soniyada server bilan faollik pingi almashinadi. Javoblaringiz har bir belgilangan zahoti avtomatik saqlanib boriladi.
-                    </p>
-                  </div>
-
-                  <div className="p-3.5 rounded-xl bg-[#0B1120] border border-[#1E293B] space-y-1.5">
-                    <div className="font-bold text-purple-400 flex items-center gap-2">
-                      <Camera className="w-4 h-4 shrink-0" />
-                      <span>3. Veb-kamera va 0.5s Realtime Yuz Nazorati</span>
-                    </div>
-                    <p className="text-slate-400 leading-relaxed">
-                      Kamera har 0.5 soniyada yuz va bosh holatini tekshiradi. Kadrni tark etish, boshni chetga burish yoki begona shaxslar aniqlanganda darhol ogohlantirish beriladi.
-                    </p>
-                  </div>
-
-                  <div className="p-3.5 rounded-xl bg-[#0B1120] border border-[#1E293B] space-y-1.5">
-                    <div className="font-bold text-emerald-400 flex items-center gap-2">
-                      <Lock className="w-4 h-4 shrink-0" />
-                      <span>4. Inson Omili & Tezlik Nazorati</span>
-                    </div>
-                    <p className="text-slate-400 leading-relaxed">
-                      Har bir savolni o'qish va mantiqiy ishlash uchun inson omili vaqti o'lchanadi. Savollarga o'ta tez (inson o'qish vaqtidan kam) javob belgilash shubhali faollik deb qayd etiladi.
-                    </p>
-                  </div>
+                  <span>Imtihon qoidalari va eslatmalar:</span>
                 </div>
+
+                <ul className="space-y-2 text-xs text-slate-300">
+                  <li className="flex items-start gap-2.5">
+                    <span className="w-5 h-5 rounded-full bg-rose-500/20 text-rose-400 border border-rose-500/30 flex items-center justify-center font-bold shrink-0 text-[11px]">1</span>
+                    <span><strong>Sahifadan chiqish taqiqlanadi:</strong> Tab almashish yoki boshqa ilovani ochish anti-cheat tomonidan qayd etiladi.</span>
+                  </li>
+                  <li className="flex items-start gap-2.5">
+                    <span className="w-5 h-5 rounded-full bg-blue-500/20 text-blue-400 border border-blue-500/30 flex items-center justify-center font-bold shrink-0 text-[11px]">2</span>
+                    <span><strong>Avtomatik saqlanish:</strong> Javoblaringiz har bir belgilanganda darhol serverga saqlanadi.</span>
+                  </li>
+                  <li className="flex items-start gap-2.5">
+                    <span className="w-5 h-5 rounded-full bg-purple-500/20 text-purple-400 border border-purple-500/30 flex items-center justify-center font-bold shrink-0 text-[11px]">3</span>
+                    <span><strong>Veb-kamera nazorati:</strong> Kadrni tark etish yoki begona shaxslar paydo bo'lishi taqiqlanadi.</span>
+                  </li>
+                  <li className="flex items-start gap-2.5">
+                    <span className="w-5 h-5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 flex items-center justify-center font-bold shrink-0 text-[11px]">4</span>
+                    <span><strong>To'liq ekran rejimi:</strong> Test faqat to'liq ekranda ishlaydi.</span>
+                  </li>
+                </ul>
               </div>
 
-              {/* Live System Diagnostics / Readiness Check */}
+              {/* Real Hardware & Device Verification Status */}
               <div className="p-4 rounded-xl bg-[#0B1120] border border-[#1E293B] space-y-3">
                 <div className="text-xs font-bold text-slate-300 flex items-center justify-between">
                   <span className="flex items-center gap-2">
                     <Radio className="w-4 h-4 text-emerald-400 animate-pulse" />
-                    Tizim va Uskunalar Tayyorgarligi Holati:
+                    Tizim va Qurilmalar Tayyorgarligi Tekshiruvi:
                   </span>
-                  <span className="text-[11px] text-slate-500 font-normal">Avtomatik tekshiruv</span>
+                  <button
+                    onClick={handleTestCamera}
+                    className="text-[11px] font-bold text-[#3B82F6] hover:underline cursor-pointer flex items-center gap-1"
+                  >
+                    <RefreshCw className="w-3 h-3" />
+                    <span>Qayta tekshirish</span>
+                  </button>
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 text-xs">
                   <div className="p-2.5 rounded-lg bg-[#111827] border border-[#1E293B] flex items-center justify-between">
                     <span className="text-slate-400 flex items-center gap-2">
                       <Wifi className="w-3.5 h-3.5 text-blue-400" />
-                      Internet:
+                      Internet Aloqasi:
                     </span>
                     <span className="font-bold text-emerald-400 flex items-center gap-1">
                       <CheckCircle2 className="w-3.5 h-3.5" />
-                      {isOnline ? 'Barqaror (Online)' : 'Oflayn'}
+                      {isOnline ? 'Barqaror ✓' : 'Oflayn'}
                     </span>
                   </div>
 
@@ -1017,14 +1004,14 @@ export const ContestParticipatePage: React.FC = () => {
                     </span>
                     {cameraChecked === 'ready' ? (
                       <span className="font-bold text-emerald-400 flex items-center gap-1">
-                        <CheckCircle2 className="w-3.5 h-3.5" /> Tayyor (0.5s)
+                        <CheckCircle2 className="w-3.5 h-3.5" /> Faol va Ulandi ✓
                       </span>
                     ) : (
                       <button
                         onClick={handleTestCamera}
-                        className="text-[10px] font-bold text-blue-400 hover:text-blue-300 underline cursor-pointer"
+                        className="text-[11px] font-bold text-blue-400 hover:text-blue-300 underline cursor-pointer"
                       >
-                        {cameraChecked === 'checking' ? 'Tekshirilmoqda...' : 'Tekshirish'}
+                        {cameraChecked === 'checking' ? 'Tekshirilmoqda...' : 'Kamerani yoqish'}
                       </button>
                     )}
                   </div>
@@ -1035,7 +1022,7 @@ export const ContestParticipatePage: React.FC = () => {
                       To'liq Ekran:
                     </span>
                     <span className="font-bold text-emerald-400 flex items-center gap-1">
-                      <CheckCircle2 className="w-3.5 h-3.5" /> Qo'llab-quvvatlanadi
+                      <CheckCircle2 className="w-3.5 h-3.5" /> Tayyor ✓
                     </span>
                   </div>
                 </div>

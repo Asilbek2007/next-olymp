@@ -1,6 +1,31 @@
 import { create } from 'zustand';
 import { NotificationLog, INITIAL_NOTIFICATIONS } from '../data/initialNotifications';
 
+const STORAGE_KEY = 'next_olymp_notifications';
+
+const getStoredNotifications = (): NotificationLog[] => {
+  if (typeof window === 'undefined') return INITIAL_NOTIFICATIONS;
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+    }
+  } catch (e) {
+    console.warn('LocalStorage load error for notifications:', e);
+  }
+  return INITIAL_NOTIFICATIONS;
+};
+
+const persistNotifications = (items: NotificationLog[]) => {
+  if (typeof window === 'undefined') return;
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(items));
+  } catch (e) {
+    console.warn('LocalStorage save error for notifications:', e);
+  }
+};
+
 interface NotificationStore {
   notifications: NotificationLog[];
   sendNotification: (
@@ -15,7 +40,7 @@ interface NotificationStore {
 }
 
 export const useNotificationStore = create<NotificationStore>((set, get) => ({
-  notifications: INITIAL_NOTIFICATIONS,
+  notifications: getStoredNotifications(),
 
   sendNotification: (message, type, regionFilter, userAudience) => {
     const current = get().notifications;
@@ -42,6 +67,7 @@ export const useNotificationStore = create<NotificationStore>((set, get) => ({
     };
 
     const updated = [newLog, ...current];
+    persistNotifications(updated);
     set({ notifications: updated });
   },
 
@@ -53,10 +79,12 @@ export const useNotificationStore = create<NotificationStore>((set, get) => ({
 
   deleteNotification: (id) => {
     const updated = get().notifications.filter((n) => n.id !== id);
+    persistNotifications(updated);
     set({ notifications: updated });
   },
 
   resetNotifications: () => {
+    persistNotifications(INITIAL_NOTIFICATIONS);
     set({ notifications: INITIAL_NOTIFICATIONS });
   },
 }));

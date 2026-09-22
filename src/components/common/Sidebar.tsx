@@ -11,6 +11,8 @@ import {
   LogOut,
   ChevronLeft,
   ChevronRight,
+  Brain,
+  HelpCircle,
 } from 'lucide-react';
 import { useAuth } from '../../hooks/useAuth';
 import { Logo } from './Logo';
@@ -35,10 +37,12 @@ export const Sidebar: React.FC<SidebarProps> = ({ onCloseMobile }) => {
   const studentLinks = [
     { label: 'Boshqaruv', path: '/dashboard', icon: LayoutDashboard },
     { label: 'Olimpiadalar', path: '/student/olympiads', icon: Trophy },
+    { label: 'Darajani Sinash', path: '/student/level-test', icon: Brain },
     { label: 'Milliy Sertifikat', path: '/dashboard/milliy-sertifikat', icon: Award },
     { label: 'Reyting', path: '/student/leaderboard', icon: BarChart3 },
     { label: 'Natijalar tarixi', path: '/results', icon: History },
     { label: 'Sertifikatlar', path: '/certificates', icon: Award },
+    { label: 'Murojaat & Yordam', path: '/student/support', icon: HelpCircle },
   ];
 
   // Teacher Links: Teacher cabinet

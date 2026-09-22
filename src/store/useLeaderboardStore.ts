@@ -1,6 +1,42 @@
 import { create } from 'zustand';
 import { LeaderboardUserEntry, INITIAL_LEADERBOARD_ENTRIES } from '../data/initialLeaderboard';
 
+const STORAGE_KEY = 'next_olymp_leaderboard';
+
+const calculateRanks = (list: LeaderboardUserEntry[]): LeaderboardUserEntry[] => {
+  // Sort descending by totalXP
+  const sorted = [...list].sort((a, b) => b.totalXP - a.totalXP);
+  return sorted.map((item, index) => ({
+    ...item,
+    nationalRank: index + 1,
+    regionRank: index + 1,
+    districtRank: index + 1,
+  }));
+};
+
+const getStoredLeaderboard = (): LeaderboardUserEntry[] => {
+  if (typeof window === 'undefined') return calculateRanks(INITIAL_LEADERBOARD_ENTRIES);
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed) && parsed.length > 0) return calculateRanks(parsed);
+    }
+  } catch (e) {
+    console.warn('LocalStorage load error for leaderboard:', e);
+  }
+  return calculateRanks(INITIAL_LEADERBOARD_ENTRIES);
+};
+
+const persistLeaderboard = (items: LeaderboardUserEntry[]) => {
+  if (typeof window === 'undefined') return;
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(items));
+  } catch (e) {
+    console.warn('LocalStorage save error for leaderboard:', e);
+  }
+};
+
 interface LeaderboardStore {
   entries: LeaderboardUserEntry[];
   fetchFromApi: () => Promise<void>;
@@ -20,19 +56,8 @@ interface LeaderboardStore {
   resetLeaderboard: () => void;
 }
 
-const calculateRanks = (list: LeaderboardUserEntry[]): LeaderboardUserEntry[] => {
-  // Sort descending by totalXP
-  const sorted = [...list].sort((a, b) => b.totalXP - a.totalXP);
-  return sorted.map((item, index) => ({
-    ...item,
-    nationalRank: index + 1,
-    regionRank: index + 1,
-    districtRank: index + 1,
-  }));
-};
-
 export const useLeaderboardStore = create<LeaderboardStore>((set, get) => ({
-  entries: calculateRanks(INITIAL_LEADERBOARD_ENTRIES),
+  entries: getStoredLeaderboard(),
 
   fetchFromApi: async () => {
     try {
@@ -76,7 +101,9 @@ export const useLeaderboardStore = create<LeaderboardStore>((set, get) => ({
             });
 
           if (apiEntries.length > 0) {
-            set({ entries: calculateRanks(apiEntries) });
+            const ranked = calculateRanks(apiEntries);
+            persistLeaderboard(ranked);
+            set({ entries: ranked });
           }
         }
       }
@@ -138,7 +165,9 @@ export const useLeaderboardStore = create<LeaderboardStore>((set, get) => ({
       updatedList = [...entries, newEntry];
     }
 
-    set({ entries: calculateRanks(updatedList) });
+    const ranked = calculateRanks(updatedList);
+    persistLeaderboard(ranked);
+    set({ entries: ranked });
   },
 
   applyCheatingPenalty: (userId, penaltyXP) => {
@@ -156,7 +185,9 @@ export const useLeaderboardStore = create<LeaderboardStore>((set, get) => ({
       return e;
     });
 
-    set({ entries: calculateRanks(updated) });
+    const ranked = calculateRanks(updated);
+    persistLeaderboard(ranked);
+    set({ entries: ranked });
   },
 
   awardBonusPoints: (userId, bonusXP) => {
@@ -174,17 +205,23 @@ export const useLeaderboardStore = create<LeaderboardStore>((set, get) => ({
       return e;
     });
 
-    set({ entries: calculateRanks(updated) });
+    const ranked = calculateRanks(updated);
+    persistLeaderboard(ranked);
+    set({ entries: ranked });
   },
 
   removeUser: (userId) => {
     const { entries } = get();
     const filtered = entries.filter((e) => e.userId !== userId && e.id !== userId);
-    set({ entries: calculateRanks(filtered) });
+    const ranked = calculateRanks(filtered);
+    persistLeaderboard(ranked);
+    set({ entries: ranked });
   },
 
   resetLeaderboard: () => {
-    set({ entries: calculateRanks(INITIAL_LEADERBOARD_ENTRIES) });
+    const initial = calculateRanks(INITIAL_LEADERBOARD_ENTRIES);
+    persistLeaderboard(initial);
+    set({ entries: initial });
   },
 }));
 

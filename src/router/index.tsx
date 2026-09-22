@@ -30,6 +30,8 @@ import { StudentResultsPage } from '../pages/student/StudentResultsPage';
 import { StudentCertificatesPage } from '../pages/student/StudentCertificatesPage';
 import { StudentOlympiadsPage } from '../pages/student/StudentOlympiadsPage';
 import { StudentLeaderboardPage } from '../pages/student/StudentLeaderboardPage';
+import { StudentLevelTestPage } from '../pages/student/StudentLevelTestPage';
+import { StudentSupportPage } from '../pages/student/StudentSupportPage';
 import { ContestParticipatePage } from '../pages/student/ContestParticipatePage';
 import { ExamDiagnosticPage } from '../pages/student/ExamDiagnosticPage';
 
@@ -56,6 +58,7 @@ import { EgaSupportPage } from '../pages/ega/EgaSupportPage';
 import { EgaPackagesPage } from '../pages/ega/EgaPackagesPage';
 import { EgaSecurityPage } from '../pages/ega/EgaSecurityPage';
 import { EgaBaholashPage } from '../pages/ega/EgaBaholashPage';
+import { EgaLevelTestsPage } from '../pages/ega/EgaLevelTestsPage';
 
 export const AppRouter: React.FC = () => {
   return (
@@ -104,7 +107,9 @@ export const AppRouter: React.FC = () => {
         <Route path="/results" element={<StudentResultsPage />} />
         <Route path="/certificates" element={<StudentCertificatesPage />} />
         <Route path="/student/olympiads" element={<StudentOlympiadsPage />} />
+        <Route path="/student/level-test" element={<StudentLevelTestPage />} />
         <Route path="/student/leaderboard" element={<StudentLeaderboardPage />} />
+        <Route path="/student/support" element={<StudentSupportPage />} />
         
         {/* User Ichki Milliy Sertifikat Bo'limi */}
         <Route path="/dashboard/milliy-sertifikat" element={<MilliySertifikatDashboardPage />} />
@@ -158,6 +163,7 @@ export const AppRouter: React.FC = () => {
         <Route path="/ega/competitions" element={<EgaCompetitionsPage />} />
         <Route path="/ega/competitions/:id" element={<EgaSingleCompetitionPage />} />
         <Route path="/ega/olympiads" element={<EgaCompetitionsPage />} />
+        <Route path="/ega/level-tests" element={<EgaLevelTestsPage />} />
         <Route path="/ega/users" element={<EgaUsersPage />} />
         <Route path="/ega/proctoring" element={<Navigate to="/ega" replace />} />
         <Route path="/ega/leaderboard" element={<EgaLeaderboardPage />} />

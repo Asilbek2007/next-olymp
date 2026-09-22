@@ -1,6 +1,7 @@
 export interface UserItem {
   id: string;
   fullName: string;
+  email?: string;
   gender: 'male' | 'female';
   phone: string;
   role: 'student' | 'teacher' | 'admin';

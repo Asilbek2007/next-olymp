@@ -48,6 +48,7 @@ export const EgaUsersPage: React.FC = () => {
   const [visibleColumns, setVisibleColumns] = useState({
     id: true,
     fullName: true,
+    email: true,
     gender: true,
     phone: true,
     role: true,
@@ -389,6 +390,7 @@ export const EgaUsersPage: React.FC = () => {
                   {Object.entries({
                     id: t("ID"),
                     fullName: t("F.I.Sh."),
+                    email: t("Email"),
                     gender: t("Jinsi"),
                     phone: t("Telefon"),
                     role: t("Rol"),
@@ -444,6 +446,7 @@ export const EgaUsersPage: React.FC = () => {
                   {visibleColumns.fullName && <th className="py-2.5 px-3">{t("F.I.Sh.")}</th>}
                   {visibleColumns.gender && <th className="py-2.5 px-3">{t("Jinsi")}</th>}
                   {visibleColumns.phone && <th className="py-2.5 px-3">{t("Telefon")}</th>}
+                  {visibleColumns.email && <th className="py-2.5 px-3">{t("Email")}</th>}
                   {visibleColumns.role && <th className="py-2.5 px-3">{t("Rol")}</th>}
                   {visibleColumns.package && <th className="py-2.5 px-3">{t("Paket")}</th>}
                   {visibleColumns.status && <th className="py-2.5 px-3">{t("Holati")}</th>}
@@ -516,6 +519,12 @@ export const EgaUsersPage: React.FC = () => {
                         {visibleColumns.phone && (
                           <td className={clsx("py-2.5 px-3 font-mono text-[11px]", isDark ? "text-slate-300" : "text-slate-700")}>
                             {u.phone}
+                          </td>
+                        )}
+
+                        {visibleColumns.email && (
+                          <td className={clsx("py-2.5 px-3 font-mono text-[11px]", isDark ? "text-cyan-400" : "text-cyan-700")}>
+                            {u.email || (u.phone ? `${u.phone.replace(/\D/g, '')}@nextolymp.uz` : 'user@nextolymp.uz')}
                           </td>
                         )}
 

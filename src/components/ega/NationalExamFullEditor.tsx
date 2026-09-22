@@ -53,12 +53,16 @@ import {
   UserX,
   AlertTriangle,
   QrCode,
+  Lock,
   SlidersHorizontal,
   Printer,
-  RefreshCw
+  RefreshCw,
+  Mic,
+  AudioLines,
+  Volume2
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
-import { Question, QuestionType, CertificateConfig, AntiCheatConfig, Certificate } from '../../types';
+import { Question, QuestionType, CertificateConfig, AntiCheatConfig, Certificate, ProctoringPresetMode } from '../../types';
 import { MOCK_QUESTIONS } from '../../services/mockData';
 import { parseDocxQuestions } from '../../utils/docxParser';
 import { submissionService } from '../../services/submissionService';
@@ -88,6 +92,9 @@ export const NationalExamFullEditor: React.FC<NationalExamFullEditorProps> = ({ 
   const [savedSuccessMsg, setSavedSuccessMsg] = useState(false);
 
   // Certificate Settings State
+  const [certEnabled, setCertEnabled] = useState<boolean>(
+    exam.certificateConfig?.enabled !== false
+  );
   const [certFont, setCertFont] = useState<'serif' | 'sans' | 'cinzel' | 'playfair' | 'montserrat' | 'greatvibes'>('cinzel');
   const [certSubject, setCertSubject] = useState<string>(exam.subject || '');
   const [isMultiRound, setIsMultiRound] = useState<boolean>(false);
@@ -132,24 +139,118 @@ export const NationalExamFullEditor: React.FC<NationalExamFullEditorProps> = ({ 
   const [snapshotOnMultipleFaces, setSnapshotOnMultipleFaces] = useState<boolean>(true);
   const [snapshotOnNoFace, setSnapshotOnNoFace] = useState<boolean>(true);
 
+  // Dynamic AI Proctoring Presets & Granular Parameters
+  const [proctoringMode, setProctoringMode] = useState<ProctoringPresetMode>(
+    exam.antiCheatConfig?.proctoringMode || 'STRICT'
+  );
+  const [requireBothEyesVisible, setRequireBothEyesVisible] = useState<boolean>(
+    exam.antiCheatConfig?.requireBothEyesVisible !== false
+  );
+  const [strictFaceCheck, setStrictFaceCheck] = useState<boolean>(
+    exam.antiCheatConfig?.strictFaceCheck !== false
+  );
+  const [minFaceConfidence, setMinFaceConfidence] = useState<number>(
+    exam.antiCheatConfig?.minFaceConfidence || 0.65
+  );
+  const [maxAbsenceGracePeriod, setMaxAbsenceGracePeriod] = useState<number>(
+    exam.antiCheatConfig?.maxAbsenceGracePeriod || 1.5
+  );
+  const [trackGazeDirection, setTrackGazeDirection] = useState<boolean>(
+    exam.antiCheatConfig?.trackGazeDirection !== false
+  );
+
+  // Audio AI Proctoring States
+  const [requireVoiceBiometrics, setRequireVoiceBiometrics] = useState<boolean>(
+    exam.antiCheatConfig?.requireVoiceBiometrics !== false
+  );
+  const [detectUnknownSpeakers, setDetectUnknownSpeakers] = useState<boolean>(
+    exam.antiCheatConfig?.detectUnknownSpeakers !== false
+  );
+  const [detectMultipleSpeakers, setDetectMultipleSpeakers] = useState<boolean>(
+    exam.antiCheatConfig?.detectMultipleSpeakers !== false
+  );
+  const [voiceSimilarityThreshold, setVoiceSimilarityThreshold] = useState<number>(
+    exam.antiCheatConfig?.voiceSimilarityThreshold || 0.70
+  );
+
+  const handlePresetSelect = (preset: ProctoringPresetMode) => {
+    setProctoringMode(preset);
+    if (preset === 'STRICT') {
+      setStrictFaceCheck(true);
+      setRequireBothEyesVisible(true);
+      setTrackGazeDirection(true);
+      setMaxAbsenceGracePeriod(1.5);
+      setMinFaceConfidence(0.70);
+      setMaxViolations(3);
+      setRequireVoiceBiometrics(true);
+      setDetectUnknownSpeakers(true);
+      setDetectMultipleSpeakers(true);
+      setVoiceSimilarityThreshold(0.75);
+    } else if (preset === 'STANDARD') {
+      setStrictFaceCheck(true);
+      setRequireBothEyesVisible(true);
+      setTrackGazeDirection(false);
+      setMaxAbsenceGracePeriod(3.0);
+      setMinFaceConfidence(0.55);
+      setMaxViolations(4);
+      setRequireVoiceBiometrics(true);
+      setDetectUnknownSpeakers(true);
+      setDetectMultipleSpeakers(false);
+      setVoiceSimilarityThreshold(0.68);
+    } else if (preset === 'RELAXED') {
+      setStrictFaceCheck(false);
+      setRequireBothEyesVisible(false);
+      setTrackGazeDirection(false);
+      setMaxAbsenceGracePeriod(5.0);
+      setMinFaceConfidence(0.45);
+      setMaxViolations(5);
+      setRequireVoiceBiometrics(false);
+      setDetectUnknownSpeakers(false);
+      setDetectMultipleSpeakers(false);
+      setVoiceSimilarityThreshold(0.60);
+    }
+  };
+
   // Real Anti-Cheat Incident Logs for this Exam
   const [cheatLogs, setCheatLogs] = useState<any[]>(() => {
-    const realLogs = submissionService.getOlympiadCheatLogs(exam.id);
-    return realLogs;
+    return submissionService.getOlympiadCheatLogs(exam.id);
   });
   const [cheatFilter, setCheatFilter] = useState<'all' | 'pending' | 'actioned'>('all');
   const [selectedSnapshotLog, setSelectedSnapshotLog] = useState<any | null>(null);
 
-  // Sync cheat logs from storage whenever viewing anticheat tab
+  // Sync cheat logs from storage and live events whenever viewing anticheat tab
   useEffect(() => {
-    if (activeTab === 'anticheat') {
+    const refreshLogs = () => {
       const realLogs = submissionService.getOlympiadCheatLogs(exam.id);
       setCheatLogs(realLogs);
-    }
+    };
+
+    refreshLogs();
+
+    const handleLogUpdate = (e: any) => {
+      if (!e.detail?.olympiadId || e.detail?.olympiadId === exam.id) {
+        refreshLogs();
+      }
+    };
+
+    window.addEventListener('next_olymp_cheat_log_updated', handleLogUpdate);
+    window.addEventListener('storage', refreshLogs);
+
+    return () => {
+      window.removeEventListener('next_olymp_cheat_log_updated', handleLogUpdate);
+      window.removeEventListener('storage', refreshLogs);
+    };
   }, [activeTab, exam.id]);
 
   const handleCheatAction = (logId: string, newStatus: 'warned' | 'penalized' | 'disqualified' | 'dismissed' | 'pending') => {
+    submissionService.updateCheatLogStatus(exam.id, logId, newStatus);
     setCheatLogs(prev => prev.map(item => item.id === logId ? { ...item, status: newStatus } : item));
+    if (newStatus === 'disqualified') {
+      const targetLog = cheatLogs.find(l => l.id === logId);
+      if (targetLog?.studentId) {
+        submissionService.disqualifyParticipant(targetLog.studentId, exam.id, targetLog.type);
+      }
+    }
   };
 
   // Real Dynamic Exam Participants List from Submissions
@@ -234,6 +335,9 @@ export const NationalExamFullEditor: React.FC<NationalExamFullEditorProps> = ({ 
   const [freeForPackageId, setFreeForPackageId] = useState<string>(
     exam.freeForPackageId || 'none'
   );
+
+  // 24/7 Always Open Mode
+  const [isAlwaysOpen, setIsAlwaysOpen] = useState<boolean>(Boolean(exam.isAlwaysOpen));
 
   // Dates
   const [registrationStartDate, setRegistrationStartDate] = useState<string>(
@@ -461,6 +565,7 @@ export const NationalExamFullEditor: React.FC<NationalExamFullEditorProps> = ({ 
 
   // Date Validation Rule
   const dateValidationErrorMsg = useMemo(() => {
+    if (isAlwaysOpen) return null;
     if (!registrationEndDate || !startDate) return null;
     const rStart = registrationStartDate ? new Date(registrationStartDate.replace(' ', 'T')).getTime() : 0;
     const rEnd = new Date(registrationEndDate.replace(' ', 'T')).getTime();
@@ -480,7 +585,7 @@ export const NationalExamFullEditor: React.FC<NationalExamFullEditorProps> = ({ 
       return "Sinovning tugash vaqti boshlanish vaqtidan keyin bo'lishi shart! (Boshlash < Tugash)";
     }
     return null;
-  }, [registrationStartDate, registrationEndDate, startDate, endDate]);
+  }, [isAlwaysOpen, registrationStartDate, registrationEndDate, startDate, endDate]);
 
   // Toggle Language
   const toggleLanguage = (lang: string) => {
@@ -598,6 +703,7 @@ export const NationalExamFullEditor: React.FC<NationalExamFullEditorProps> = ({ 
       discountPercent: isFreeForAll ? 0 : discountPercent,
       discountAmount: isFreeForAll ? 0 : discountAmount,
       freeForPackageId: isFreeForAll ? 'none' : freeForPackageId,
+      isAlwaysOpen,
       registrationStartDate,
       registrationEndDate,
       startDate,
@@ -629,7 +735,17 @@ export const NationalExamFullEditor: React.FC<NationalExamFullEditorProps> = ({ 
         heartbeatIntervalSec,
         cameraFaceSnapshotEnabled,
         snapshotOnMultipleFaces,
-        snapshotOnNoFace
+        snapshotOnNoFace,
+        proctoringMode,
+        requireBothEyesVisible,
+        strictFaceCheck,
+        minFaceConfidence,
+        maxAbsenceGracePeriod,
+        trackGazeDirection,
+        requireVoiceBiometrics,
+        detectUnknownSpeakers,
+        detectMultipleSpeakers,
+        voiceSimilarityThreshold
       }
     });
 
@@ -1622,6 +1738,54 @@ export const NationalExamFullEditor: React.FC<NationalExamFullEditorProps> = ({ 
               <span>{t("Ro'yxatdan o'tish va Sinovni Boshlash/Tugash Vaqtlari")}</span>
             </h2>
 
+            {/* 24/7 DOIMIY OCHIQ REJIM SWITCH */}
+            <div className={clsx(
+              "p-4 rounded-2xl border transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-4",
+              isAlwaysOpen
+                ? "bg-gradient-to-r from-emerald-950/50 via-teal-950/40 to-emerald-900/30 border-emerald-500/60 shadow-lg shadow-emerald-950/30"
+                : isDark ? "bg-[#0B1528] border-[#182A4D]" : "bg-slate-50 border-slate-200"
+            )}>
+              <div className="flex items-start gap-3">
+                <div className={clsx(
+                  "w-10 h-10 rounded-xl flex items-center justify-center shrink-0 mt-0.5",
+                  isAlwaysOpen ? "bg-emerald-500/20 text-emerald-400 border border-emerald-500/40" : "bg-slate-700/30 text-slate-400 border border-slate-700/50"
+                )}>
+                  <Sparkles className="w-5 h-5" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <h3 className={clsx("text-sm font-extrabold", isAlwaysOpen ? "text-emerald-300" : isDark ? "text-white" : "text-slate-900")}>
+                      {t("Doimiy Ochiq Rejim (24/7 Cheklovsiz Sinov)")}
+                    </h3>
+                    <span className={clsx(
+                      "px-2 py-0.5 text-[10px] font-bold rounded-full border",
+                      isAlwaysOpen
+                        ? "bg-emerald-500/20 text-emerald-400 border-emerald-500/40 animate-pulse"
+                        : "bg-slate-500/10 text-slate-400 border-slate-500/20"
+                    )}>
+                      {isAlwaysOpen ? t("Faol (24/7 Ochiq)") : t("O'chirilgan")}
+                    </span>
+                  </div>
+                  <p className="text-xs text-slate-400 mt-1 leading-relaxed">
+                    {isAlwaysOpen
+                      ? t("🟢 Ushbu milliy sertifikat sinovi 24/7 doimiy ochiq: foydalanuvchilar istalgan vaqtda kirib testlarni yechishlari mumkin.")
+                      : t("Yoqilsa, ro'yxatdan o'tish va sinov boshlanish/tugash vaqtlari bo'yicha cheklovlar bekor qilinadi.")}
+                  </p>
+                </div>
+              </div>
+
+              {/* Toggle Switch */}
+              <label className="relative inline-flex items-center cursor-pointer shrink-0 self-end sm:self-center">
+                <input
+                  type="checkbox"
+                  checked={isAlwaysOpen}
+                  onChange={(e) => setIsAlwaysOpen(e.target.checked)}
+                  className="sr-only peer"
+                />
+                <div className="w-14 h-8 bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[4px] after:left-[4px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-6 after:w-6 after:transition-all peer-checked:bg-emerald-500 shadow-inner"></div>
+              </label>
+            </div>
+
             {/* Validation Error Alert Banner */}
             {dateValidationErrorMsg && (
               <div className="p-3.5 rounded-xl bg-rose-500/20 border border-rose-500/50 text-rose-300 text-xs font-bold flex items-center gap-2 animate-bounce">
@@ -1634,53 +1798,69 @@ export const NationalExamFullEditor: React.FC<NationalExamFullEditorProps> = ({ 
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
               <div className="p-3.5 rounded-xl bg-cyan-500/10 border border-cyan-500/30 space-y-1.5">
                 <label className="block text-xs font-extrabold text-cyan-300">
-                  1. {t("Ro'yxatdan O'tish Boshlanishi")} *
+                  1. {t("Ro'yxatdan O'tish Boshlanishi")} {!isAlwaysOpen && '*'}
                 </label>
                 <input
                   type="datetime-local"
-                  required
+                  required={!isAlwaysOpen}
                   value={toDatetimeInput(registrationStartDate)}
                   onChange={(e) => setRegistrationStartDate(fromDatetimeInput(e.target.value))}
-                  className={clsx("w-full rounded-lg px-3 py-2 text-xs font-mono font-bold text-cyan-400 outline-none border", isDark ? "bg-[#091024] border-[#1A2F57]" : "bg-white border-slate-300 text-slate-900")}
+                  className={clsx(
+                    "w-full rounded-lg px-3 py-2 text-xs font-mono font-bold text-cyan-400 outline-none border",
+                    isDark ? "bg-[#091024] border-[#1A2F57]" : "bg-white border-slate-300 text-slate-900",
+                    isAlwaysOpen && "opacity-60"
+                  )}
                 />
               </div>
 
               <div className="p-3.5 rounded-xl bg-amber-500/10 border border-amber-500/30 space-y-1.5">
                 <label className="block text-xs font-extrabold text-amber-300">
-                  2. {t("Ro'yxatdan O'tish Yopilishi")} *
+                  2. {t("Ro'yxatdan O'tish Yopilishi")} {!isAlwaysOpen && '*'}
                 </label>
                 <input
                   type="datetime-local"
-                  required
+                  required={!isAlwaysOpen}
                   value={toDatetimeInput(registrationEndDate)}
                   onChange={(e) => setRegistrationEndDate(fromDatetimeInput(e.target.value))}
-                  className={clsx("w-full rounded-lg px-3 py-2 text-xs font-mono font-bold text-amber-400 outline-none border", isDark ? "bg-[#091024] border-[#1A2F57]" : "bg-white border-slate-300 text-slate-900")}
+                  className={clsx(
+                    "w-full rounded-lg px-3 py-2 text-xs font-mono font-bold text-amber-400 outline-none border",
+                    isDark ? "bg-[#091024] border-[#1A2F57]" : "bg-white border-slate-300 text-slate-900",
+                    isAlwaysOpen && "opacity-60"
+                  )}
                 />
               </div>
 
               <div className="p-3.5 rounded-xl bg-emerald-500/10 border border-emerald-500/30 space-y-1.5">
                 <label className="block text-xs font-extrabold text-emerald-300">
-                  3. {t("Sinovni Boshlash Vaqti")} *
+                  3. {t("Sinovni Boshlash Vaqti")} {!isAlwaysOpen && '*'}
                 </label>
                 <input
                   type="datetime-local"
-                  required
+                  required={!isAlwaysOpen}
                   value={toDatetimeInput(startDate)}
                   onChange={(e) => setStartDate(fromDatetimeInput(e.target.value))}
-                  className={clsx("w-full rounded-lg px-3 py-2 text-xs font-mono font-bold text-emerald-400 outline-none border", isDark ? "bg-[#091024] border-[#1A2F57]" : "bg-white border-slate-300 text-slate-900")}
+                  className={clsx(
+                    "w-full rounded-lg px-3 py-2 text-xs font-mono font-bold text-emerald-400 outline-none border",
+                    isDark ? "bg-[#091024] border-[#1A2F57]" : "bg-white border-slate-300 text-slate-900",
+                    isAlwaysOpen && "opacity-60"
+                  )}
                 />
               </div>
 
               <div className="p-3.5 rounded-xl bg-rose-500/10 border border-rose-500/30 space-y-1.5">
                 <label className="block text-xs font-extrabold text-rose-300">
-                  4. {t("Sinov Tugash Vaqti")} *
+                  4. {t("Sinov Tugash Vaqti")} {!isAlwaysOpen && '*'}
                 </label>
                 <input
                   type="datetime-local"
-                  required
+                  required={!isAlwaysOpen}
                   value={toDatetimeInput(endDate)}
                   onChange={(e) => setEndDate(fromDatetimeInput(e.target.value))}
-                  className={clsx("w-full rounded-lg px-3 py-2 text-xs font-mono font-bold text-rose-400 outline-none border", isDark ? "bg-[#091024] border-[#1A2F57]" : "bg-white border-slate-300 text-slate-900")}
+                  className={clsx(
+                    "w-full rounded-lg px-3 py-2 text-xs font-mono font-bold text-rose-400 outline-none border",
+                    isDark ? "bg-[#091024] border-[#1A2F57]" : "bg-white border-slate-300 text-slate-900",
+                    isAlwaysOpen && "opacity-60"
+                  )}
                 />
               </div>
             </div>
@@ -1725,23 +1905,72 @@ export const NationalExamFullEditor: React.FC<NationalExamFullEditorProps> = ({ 
               </div>
             </div>
 
-            {/* Result Publish Setting */}
-            <div className="p-4 rounded-2xl bg-black/30 border border-white/10 flex items-center justify-between">
-              <div>
-                <div className="text-xs font-bold text-white flex items-center gap-1.5">
-                  {showResultsToStudent ? <Eye className="w-3.5 h-3.5 text-emerald-400" /> : <EyeOff className="w-3.5 h-3.5 text-rose-400" />}
-                  <span>{t("Natijani Darhol Ko'rsatish")}</span>
+            {/* NATIJALARNI E'LON QILISH SOZLAMALARI */}
+            <div className="p-4 rounded-2xl bg-gradient-to-r from-emerald-900/30 to-teal-900/30 border border-emerald-500/40 space-y-4">
+              <h3 className="text-xs font-extrabold text-emerald-300 flex items-center gap-2">
+                <Clock className="w-4 h-4 text-emerald-300" />
+                <span>{t("Test Natijasini E'lon Qilish Sozlamalari")}</span>
+              </h3>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                {/* Setting 1: Show/Hide Test Result */}
+                <div className="p-3 rounded-xl bg-black/30 border border-white/10 flex items-start justify-between gap-3">
+                  <div>
+                    <div className="text-xs font-bold text-white flex items-center gap-1.5">
+                      {showResultsToStudent ? <Eye className="w-3.5 h-3.5 text-emerald-400" /> : <EyeOff className="w-3.5 h-3.5 text-rose-400" />}
+                      <span>{t("Natijani Darhol Ko'rsatish")}</span>
+                    </div>
+                    <p className="text-[10px] text-slate-400 mt-1 leading-relaxed">
+                      {showResultsToStudent
+                        ? t("Sinov tugashi bilan Rasch balli va sertifikat darajasi darhol ko'rsatiladi.")
+                        : t("Natijalar rasmiy e'lon sanasigacha yashiriladi va belgilangan vaqtda e'lon qilinadi.")}
+                    </p>
+                  </div>
+                  <input
+                    type="checkbox"
+                    checked={showResultsToStudent}
+                    onChange={(e) => setShowResultsToStudent(e.target.checked)}
+                    className="w-5 h-5 accent-emerald-500 cursor-pointer shrink-0 mt-0.5"
+                  />
                 </div>
-                <p className="text-[10px] text-slate-400 mt-0.5">
-                  {showResultsToStudent ? "Sinov tugashi bilan Rasch balli va sertifikat darajasi ko'rinadi." : "Natijalar rasmiy e'lon sanasigacha yashiriladi."}
-                </p>
+
+                {/* Setting 2: Result Announcement Date */}
+                <div className={clsx(
+                  "p-3 rounded-xl border space-y-1.5 transition-all",
+                  showResultsToStudent
+                    ? "bg-black/15 border-white/5 opacity-50 cursor-not-allowed"
+                    : "bg-black/30 border-emerald-500/40"
+                )}>
+                  <label className="block text-xs font-bold text-emerald-300 flex items-center justify-between">
+                    <span className="flex items-center gap-1.5">
+                      <Calendar className="w-3.5 h-3.5 text-emerald-400" />
+                      <span>{t("Natijalarni E'lon Qilish Sanasi")}</span>
+                    </span>
+                    {showResultsToStudent && (
+                      <span className="text-[9px] font-mono text-emerald-400 bg-emerald-500/20 px-1.5 py-0.5 rounded">
+                        Darhol ochiq
+                      </span>
+                    )}
+                  </label>
+                  <input
+                    type="datetime-local"
+                    disabled={showResultsToStudent}
+                    value={toDatetimeInput(resultsPublishDate)}
+                    onChange={(e) => setResultsPublishDate(fromDatetimeInput(e.target.value))}
+                    className={clsx(
+                      "w-full rounded-lg px-2.5 py-1.5 text-xs outline-none border font-mono font-bold transition-all",
+                      showResultsToStudent
+                        ? "bg-[#091024]/60 border-[#1A2F57]/50 text-slate-500 cursor-not-allowed"
+                        : "bg-[#091024] border-[#1A2F57] text-emerald-300 cursor-pointer"
+                    )}
+                  />
+                  <p className="text-[10px] text-slate-400">
+                    {showResultsToStudent
+                      ? t("Natijalar darhol ko'rsatiladi, e'lon sanasini belgilash shart emas.")
+                      : t("Ushbu sanada barcha ishtirokchilar reytingi va ballari rasman e'lon qilinadi.")}
+                  </p>
+                </div>
               </div>
-              <input
-                type="checkbox"
-                checked={showResultsToStudent}
-                onChange={(e) => setShowResultsToStudent(e.target.checked)}
-                className="w-5 h-5 accent-emerald-500 cursor-pointer"
-              />
             </div>
 
             {/* QAYTA TOPSHIRISH SOZLAMALARI (RETAKE EXAM POLICY) */}
@@ -2189,7 +2418,7 @@ export const NationalExamFullEditor: React.FC<NationalExamFullEditorProps> = ({ 
                       subject: certSubject || subject,
                       type: certPreviewTab,
                       issuedAt: new Date().toISOString(),
-                      verificationCode: 'NO-2026-NAT-9931',
+                      verificationCode: 'NO-9931',
                       score: certPreviewTab === 'winner' ? 68.4 : 58.2,
                       maxScore: 75,
                       rank: certPreviewTab === 'winner' ? 1 : 0,
@@ -2266,6 +2495,311 @@ export const NationalExamFullEditor: React.FC<NationalExamFullEditorProps> = ({ 
                 >
                   {t("Saqlash")}
                 </button>
+              </div>
+            </div>
+
+            {/* AI Proctoring Presets & Granular Controls Section */}
+            <div className="p-4 rounded-xl bg-gradient-to-r from-indigo-950/60 to-purple-950/60 border border-indigo-500/30 space-y-4">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-indigo-500/20 pb-2.5">
+                <div className="flex items-center gap-2">
+                  <Sparkles className="w-4 h-4 text-amber-400" />
+                  <span className="text-xs font-bold text-white uppercase tracking-wider">
+                    {t("AI Proktoring Qat'iylik Rejimlari (Preset Modes & AI Config)")}
+                  </span>
+                </div>
+                <span className="text-[11px] font-mono text-indigo-300 font-semibold">
+                  Google MediaPipe Face Mesh Engine (478 Landmarks)
+                </span>
+              </div>
+
+              {/* Preset Mode Selector Cards */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5">
+                {/* STRICT MODE */}
+                <button
+                  type="button"
+                  onClick={() => handlePresetSelect('STRICT')}
+                  className={clsx(
+                    "p-3 rounded-xl border text-left transition-all cursor-pointer flex flex-col justify-between gap-2 relative overflow-hidden",
+                    proctoringMode === 'STRICT'
+                      ? "bg-rose-500/20 border-rose-500 text-white shadow-lg ring-1 ring-rose-500"
+                      : "bg-black/30 border-white/10 text-slate-300 hover:border-rose-500/50"
+                  )}
+                >
+                  <div className="flex items-center justify-between w-full">
+                    <span className="text-xs font-black text-rose-400 flex items-center gap-1.5">
+                      <ShieldAlert className="w-3.5 h-3.5" />
+                      QAT'IY (Strict)
+                    </span>
+                    {proctoringMode === 'STRICT' && (
+                      <span className="px-1.5 py-0.5 rounded bg-rose-500 text-[9px] font-black text-white">Faol</span>
+                    )}
+                  </div>
+                  <p className="text-[10px] text-slate-300 leading-tight">
+                    Ikkala ko'z, burun, og'iz to'liq ochiq bo'lishi shart. Grace period <strong>1.5s</strong>. Nigoh va chetga qarash qat'iy nazoratda.
+                  </p>
+                  <div className="text-[9px] font-mono text-rose-300 font-bold mt-1">
+                    Chegara: 3 ta ogohlantirish
+                  </div>
+                </button>
+
+                {/* STANDARD MODE */}
+                <button
+                  type="button"
+                  onClick={() => handlePresetSelect('STANDARD')}
+                  className={clsx(
+                    "p-3 rounded-xl border text-left transition-all cursor-pointer flex flex-col justify-between gap-2 relative overflow-hidden",
+                    proctoringMode === 'STANDARD'
+                      ? "bg-amber-500/20 border-amber-500 text-white shadow-lg ring-1 ring-amber-500"
+                      : "bg-black/30 border-white/10 text-slate-300 hover:border-amber-500/50"
+                  )}
+                >
+                  <div className="flex items-center justify-between w-full">
+                    <span className="text-xs font-black text-amber-400 flex items-center gap-1.5">
+                      <Shield className="w-3.5 h-3.5" />
+                      O'RTACHA (Standard)
+                    </span>
+                    {proctoringMode === 'STANDARD' && (
+                      <span className="px-1.5 py-0.5 rounded bg-amber-500 text-[9px] font-black text-slate-950">Faol</span>
+                    )}
+                  </div>
+                  <p className="text-[10px] text-slate-300 leading-tight">
+                    Yuz va ko'zlar mavjudligi tekshiriladi. Grace period <strong>3.0s</strong>. Muntazam tekshiruv va me'yoriy nazorat.
+                  </p>
+                  <div className="text-[9px] font-mono text-amber-300 font-bold mt-1">
+                    Chegara: 4 ta ogohlantirish
+                  </div>
+                </button>
+
+                {/* RELAXED MODE */}
+                <button
+                  type="button"
+                  onClick={() => handlePresetSelect('RELAXED')}
+                  className={clsx(
+                    "p-3 rounded-xl border text-left transition-all cursor-pointer flex flex-col justify-between gap-2 relative overflow-hidden",
+                    proctoringMode === 'RELAXED'
+                      ? "bg-emerald-500/20 border-emerald-500 text-white shadow-lg ring-1 ring-emerald-500"
+                      : "bg-black/30 border-white/10 text-slate-300 hover:border-emerald-500/50"
+                  )}
+                >
+                  <div className="flex items-center justify-between w-full">
+                    <span className="text-xs font-black text-emerald-400 flex items-center gap-1.5">
+                      <CheckCircle2 className="w-3.5 h-3.5" />
+                      YUMSHOQ (Relaxed)
+                    </span>
+                    {proctoringMode === 'RELAXED' && (
+                      <span className="px-1.5 py-0.5 rounded bg-emerald-500 text-[9px] font-black text-slate-950">Faol</span>
+                    )}
+                  </div>
+                  <p className="text-[10px] text-slate-300 leading-tight">
+                    Faqat umumiy yuz mavjudligi tekshiriladi. Qisqa vaqt yopishga ruxsat. Grace period <strong>5.0s</strong>.
+                  </p>
+                  <div className="text-[9px] font-mono text-emerald-300 font-bold mt-1">
+                    Chegara: 5 ta ogohlantirish
+                  </div>
+                </button>
+
+                {/* DISABLED MODE */}
+                <button
+                  type="button"
+                  onClick={() => setProctoringMode('DISABLED')}
+                  className={clsx(
+                    "p-3 rounded-xl border text-left transition-all cursor-pointer flex flex-col justify-between gap-2 relative overflow-hidden",
+                    proctoringMode === 'DISABLED'
+                      ? "bg-slate-500/20 border-slate-400 text-white shadow-lg ring-1 ring-slate-400"
+                      : "bg-black/30 border-white/10 text-slate-300 hover:border-slate-500/50"
+                  )}
+                >
+                  <div className="flex items-center justify-between w-full">
+                    <span className="text-xs font-black text-slate-400 flex items-center gap-1.5">
+                      <Lock className="w-3.5 h-3.5" />
+                      O'CHIRILGAN (Off)
+                    </span>
+                    {proctoringMode === 'DISABLED' && (
+                      <span className="px-1.5 py-0.5 rounded bg-slate-400 text-[9px] font-black text-slate-950">Faol</span>
+                    )}
+                  </div>
+                  <p className="text-[10px] text-slate-400 leading-tight">
+                    Yuz AI tahlili to'liq o'chiriladi. Faqat brauzer va tab cheklovlari ishlaydi.
+                  </p>
+                  <div className="text-[9px] font-mono text-slate-400 font-bold mt-1">
+                    Yuz tekshiruvi yo'q
+                  </div>
+                </button>
+              </div>
+
+              {/* Granular Settings Grid */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 pt-2 border-t border-indigo-500/20">
+                {/* requireBothEyesVisible */}
+                <div className="p-3 rounded-xl bg-black/40 border border-white/10 flex items-center justify-between gap-3">
+                  <div>
+                    <div className="text-xs font-bold text-white">Ikkala ko'z to'liq ko'rinishi shart (Both Eyes)</div>
+                    <div className="text-[10px] text-slate-400">Ko'z to'silganda darhol jarima berish</div>
+                  </div>
+                  <input
+                    type="checkbox"
+                    checked={requireBothEyesVisible}
+                    onChange={(e) => setRequireBothEyesVisible(e.target.checked)}
+                    className="w-4 h-4 accent-indigo-500 cursor-pointer"
+                  />
+                </div>
+
+                {/* strictFaceCheck */}
+                <div className="p-3 rounded-xl bg-black/40 border border-white/10 flex items-center justify-between gap-3">
+                  <div>
+                    <div className="text-xs font-bold text-white">Yuz nuqtalari to'liqligi (Landmarks Mesh)</div>
+                    <div className="text-[10px] text-slate-400">Burun, iyak, peshona ochiqligini tekshirish</div>
+                  </div>
+                  <input
+                    type="checkbox"
+                    checked={strictFaceCheck}
+                    onChange={(e) => setStrictFaceCheck(e.target.checked)}
+                    className="w-4 h-4 accent-indigo-500 cursor-pointer"
+                  />
+                </div>
+
+                {/* trackGazeDirection */}
+                <div className="p-3 rounded-xl bg-black/40 border border-white/10 flex items-center justify-between gap-3">
+                  <div>
+                    <div className="text-xs font-bold text-white">Nigoh va chetga qarash nazorati (Gaze Track)</div>
+                    <div className="text-[10px] text-slate-400">Monitordan chetga burilishni aniqlash</div>
+                  </div>
+                  <input
+                    type="checkbox"
+                    checked={trackGazeDirection}
+                    onChange={(e) => setTrackGazeDirection(e.target.checked)}
+                    className="w-4 h-4 accent-indigo-500 cursor-pointer"
+                  />
+                </div>
+
+                {/* maxAbsenceGracePeriod */}
+                <div className="p-3 rounded-xl bg-black/40 border border-white/10 flex flex-col justify-between gap-1.5">
+                  <div className="text-xs font-bold text-white">Kutish vaqti (Grace Period):</div>
+                  <select
+                    value={maxAbsenceGracePeriod}
+                    onChange={(e) => setMaxAbsenceGracePeriod(Number(e.target.value))}
+                    className="p-1.5 rounded-lg bg-slate-900 border border-indigo-500/40 text-xs font-mono font-bold text-indigo-300 outline-none cursor-pointer"
+                  >
+                    <option value={1.0}>1.0 soniya (Ultra qat'iy)</option>
+                    <option value={1.5}>1.5 soniya (Standart qat'iy)</option>
+                    <option value={2.0}>2.0 soniya</option>
+                    <option value={3.0}>3.0 soniya (O'rtacha)</option>
+                    <option value={5.0}>5.0 soniya (Yumshoq)</option>
+                  </select>
+                </div>
+
+                {/* minFaceConfidence */}
+                <div className="p-3 rounded-xl bg-black/40 border border-white/10 flex flex-col justify-between gap-1.5">
+                  <div className="text-xs font-bold text-white">Minimal ishonchlilik (Confidence):</div>
+                  <select
+                    value={minFaceConfidence}
+                    onChange={(e) => setMinFaceConfidence(Number(e.target.value))}
+                    className="p-1.5 rounded-lg bg-slate-900 border border-indigo-500/40 text-xs font-mono font-bold text-indigo-300 outline-none cursor-pointer"
+                  >
+                    <option value={0.50}>50% (Past yorug'likda ham sezgir)</option>
+                    <option value={0.65}>65% (Optimal - Tavsiya etiladi)</option>
+                    <option value={0.75}>75% (Yuqori aniqlik)</option>
+                    <option value={0.85}>85% (Maksimal qat'iy)</option>
+                  </select>
+                </div>
+
+                {/* maxViolations */}
+                <div className="p-3 rounded-xl bg-black/40 border border-white/10 flex flex-col justify-between gap-1.5">
+                  <div className="text-xs font-bold text-white">Ruxsat etilgan ogohlantirishlar chegarasi:</div>
+                  <select
+                    value={maxViolations}
+                    onChange={(e) => setMaxViolations(Number(e.target.value))}
+                    className="p-1.5 rounded-lg bg-slate-900 border border-indigo-500/40 text-xs font-mono font-bold text-rose-400 outline-none cursor-pointer"
+                  >
+                    <option value={1}>1 marta (Darhol diskvalifikatsiya)</option>
+                    <option value={2}>2 marta</option>
+                    <option value={3}>3 marta (Standart)</option>
+                    <option value={5}>5 marta (Yumshoq)</option>
+                    <option value={10}>10 marta</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+
+            {/* Audio AI Proctoring & Voice Biometrics Section */}
+            <div className="p-4 rounded-xl bg-gradient-to-r from-cyan-950/60 to-blue-950/60 border border-cyan-500/30 space-y-4">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-cyan-500/20 pb-2.5">
+                <div className="flex items-center gap-2">
+                  <Mic className="w-4 h-4 text-cyan-400" />
+                  <span className="text-xs font-bold text-white uppercase tracking-wider">
+                    {t("Audio AI Proktoring & Ovoz Biometriyasi (Voiceprint & Diarization)")}
+                  </span>
+                </div>
+                <span className="text-[11px] font-mono text-cyan-300 font-semibold">
+                  Acoustic Spectral Embedding (Cosine Similarity & Multi-Speaker Detection)
+                </span>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                {/* requireVoiceBiometrics */}
+                <div className="p-3 rounded-xl bg-black/40 border border-white/10 flex items-start justify-between gap-3">
+                  <div>
+                    <div className="text-xs font-bold text-white flex items-center gap-1.5">
+                      <AudioLines className="w-3.5 h-3.5 text-cyan-400" />
+                      <span>{t("Ovozli Biometriya (Voiceprint)")}</span>
+                    </div>
+                    <p className="text-[10px] text-slate-400 mt-1">Imtihondan oldin 4 soniyalik ovoz namunasi olinadi.</p>
+                  </div>
+                  <input
+                    type="checkbox"
+                    checked={requireVoiceBiometrics}
+                    onChange={(e) => setRequireVoiceBiometrics(e.target.checked)}
+                    className="w-4 h-4 accent-cyan-500 cursor-pointer shrink-0 mt-0.5"
+                  />
+                </div>
+
+                {/* detectUnknownSpeakers */}
+                <div className="p-3 rounded-xl bg-black/40 border border-white/10 flex items-start justify-between gap-3">
+                  <div>
+                    <div className="text-xs font-bold text-white flex items-center gap-1.5">
+                      <Volume2 className="w-3.5 h-3.5 text-blue-400" />
+                      <span>{t("Begona ovoz / Yordamchi nazorati")}</span>
+                    </div>
+                    <p className="text-[10px] text-slate-400 mt-1">Ishtirokchidan boshqa shaxs ovoz bersa ushlanadi.</p>
+                  </div>
+                  <input
+                    type="checkbox"
+                    checked={detectUnknownSpeakers}
+                    onChange={(e) => setDetectUnknownSpeakers(e.target.checked)}
+                    className="w-4 h-4 accent-cyan-500 cursor-pointer shrink-0 mt-0.5"
+                  />
+                </div>
+
+                {/* detectMultipleSpeakers */}
+                <div className="p-3 rounded-xl bg-black/40 border border-white/10 flex items-start justify-between gap-3">
+                  <div>
+                    <div className="text-xs font-bold text-white flex items-center gap-1.5">
+                      <Users className="w-3.5 h-3.5 text-indigo-400" />
+                      <span>{t("Ko'p spikerli fon (Diarization)")}</span>
+                    </div>
+                    <p className="text-[10px] text-slate-400 mt-1">Xonada bir vaqtning o'zida bir nechta ovoz aniqlash.</p>
+                  </div>
+                  <input
+                    type="checkbox"
+                    checked={detectMultipleSpeakers}
+                    onChange={(e) => setDetectMultipleSpeakers(e.target.checked)}
+                    className="w-4 h-4 accent-cyan-500 cursor-pointer shrink-0 mt-0.5"
+                  />
+                </div>
+
+                {/* voiceSimilarityThreshold */}
+                <div className="p-3 rounded-xl bg-black/40 border border-white/10 flex flex-col justify-between gap-1.5">
+                  <div className="text-xs font-bold text-white">Ovoz o'xshashlik chegarasi:</div>
+                  <select
+                    value={voiceSimilarityThreshold}
+                    onChange={(e) => setVoiceSimilarityThreshold(Number(e.target.value))}
+                    className="p-1.5 rounded-lg bg-slate-900 border border-cyan-500/40 text-xs font-mono font-bold text-cyan-300 outline-none cursor-pointer"
+                  >
+                    <option value={0.60}>60% (Yumshoq - Shovqinli muhit)</option>
+                    <option value={0.68}>68% (Standart - Optimal)</option>
+                    <option value={0.75}>75% (Qat'iy - Tavsiya etiladi)</option>
+                    <option value={0.82}>82% (Ultra Qat'iy)</option>
+                  </select>
+                </div>
               </div>
             </div>
 
@@ -2558,21 +3092,14 @@ export const NationalExamFullEditor: React.FC<NationalExamFullEditorProps> = ({ 
                                 <button
                                   type="button"
                                   onClick={() => handleCheatAction(log.id, 'warned')}
-                                  className="px-2 py-1 bg-amber-500/20 hover:bg-amber-500/40 text-amber-300 rounded text-[10px] font-bold transition-all cursor-pointer"
+                                  className="px-2.5 py-1 bg-amber-500/20 hover:bg-amber-500/40 text-amber-300 rounded text-[10px] font-bold transition-all cursor-pointer"
                                 >
                                   Ogohlantirish
                                 </button>
                                 <button
                                   type="button"
-                                  onClick={() => handleCheatAction(log.id, 'penalized')}
-                                  className="px-2 py-1 bg-rose-500/20 hover:bg-rose-500/40 text-rose-300 rounded text-[10px] font-bold transition-all cursor-pointer"
-                                >
-                                  Jarima (-5 ball)
-                                </button>
-                                <button
-                                  type="button"
                                   onClick={() => handleCheatAction(log.id, 'disqualified')}
-                                  className="px-2 py-1 bg-red-600 hover:bg-red-500 text-white rounded text-[10px] font-bold transition-all cursor-pointer flex items-center gap-1"
+                                  className="px-2.5 py-1 bg-red-600 hover:bg-red-500 text-white rounded text-[10px] font-bold transition-all cursor-pointer flex items-center gap-1"
                                 >
                                   <UserX className="w-3 h-3" />
                                   <span>Chetlatish</span>
@@ -2734,14 +3261,13 @@ export const NationalExamFullEditor: React.FC<NationalExamFullEditorProps> = ({ 
                     <th className="py-2.5 px-3">{t("To'g'ri Javoblar")}</th>
                     <th className="py-2.5 px-3">{t("Rasch Balli (75)")}</th>
                     <th className="py-2.5 px-3">{t("Sertifikat Darajasi")}</th>
-                    <th className="py-2.5 px-3">{t("Apellyatsiya")}</th>
-                    <th className="py-2.5 px-3 text-right">{t("Xatolar Tahlili")}</th>
+                    <th className="py-2.5 px-3 text-right">{t("Apellyatsiya")}</th>
                   </tr>
                 </thead>
                 <tbody className={clsx("divide-y", isDark ? "divide-[#152545]" : "divide-slate-200")}>
                   {participantsList.filter((p) => p.name.toLowerCase().includes(participantSearchTerm.toLowerCase())).length === 0 ? (
                     <tr>
-                      <td colSpan={8} className="py-12 text-center text-slate-400">
+                      <td colSpan={7} className="py-12 text-center text-slate-400">
                         <div className="flex flex-col items-center justify-center gap-2">
                           <Users className="w-8 h-8 opacity-40 text-slate-400" />
                           <p className="font-semibold text-xs text-slate-300">{t("Hozircha ishtirokchilar mavjud emas")}</p>
@@ -2772,7 +3298,7 @@ export const NationalExamFullEditor: React.FC<NationalExamFullEditorProps> = ({ 
                             {p.certificateGrade}
                           </span>
                         </td>
-                        <td className="py-3 px-3 whitespace-nowrap">
+                        <td className="py-3 px-3 text-right whitespace-nowrap">
                           {p.appealStatus === 'pending' ? (
                             <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/40">
                               1 ta arizasi kutilmoqda
@@ -2781,76 +3307,11 @@ export const NationalExamFullEditor: React.FC<NationalExamFullEditorProps> = ({ 
                             <span className="text-slate-500 text-[10px]">-</span>
                           )}
                         </td>
-                        <td className="py-3 px-3 text-right whitespace-nowrap">
-                          <button
-                            onClick={() => setSelectedStudentForMistakes(p)}
-                            className="px-3 py-1.5 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-bold rounded-xl text-xs flex items-center gap-1.5 ml-auto cursor-pointer shadow-xs"
-                          >
-                            <HelpCircle className="w-3.5 h-3.5 text-cyan-300" />
-                            <span>{t("Xatolar Tahlili")}</span>
-                          </button>
-                        </td>
                       </tr>
                     ))
                   )}
                 </tbody>
               </table>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* MODAL: MISTAKE ANALYSIS */}
-      {selectedStudentForMistakes && (
-        <div className="fixed inset-0 bg-black/75 backdrop-blur-xs z-50 flex items-center justify-center p-4">
-          <div className={clsx("rounded-2xl max-w-xl w-full p-6 shadow-2xl space-y-4 border transition-colors", isDark ? "bg-[#0D1832] border-[#1E3563]" : "bg-white border-slate-200")}>
-            <div className="flex items-center justify-between border-b pb-3">
-              <div className="flex items-center gap-2">
-                <HelpCircle className="w-5 h-5 text-emerald-400" />
-                <h3 className="text-sm font-extrabold text-white">
-                  {t("Xatolar Tahlili")} — {selectedStudentForMistakes.name}
-                </h3>
-              </div>
-              <button onClick={() => setSelectedStudentForMistakes(null)} className="text-slate-400 hover:text-white cursor-pointer">
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            <div className="grid grid-cols-3 gap-2.5 text-center font-mono">
-              <div className="p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/20">
-                <div className="text-[10px] text-slate-400">To'g'ri javoblar</div>
-                <div className="text-base font-black text-emerald-400 mt-0.5">{selectedStudentForMistakes.correctAnswers} / {selectedStudentForMistakes.totalQuestions}</div>
-              </div>
-              <div className="p-3 rounded-xl bg-cyan-500/10 border border-cyan-500/20">
-                <div className="text-[10px] text-slate-400">Rasch Balli</div>
-                <div className="text-base font-black text-cyan-400 mt-0.5">{selectedStudentForMistakes.raschScore}</div>
-              </div>
-              <div className="p-3 rounded-xl bg-purple-500/10 border border-purple-500/20">
-                <div className="text-[10px] text-slate-400">Sertifikat</div>
-                <div className="text-xs font-black text-purple-300 mt-1">{selectedStudentForMistakes.certificateGrade}</div>
-              </div>
-            </div>
-
-            <div className="p-3.5 rounded-xl bg-rose-500/10 border border-rose-500/30 space-y-2 text-xs">
-              <div className="font-bold text-rose-300 flex items-center gap-1.5">
-                <AlertCircle className="w-4 h-4" />
-                <span>Xato qilingan topshiriq: Savol №27 (Organik Kimyo)</span>
-              </div>
-              <p className="text-slate-300">
-                O'quvchi almashtirish reaksiyasidagi reaktiv konsentratsiyasini hisoblashda formulani noto'g'ri qo'llagan.
-              </p>
-              <div className="p-2.5 rounded-lg bg-black/40 border border-white/10 text-amber-300 text-[11px] font-semibold">
-                To'g'ri Yechim: Reaksiya unumi bo'yicha proporsiya tuzilib, vodorod ajralishi bo'yicha mol miqdori hisoblanishi kerak edi.
-              </div>
-            </div>
-
-            <div className="flex justify-end pt-2">
-              <button
-                onClick={() => setSelectedStudentForMistakes(null)}
-                className="px-5 py-2 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold rounded-xl text-xs shadow-md cursor-pointer"
-              >
-                {t("Yopish")}
-              </button>
             </div>
           </div>
         </div>

@@ -1,3 +1,5 @@
+import { AntiCheatConfig, CertificateConfig } from '../types';
+
 export interface NationalExamItem {
   id: string;
   title: string;
@@ -30,6 +32,7 @@ export interface NationalExamItem {
   discountPercent?: number;
   discountAmount?: number;
   freeForPackageId?: string;
+  isAlwaysOpen?: boolean; // Doimiy ochiq (24/7 cheklovsiz test topshirish)
   registrationStartDate?: string;
   registrationEndDate?: string;
   resultsPublishDate?: string;
@@ -39,37 +42,8 @@ export interface NationalExamItem {
   allowedLanguages?: string[];
   targetGrades?: number[];
   questions?: any[];
-  
-  // Certificate & Anti-Cheat
-  certificateConfig?: {
-    fontFamily: 'serif' | 'sans' | 'cinzel' | 'playfair' | 'montserrat' | 'greatvibes';
-    subjectName?: string;
-    isMultiRound?: boolean;
-    awardCriteria?: 'top_rank' | 'min_score' | 'both';
-    topRankLimit?: number;
-    minScoreLimit?: number;
-    winnerText?: string;
-    participantText?: string;
-    round1PassedText?: string;
-    round1FailedText?: string;
-    signatureName?: string;
-    signatureRole?: string;
-  };
-  antiCheatConfig?: {
-    enabled: boolean;
-    blockTabSwitch: boolean;
-    blockCopyPaste: boolean;
-    requireFullscreen: boolean;
-    requireWebcam: boolean;
-    requireMic: boolean;
-    blockDevTools: boolean;
-    maxViolationsAllowed: number;
-    blockDuplicateIP?: boolean;
-    heartbeatIntervalSec?: number;
-    cameraFaceSnapshotEnabled?: boolean;
-    snapshotOnMultipleFaces?: boolean;
-    snapshotOnNoFace?: boolean;
-  };
+  certificateConfig?: CertificateConfig;
+  antiCheatConfig?: AntiCheatConfig;
 }
 
 export const INITIAL_NATIONAL_EXAMS: NationalExamItem[] = [];

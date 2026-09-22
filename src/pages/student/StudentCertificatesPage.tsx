@@ -40,7 +40,7 @@ export const StudentCertificatesPage: React.FC = () => {
       if (res) {
         setVerifiedCert(res);
       } else {
-        setVerifyError("Bunday ID kodli sertifikat topilmadi. Kodni to'g'ri kiritganingizni tekshiring (masalan: NO-2026-MATH-8921).");
+        setVerifyError("Bunday ID kodli sertifikat topilmadi. Kodni to'g'ri kiritganingizni tekshiring (masalan: NO-8921).");
       }
     } catch {
       setVerifyError("Sertifikatni tekshirishda xatolik yuz berdi.");
@@ -83,7 +83,7 @@ export const StudentCertificatesPage: React.FC = () => {
               <span>Sertifikat Haqiqiyligini Tekshirish (QR & ID Kod)</span>
             </h3>
             <p className="text-xs text-slate-300">
-              Istalgan Next Olymp sertifikati ustidagi unikal kodni kiriting (masalan: <strong>NO-2026-MATH-8921</strong>)
+              Istalgan Next Olymp sertifikati ustidagi unikal kodni kiriting (masalan: <strong>NO-8921</strong>)
             </p>
           </div>
 
@@ -93,7 +93,7 @@ export const StudentCertificatesPage: React.FC = () => {
                 type="text"
                 value={verifyCode}
                 onChange={(e) => setVerifyCode(e.target.value)}
-                placeholder="NO-2026-MATH-8921"
+                placeholder="NO-8921"
                 className="w-full bg-[#070D1A] border border-blue-500/40 rounded-xl px-3.5 py-2 text-xs font-mono font-bold text-amber-300 placeholder-slate-500 uppercase outline-none focus:border-amber-400 transition-all"
               />
             </div>

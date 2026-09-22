@@ -1,6 +1,31 @@
 import { create } from 'zustand';
 import { PaymentTransaction, INITIAL_PAYMENTS } from '../data/initialPayments';
 
+const STORAGE_KEY = 'next_olymp_payments';
+
+const getStoredPayments = (): PaymentTransaction[] => {
+  if (typeof window === 'undefined') return INITIAL_PAYMENTS;
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+    }
+  } catch (e) {
+    console.warn('LocalStorage load error for payments:', e);
+  }
+  return INITIAL_PAYMENTS;
+};
+
+const persistPayments = (items: PaymentTransaction[]) => {
+  if (typeof window === 'undefined') return;
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(items));
+  } catch (e) {
+    console.warn('LocalStorage save error for payments:', e);
+  }
+};
+
 interface PaymentStore {
   payments: PaymentTransaction[];
   addPayment: (payment: Omit<PaymentTransaction, 'id' | 'date'>) => void;
@@ -11,7 +36,7 @@ interface PaymentStore {
 }
 
 export const usePaymentStore = create<PaymentStore>((set, get) => ({
-  payments: INITIAL_PAYMENTS,
+  payments: getStoredPayments(),
 
   addPayment: (newPay) => {
     const current = get().payments;
@@ -30,16 +55,19 @@ export const usePaymentStore = create<PaymentStore>((set, get) => ({
     };
 
     const updated = [paymentItem, ...current];
+    persistPayments(updated);
     set({ payments: updated });
   },
 
   updatePaymentStatus: (id, status) => {
     const updated = get().payments.map((p) => (p.id === id ? { ...p, status } : p));
+    persistPayments(updated);
     set({ payments: updated });
   },
 
   deletePayment: (id) => {
     const updated = get().payments.filter((p) => p.id !== id);
+    persistPayments(updated);
     set({ payments: updated });
   },
 
@@ -72,6 +100,7 @@ export const usePaymentStore = create<PaymentStore>((set, get) => ({
   },
 
   resetPayments: () => {
+    persistPayments([]);
     set({ payments: [] });
   },
 }));

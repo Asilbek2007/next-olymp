@@ -9,6 +9,7 @@ export interface TicketMessage {
 
 export interface SupportTicket {
   id: string;
+  userId?: string;
   userName: string;
   userRole: 'student' | 'teacher' | 'parent';
   userPhone: string;

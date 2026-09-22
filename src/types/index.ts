@@ -39,6 +39,7 @@ export interface Olympiad {
   title: string;
   subject: Subject;
   description: string;
+  isAlwaysOpen?: boolean;
   startDate: string;
   endDate: string;
   registrationStartDate?: string;
@@ -99,6 +100,7 @@ export interface Submission {
 export type CertificateType = 'participation' | 'participant' | 'achievement' | 'winner' | 'round_passed' | 'round_failed';
 
 export interface CertificateConfig {
+  enabled?: boolean; // Sertifikat berish faolmi yoki yo'qmi (Ha / Yo'q)
   fontFamily: 'serif' | 'sans' | 'cinzel' | 'playfair' | 'montserrat' | 'greatvibes';
   subjectName?: string;
   isMultiRound?: boolean;
@@ -112,6 +114,8 @@ export interface CertificateConfig {
   signatureName?: string;
   signatureRole?: string;
 }
+
+export type ProctoringPresetMode = 'STRICT' | 'STANDARD' | 'RELAXED' | 'DISABLED';
 
 export interface AntiCheatConfig {
   enabled: boolean;
@@ -127,6 +131,20 @@ export interface AntiCheatConfig {
   cameraFaceSnapshotEnabled?: boolean; // Kamera orqali nojo'ya harakatda rasmga olib yuborish
   snapshotOnMultipleFaces?: boolean; // 2 ta yuz ko'rinsa rasmga olish
   snapshotOnNoFace?: boolean; // Yuz ko'rinmay qolsa rasmga olish
+
+  // Dynamic AI Proctoring Preset & Granular Rule Controls
+  proctoringMode?: ProctoringPresetMode; // 'STRICT' | 'STANDARD' | 'RELAXED' | 'DISABLED'
+  requireBothEyesVisible?: boolean; // Ikkala ko'z ham to'liq ko'rinib turishi shartligi
+  strictFaceCheck?: boolean; // Yuzning asosiy nuqtalari (ko'z, burun, iyak) to'liq ochiq bo'lishi
+  minFaceConfidence?: number; // Yuzni aniqlashning minimal ishonchlilik foizi (0.5 - 0.85)
+  maxAbsenceGracePeriod?: number; // Yuz to'silganda ogohlantirish chiqquncha ruxsat etilgan vaqt (soniya, masalan 1.5, 3, 5)
+  trackGazeDirection?: boolean; // Ko'z qorachiqlari / nigoh ekrandan chetga qarashini nazorat qilish
+
+  // Audio AI Proctoring & Voice Biometrics Controls
+  requireVoiceBiometrics?: boolean; // Imtihondan oldin ovozni yozib olib Voiceprint kalibrlash
+  detectUnknownSpeakers?: boolean; // Begona shaxslar ovozini / maslahat beruvchilarni aniqlash
+  detectMultipleSpeakers?: boolean; // Bir nechta spiker / fon suhbatlari va pichirlashni ajratish
+  voiceSimilarityThreshold?: number; // Minimal ovoz o'xshashlik foizi (0.65 - 0.85)
 }
 
 export interface Certificate {

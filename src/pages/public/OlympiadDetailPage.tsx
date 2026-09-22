@@ -31,17 +31,23 @@ export const OlympiadDetailPage: React.FC = () => {
 
   const handleStartContest = () => {
     if (!isAuthenticated) {
-      navigate('/auth/login');
+      navigate('/auth/register');
       return;
     }
-    // Open PayX payment modal first if paid or for direct verification
-    setIsPayxModalOpen(true);
+    const price = Number(olympiad.price || 0);
+    if (price > 0) {
+      setIsPayxModalOpen(true);
+    } else {
+      navigate(`/olympiads/${olympiad.id}/participate`);
+    }
   };
 
   const handlePaymentSuccess = () => {
     setIsPayxModalOpen(false);
-    navigate(`/olympiads/${olympiad.id}/diagnostic`);
+    navigate(`/olympiads/${olympiad.id}/participate`);
   };
+
+  const price = Number(olympiad.price || 0);
 
   return (
     <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-10 space-y-10 font-sans">
@@ -65,28 +71,34 @@ export const OlympiadDetailPage: React.FC = () => {
         </p>
 
         <div className="pt-4 border-t border-accent-800 flex flex-wrap gap-6 text-xs sm:text-sm text-accent-300">
-          <div className="flex items-center gap-2">
-            <Clock className="w-5 h-5 text-primary-400" />
-            <span>Davomiyligi: <strong className="text-white">{olympiad.durationMinutes} daqiqa</strong></span>
-          </div>
-          <div className="flex items-center gap-2">
-            <Trophy className="w-5 h-5 text-amber-400" />
-            <span>Maksimal ball: <strong className="text-white">{olympiad.maxScore} ball</strong></span>
-          </div>
+          {olympiad.durationMinutes ? (
+            <div className="flex items-center gap-2">
+              <Clock className="w-5 h-5 text-primary-400" />
+              <span>Davomiyligi: <strong className="text-white">{olympiad.durationMinutes} daqiqa</strong></span>
+            </div>
+          ) : null}
+          {olympiad.maxScore ? (
+            <div className="flex items-center gap-2">
+              <Trophy className="w-5 h-5 text-amber-400" />
+              <span>Maksimal ball: <strong className="text-white">{olympiad.maxScore} ball</strong></span>
+            </div>
+          ) : null}
           <div className="flex items-center gap-2">
             <Users className="w-5 h-5 text-secondary-400" />
-            <span>Ishtirokchilar: <strong className="text-white">{olympiad.participantsCount} ta</strong></span>
+            <span>Ishtirokchilar: <strong className="text-white">{olympiad.participantsCount || 0} ta</strong></span>
           </div>
-          <div className="flex items-center gap-2">
-            <CreditCard className="w-5 h-5 text-emerald-400" />
-            <span>To'lov tizimlari: <strong className="text-emerald-400">PayX (Payme, Click, Uzum, Paynet, Uzcard/Humo)</strong></span>
-          </div>
+          {price > 0 && (
+            <div className="flex items-center gap-2">
+              <CreditCard className="w-5 h-5 text-emerald-400" />
+              <span>To'lov tizimlari: <strong className="text-emerald-400">PayX (Payme, Click, Uzum, Paynet, Uzcard/Humo)</strong></span>
+            </div>
+          )}
         </div>
 
         <div className="pt-2">
           {olympiad.status === 'active' ? (
             <Button size="lg" variant="primary" onClick={handleStartContest} leftIcon={<Play className="w-5 h-5 fill-white" />}>
-              PayX Orqali Qatnashish (35,000 UZS)
+              {price > 0 ? `PayX Orqali Qatnashish (${price.toLocaleString()} UZS)` : "Musobaqaga kirish"}
             </Button>
           ) : (
             <div className="inline-flex items-center gap-2 px-4 py-3 rounded-xl bg-white/10 text-amber-300 text-sm font-semibold border border-white/10">
@@ -106,10 +118,12 @@ export const OlympiadDetailPage: React.FC = () => {
               Musobaqa Shartlari va Bosqichlar
             </h3>
             <ul className="space-y-3 text-sm text-accent-700">
-              <li className="flex items-start gap-3">
-                <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0 mt-0.5" />
-                <span>PayX gateway (payx.uz/docs) orqali Payme, Click, Uzum Pay, Paynet yoki Uzcard/Humo yordamida to'lov qiling.</span>
-              </li>
+              {price > 0 && (
+                <li className="flex items-start gap-3">
+                  <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0 mt-0.5" />
+                  <span>PayX gateway (payx.uz/docs) orqali Payme, Click, Uzum Pay, Paynet yoki Uzcard/Humo yordamida to'lov qiling.</span>
+                </li>
+              )}
               <li className="flex items-start gap-3">
                 <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0 mt-0.5" />
                 <span>Timer server-side sinxronlanadi va berilgan daqiqa tugagach avtomatik submit bo'ladi.</span>
@@ -154,14 +168,16 @@ export const OlympiadDetailPage: React.FC = () => {
       </div>
 
       {/* PayX Payment Modal */}
-      <PayxPaymentModal
-        isOpen={isPayxModalOpen}
-        onClose={() => setIsPayxModalOpen(false)}
-        amount={35000}
-        olympiadTitle={olympiad.title}
-        olympiadId={olympiad.id}
-        onSuccess={handlePaymentSuccess}
-      />
+      {price > 0 && (
+        <PayxPaymentModal
+          isOpen={isPayxModalOpen}
+          onClose={() => setIsPayxModalOpen(false)}
+          amount={price}
+          olympiadTitle={olympiad.title}
+          olympiadId={olympiad.id}
+          onSuccess={handlePaymentSuccess}
+        />
+      )}
     </div>
   );
 };

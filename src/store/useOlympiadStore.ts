@@ -2,6 +2,31 @@ import { create } from 'zustand';
 import { OlympiadItem } from '../data/initialOlympiads';
 import { apiClient } from '../services/api';
 
+const STORAGE_KEY = 'next_olymp_olympiads';
+
+const getStoredOlympiads = (): OlympiadItem[] => {
+  if (typeof window === 'undefined') return [];
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed)) return parsed;
+    }
+  } catch (e) {
+    console.warn('LocalStorage load error for olympiads:', e);
+  }
+  return [];
+};
+
+const persistOlympiads = (items: OlympiadItem[]) => {
+  if (typeof window === 'undefined') return;
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(items));
+  } catch (e) {
+    console.warn('LocalStorage save error for olympiads:', e);
+  }
+};
+
 interface OlympiadStore {
   olympiads: OlympiadItem[];
   loading: boolean;
@@ -17,7 +42,7 @@ interface OlympiadStore {
 }
 
 export const useOlympiadStore = create<OlympiadStore>((set, get) => ({
-  olympiads: [],
+  olympiads: getStoredOlympiads(),
   loading: false,
 
   fetchFromApi: async () => {
@@ -25,9 +50,15 @@ export const useOlympiadStore = create<OlympiadStore>((set, get) => ({
     try {
       const json = await apiClient.get('/olympiads.php');
       const data = Array.isArray(json) ? json : (json?.data || []);
-      set({ olympiads: data, loading: false });
+      if (Array.isArray(data) && data.length > 0) {
+        persistOlympiads(data);
+        set({ olympiads: data, loading: false });
+      } else {
+        // Keep existing localStorage state if API returns empty
+        set({ loading: false });
+      }
     } catch (err) {
-      console.warn('Could not fetch olympiads from MySQL API:', err);
+      // In local development or offline, keep data from localStorage
       set({ loading: false });
     }
   },
@@ -36,16 +67,35 @@ export const useOlympiadStore = create<OlympiadStore>((set, get) => ({
     set({ loading: true });
     try {
       const data = await apiClient.get('/olympiads.php');
-      set({ olympiads: Array.isArray(data) ? data : (data?.data || []), loading: false });
+      const list = Array.isArray(data) ? data : (data?.data || []);
+      if (Array.isArray(list) && list.length > 0) {
+        persistOlympiads(list);
+        set({ olympiads: list, loading: false });
+      } else {
+        set({ loading: false });
+      }
     } catch (e) {
       set({ loading: false });
     }
   },
 
   createOlympiad: async (data: any) => {
-    await apiClient.post('/olympiads.php', data);
-    const updated = await apiClient.get('/olympiads.php');
-    set({ olympiads: Array.isArray(updated) ? updated : (updated?.data || []) });
+    const current = get().olympiads;
+    const updated = [data, ...current.filter((o) => o.id !== data.id)];
+    persistOlympiads(updated);
+    set({ olympiads: updated });
+
+    try {
+      await apiClient.post('/olympiads.php', data);
+      const res = await apiClient.get('/olympiads.php');
+      const list = Array.isArray(res) ? res : (res?.data || []);
+      if (Array.isArray(list) && list.length > 0) {
+        persistOlympiads(list);
+        set({ olympiads: list });
+      }
+    } catch (e) {
+      console.warn('API sync fallback to localStorage:', e);
+    }
   },
 
   addOlympiad: (newItem) => {
@@ -57,16 +107,17 @@ export const useOlympiadStore = create<OlympiadStore>((set, get) => ({
       ...newItem,
       id,
       questions: newItem.questions || [],
-      registeredCount: 0,
-      submittedCount: 0,
-      paidCount: 0,
-      totalRevenue: 0,
+      registeredCount: (newItem as any).registeredCount || 0,
+      submittedCount: (newItem as any).submittedCount || 0,
+      paidCount: (newItem as any).paidCount || 0,
+      totalRevenue: (newItem as any).totalRevenue || 0,
     };
 
     const updated = [olympiad, ...current];
+    persistOlympiads(updated);
     set({ olympiads: updated });
 
-    // Save directly to MySQL via apiClient
+    // Save directly to MySQL via apiClient if available
     apiClient.post('/olympiads.php', olympiad).catch((e) => console.warn('API sync warning:', e));
 
     return olympiad;
@@ -74,6 +125,7 @@ export const useOlympiadStore = create<OlympiadStore>((set, get) => ({
 
   updateOlympiad: (id, updatedFields) => {
     const updated = get().olympiads.map((o) => (o.id === id ? { ...o, ...updatedFields } : o));
+    persistOlympiads(updated);
     set({ olympiads: updated });
 
     const itemToSync = updated.find((o) => o.id === id);
@@ -84,14 +136,16 @@ export const useOlympiadStore = create<OlympiadStore>((set, get) => ({
 
   deleteOlympiad: (id) => {
     const updated = get().olympiads.filter((o) => o.id !== id);
+    persistOlympiads(updated);
     set({ olympiads: updated });
 
-    // Delete from MySQL via apiClient
+    // Delete from MySQL via apiClient if available
     apiClient.delete(`/olympiads.php?id=${encodeURIComponent(id)}`).catch((e) => console.warn('API delete warning:', e));
   },
 
   togglePinOlympiad: (id) => {
     const updated = get().olympiads.map((o) => (o.id === id ? { ...o, isPinned: !o.isPinned } : o));
+    persistOlympiads(updated);
     set({ olympiads: updated });
 
     const itemToSync = updated.find((o) => o.id === id);
@@ -109,6 +163,7 @@ export const useOlympiadStore = create<OlympiadStore>((set, get) => ({
       return o;
     });
 
+    persistOlympiads(updated);
     set({ olympiads: updated });
 
     const itemToSync = updated.find((o) => o.id === id);
@@ -118,6 +173,7 @@ export const useOlympiadStore = create<OlympiadStore>((set, get) => ({
   },
 
   resetOlympiads: () => {
+    persistOlympiads([]);
     set({ olympiads: [] });
   },
 }));

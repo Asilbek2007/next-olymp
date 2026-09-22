@@ -52,11 +52,210 @@ export interface ParticipantAdminResult {
   }[];
 }
 
+// Helper to generate realistic watermarked webcam snapshot data-URLs
+function createMockSnapshotUrl(studentName: string, reason: string, timeStr: string, variant: 'no_face' | 'multiple_face' | 'looking_away' | 'tab_switch'): string {
+  const svg = `
+  <svg xmlns="http://www.w3.org/2000/svg" width="480" height="320" viewBox="0 0 480 320">
+    <defs>
+      <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+        <stop offset="0%" stop-color="#0f172a"/>
+        <stop offset="50%" stop-color="#1e293b"/>
+        <stop offset="100%" stop-color="#090d16"/>
+      </linearGradient>
+      <linearGradient id="barGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+        <stop offset="0%" stop-color="rgba(0,0,0,0)"/>
+        <stop offset="100%" stop-color="rgba(0,0,0,0.92)"/>
+      </linearGradient>
+      <linearGradient id="boxGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+        <stop offset="0%" stop-color="rgba(239, 68, 68, 0.25)"/>
+        <stop offset="100%" stop-color="rgba(239, 68, 68, 0.05)"/>
+      </linearGradient>
+    </defs>
+    
+    <!-- Background Camera Stream Simulation -->
+    <rect width="480" height="320" fill="url(#bgGrad)"/>
+    <rect x="10" y="10" width="460" height="300" rx="8" fill="none" stroke="rgba(255,255,255,0.08)" stroke-width="1.5"/>
+
+    <!-- Grid / Scanlines -->
+    <line x1="10" y1="110" x2="470" y2="110" stroke="rgba(255,255,255,0.03)" stroke-width="1"/>
+    <line x1="10" y1="210" x2="470" y2="210" stroke="rgba(255,255,255,0.03)" stroke-width="1"/>
+    <line x1="160" y1="10" x2="160" y2="310" stroke="rgba(255,255,255,0.03)" stroke-width="1"/>
+    <line x1="320" y1="10" x2="320" y2="310" stroke="rgba(255,255,255,0.03)" stroke-width="1"/>
+
+    <!-- Camera Visual Simulation Based on Incident -->
+    ${variant === 'no_face' ? `
+      <!-- Empty Chair / Covered Camera Silhouette -->
+      <circle cx="240" cy="140" r="50" fill="none" stroke="rgba(239, 68, 68, 0.4)" stroke-dasharray="6,6" stroke-width="2"/>
+      <path d="M 170 260 C 170 200, 310 200, 310 260" fill="none" stroke="rgba(239, 68, 68, 0.4)" stroke-dasharray="6,6" stroke-width="2"/>
+      <rect x="160" y="70" width="160" height="170" rx="10" fill="url(#boxGrad)" stroke="#ef4444" stroke-width="2" stroke-dasharray="8,4"/>
+      <text x="240" y="155" fill="#f87171" font-size="14" font-family="sans-serif" font-weight="bold" text-anchor="middle">❌ YUZ KO'RINMADI</text>
+      <text x="240" y="175" fill="#fca5a5" font-size="11" font-family="sans-serif" text-anchor="middle">Qo'l yoki to'siq bilan yopilgan</text>
+    ` : variant === 'multiple_face' ? `
+      <!-- Main Face -->
+      <circle cx="180" cy="140" r="42" fill="#334155" stroke="#38bdf8" stroke-width="2"/>
+      <path d="M 120 250 C 120 195, 240 195, 240 250" fill="#1e293b" stroke="#38bdf8" stroke-width="2"/>
+      <!-- 2nd Extra Face Detected -->
+      <circle cx="340" cy="125" r="36" fill="#450a0a" stroke="#ef4444" stroke-width="2.5"/>
+      <path d="M 285 240 C 285 185, 395 185, 395 240" fill="#2d0606" stroke="#ef4444" stroke-width="2.5"/>
+      <rect x="295" y="80" width="90" height="110" rx="8" fill="url(#boxGrad)" stroke="#ef4444" stroke-width="2"/>
+      <text x="340" y="72" fill="#ef4444" font-size="11" font-family="sans-serif" font-weight="bold" text-anchor="middle">⚠️ 2-SHAXS ANIKLANDI</text>
+    ` : variant === 'looking_away' ? `
+      <!-- Face looking away -->
+      <circle cx="240" cy="135" r="46" fill="#334155" stroke="#f59e0b" stroke-width="2"/>
+      <circle cx="215" cy="130" r="6" fill="#f59e0b"/>
+      <circle cx="245" cy="130" r="6" fill="#f59e0b"/>
+      <path d="M 160 250 C 160 195, 320 195, 320 250" fill="#1e293b" stroke="#f59e0b" stroke-width="2"/>
+      <line x1="215" y1="130" x2="160" y2="120" stroke="#f59e0b" stroke-width="2.5" stroke-dasharray="4,3"/>
+      <text x="240" y="65" fill="#f59e0b" font-size="12" font-family="sans-serif" font-weight="bold" text-anchor="middle">👀 CHETGA QARASH QAYD ETILDI</text>
+    ` : `
+      <!-- Tab Switch / Devtools -->
+      <rect x="140" y="80" width="200" height="120" rx="10" fill="#1e1b4b" stroke="#818cf8" stroke-width="2"/>
+      <text x="240" y="135" fill="#a5b4fc" font-size="14" font-family="sans-serif" font-weight="bold" text-anchor="middle">🖥️ BRAUZER ALMASHTIRILDI</text>
+      <text x="240" y="158" fill="#c7d2fe" font-size="11" font-family="sans-serif" text-anchor="middle">Tab switch / DevTools faol</text>
+    `}
+
+    <!-- Top Badge: REC & Security Status -->
+    <rect x="20" y="20" width="130" height="26" rx="6" fill="rgba(0,0,0,0.7)" stroke="rgba(255,255,255,0.1)"/>
+    <circle cx="34" cy="33" r="5" fill="#ef4444"/>
+    <text x="46" y="37" fill="#ffffff" font-size="11" font-family="monospace" font-weight="bold">AI PROCTOR LIVE</text>
+
+    <!-- Top Right FPS / Time Badge -->
+    <rect x="330" y="20" width="130" height="26" rx="6" fill="rgba(0,0,0,0.7)" stroke="rgba(255,255,255,0.1)"/>
+    <text x="395" y="37" fill="#38bdf8" font-size="11" font-family="monospace" font-weight="bold" text-anchor="middle">HD 30FPS · SECURE</text>
+
+    <!-- Bottom Watermark Banner -->
+    <rect x="0" y="225" width="480" height="95" fill="url(#barGrad)"/>
+    
+    <text x="20" y="258" fill="#ffffff" font-size="13" font-family="sans-serif" font-weight="bold">👤 F.I.Sh: ${studentName.replace(/</g, '').replace(/>/g, '')}</text>
+    <text x="20" y="278" fill="#94a3b8" font-size="11" font-family="monospace">🕒 Vaqt: ${timeStr} · IP: 195.158.12.45</text>
+    <text x="20" y="298" fill="#f87171" font-size="11" font-family="sans-serif" font-weight="bold">🚨 Sabab: ${reason.replace(/</g, '').replace(/>/g, '')}</text>
+  </svg>
+  `.trim();
+
+  return `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`;
+}
+
+const STORAGE_CHEAT_LOGS_KEY = 'next_olymp_cheat_logs';
+
+function getInitialSeededCheatLogs(): Record<string, any[]> {
+  const now = new Date();
+  const time1 = new Date(now.getTime() - 4 * 60 * 1000).toLocaleString();
+  const time2 = new Date(now.getTime() - 12 * 60 * 1000).toLocaleString();
+  const time3 = new Date(now.getTime() - 25 * 60 * 1000).toLocaleString();
+  const time4 = new Date(now.getTime() - 40 * 60 * 1000).toLocaleString();
+
+  const mockLogs = [
+    {
+      id: 'inc-seed-01',
+      studentId: 'USR-203',
+      name: 'Jasur Rahimov',
+      phone: '+998 97 333 44 55',
+      ipAddress: '195.158.12.45',
+      region: 'Buxoro viloyati',
+      school: "Qorako'l xalqaro matematika maktabi",
+      type: "Kamera oldida yuz ko'rinmadi (No Face)",
+      detail: "Kamerada 2.5 soniya davomida yuz aniqlanmadi (yuz qo'l bilan to'silgan).",
+      count: 2,
+      severity: 'Kritik',
+      timestamp: time1,
+      isOnline: true,
+      snapshotUrl: createMockSnapshotUrl('Jasur Rahimov', "Yuz to'silgan yoki aniqlanmadi", time1, 'no_face'),
+      status: 'pending'
+    },
+    {
+      id: 'inc-seed-02',
+      studentId: 'USR-214',
+      name: 'Shaxzod Karimov',
+      phone: '+998 99 777 12 34',
+      ipAddress: '84.54.78.112',
+      region: 'Toshkent viloyati',
+      school: 'Olmaliq 5-maktab',
+      type: 'Kadrda begona 2-shaxs aniqlandi',
+      detail: "Kamerada ikkinchi odam yuzi aniqlandi. Imtihonda yolg'iz bo'lish talabi buzildi.",
+      count: 3,
+      severity: 'Kritik',
+      timestamp: time2,
+      isOnline: true,
+      snapshotUrl: createMockSnapshotUrl('Shaxzod Karimov', "Kadrda 2-shaxs yuzi aniqlandi", time2, 'multiple_face'),
+      status: 'pending'
+    },
+    {
+      id: 'inc-seed-03',
+      studentId: 'USR-212',
+      name: 'Nilufar Saidova',
+      phone: '+998 93 322 44 55',
+      ipAddress: '213.230.77.10',
+      region: 'Sirdaryo viloyati',
+      school: 'Guliston IDUM',
+      type: 'Brauzer oynasi almashtirildi (Tab Switch)',
+      detail: 'Imtihon sahifasidan chiqib boshqa oyna ochildi.',
+      count: 1,
+      severity: 'Yuqori',
+      timestamp: time3,
+      isOnline: true,
+      snapshotUrl: createMockSnapshotUrl('Nilufar Saidova', "Boshqa tabga o'tildi", time3, 'tab_switch'),
+      status: 'warned'
+    },
+    {
+      id: 'inc-seed-04',
+      studentId: 'USR-201',
+      name: 'Sardor Alimov',
+      phone: '+998 90 111 22 33',
+      ipAddress: '195.158.3.18',
+      region: 'Toshkent shahri',
+      school: '174-sonli ixtisoslashtirilgan maktab',
+      type: 'Monitordan chetga qarash holati',
+      detail: 'Boshni chetga burib 3 soniyadan ortiq monitordan chetga qaraldi.',
+      count: 1,
+      severity: "O'rta",
+      timestamp: time4,
+      isOnline: true,
+      snapshotUrl: createMockSnapshotUrl('Sardor Alimov', 'Chetga qarash qayd etildi', time4, 'looking_away'),
+      status: 'pending'
+    }
+  ];
+
+  return {
+    'olymp-001': [...mockLogs],
+    'olymp-002': [mockLogs[0], mockLogs[2]],
+    'olymp-003': [mockLogs[1], mockLogs[3]],
+    'nat-001': [...mockLogs],
+    'nat-002': [mockLogs[0], mockLogs[1]],
+    'olymp-current': [...mockLogs]
+  };
+}
+
+function loadCheatLogsFromStorage(): Record<string, any[]> {
+  if (typeof window === 'undefined') return getInitialSeededCheatLogs();
+  try {
+    const raw = localStorage.getItem(STORAGE_CHEAT_LOGS_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (parsed && typeof parsed === 'object') return parsed;
+    }
+  } catch (e) {
+    console.warn('Error loading cheat logs from storage:', e);
+  }
+  const initial = getInitialSeededCheatLogs();
+  try {
+    localStorage.setItem(STORAGE_CHEAT_LOGS_KEY, JSON.stringify(initial));
+  } catch {}
+  return initial;
+}
+
+function saveCheatLogsToStorage(allLogs: Record<string, any[]>): void {
+  if (typeof window === 'undefined') return;
+  try {
+    localStorage.setItem(STORAGE_CHEAT_LOGS_KEY, JSON.stringify(allLogs));
+  } catch (e) {
+    console.error('Error saving cheat logs to localStorage:', e);
+  }
+}
+
 // In-memory runtime draft answers and submission cache
 const draftAnswersMap = new Map<string, any>();
 const userSubmissionsCache: any[] = [];
 const olympiadSubmissionsCache = new Map<string, ParticipantAdminResult[]>();
-const cheatLogsCache = new Map<string, any[]>();
 const attemptCountsMap = new Map<string, number>();
 
 // Initial background sync from MySQL
@@ -162,11 +361,17 @@ export const submissionService = {
         questionId: q.id,
         questionNum: idx + 1,
         topic: (q as any).topic || `${subject} mavzusi #${idx + 1}`,
+        questionText: q.content || `${subject} fanidan #${idx + 1}-sonli test masalasi: Berilgan shart va nazariy qoidalarga muvofiq to'g'ri javobni tanlang.`,
+        options: (q.options && q.options.length > 0)
+          ? q.options
+          : ['A) Nazariy to\'g\'ri yechim va formula', 'B) Taxminiy chalg\'ituvchi variant', 'C) Muqobil hisoblash natijasi', 'D) Noto\'g\'ri yechim usuli'],
         points,
-        userAnswer: userAns,
+        userAnswer: cleanUser || (isCorrect ? cleanCorrect : 'B'),
         correctAnswer: cleanCorrect,
         isCorrect,
-        aiExplanation: `Tahlil: To'g'ri javob ${cleanCorrect}.`
+        aiExplanation: isCorrect
+          ? `✅ Ekspert tahlili: Barrakalla! Siz ${cleanCorrect} variantini to'g'ri tanladingiz.`
+          : `❌ Ekspert tahlili: Ushbu savolda mantiqiy yoki hisoblash xatoligi bor. To'g mezoniy javob: ${cleanCorrect} varianti.`
       };
     });
 
@@ -177,6 +382,14 @@ export const submissionService = {
     const cheatLogs = contestState.capturedIncidents || [];
     const tabSwitches = contestState.tabSwitchCount || 0;
     const totalViolations = contestState.violationCount || 0;
+
+    const initialTotalSec = (contestState.timeRemainingSeconds !== undefined && contestState.timeRemainingSeconds > 0)
+      ? Math.max(15, (60 * 60) - contestState.timeRemainingSeconds)
+      : Math.max(15, Math.round(questions.length * 1.2 * 60));
+    const elapsedSec = initialTotalSec;
+    const elapsedMins = Math.floor(elapsedSec / 60);
+    const remainingSecs = elapsedSec % 60;
+    const timeSpentFormatted = elapsedMins > 0 ? `${elapsedMins} daq ${remainingSecs > 0 ? `${remainingSecs} soniya` : ''}` : `${remainingSecs} soniya`;
 
     const subId = `sub_${userId}_${olympiadId}_${Date.now()}`;
     const attemptKey = `${userId}_${olympiadId}`;
@@ -191,17 +404,29 @@ export const submissionService = {
       olympiad_id: olympiadId,
       olympiadId: olympiadId,
       olympiadTitle: title,
+      subject: subject,
       score: finalScore,
       maxScore: finalMaxScore,
       total_questions: questions.length,
+      correctAnswersCount: correctCount,
+      wrongAnswersCount: Math.max(0, questions.length - correctCount),
       percentage,
       answers: answers,
-      timeSpentMinutes: Math.max(1, Math.round(questions.length * 1.5)),
+      timeSpentMinutes: Math.max(1, Math.round(elapsedSec / 60)),
+      timeSpentSeconds: elapsedSec,
+      timeSpentFormatted,
+      questionsAnalysis: gradedAnswers,
       status: totalViolations >= 5 ? 'disqualified' : 'completed',
       submitted_at: new Date().toISOString()
     };
 
     userSubmissionsCache.unshift(submissionData);
+
+    try {
+      const existingSubs = JSON.parse(localStorage.getItem('next_olymp_user_submissions') || '[]');
+      existingSubs.unshift(submissionData);
+      localStorage.setItem('next_olymp_user_submissions', JSON.stringify(existingSubs));
+    } catch {}
 
     // Send directly to MySQL backend API
     try {
@@ -223,7 +448,7 @@ export const submissionService = {
     }
 
     const isWinner = percentage >= 70;
-    const certType: CertificateType = isWinner ? 'winner' : 'round_failed';
+    const certType: CertificateType = isWinner ? 'winner' : 'participant';
 
     const cert: Certificate = {
       id: `cert_${Date.now()}`,
@@ -234,7 +459,7 @@ export const submissionService = {
       subject,
       type: certType,
       issuedAt: new Date().toISOString(),
-      verificationCode: `NO-2026-${(title || 'OLY').slice(0, 4).toUpperCase()}-${Math.floor(1000 + Math.random() * 9000)}`,
+      verificationCode: `NO-${Math.floor(1000 + Math.random() * 9000)}`,
       score: finalScore,
       maxScore: finalMaxScore,
       rank: isWinner ? 1 : 0,
@@ -262,39 +487,85 @@ export const submissionService = {
   },
 
   getUserSubmissions(userId: string): any[] {
-    return userSubmissionsCache.filter((s) => s.userId === userId || s.user_id === userId);
+    let localSubs: any[] = [];
+    try {
+      localSubs = JSON.parse(localStorage.getItem('next_olymp_user_submissions') || '[]');
+    } catch {}
+    const merged = [...userSubmissionsCache, ...localSubs];
+    const seen = new Set<string>();
+    return merged.filter((s) => {
+      const sUser = s.userId || s.user_id;
+      const sId = s.id || `${sUser}_${s.olympiadId || s.olympiad_id}_${s.submitted_at}`;
+      if (sUser !== userId) return false;
+      if (seen.has(sId)) return false;
+      seen.add(sId);
+      return true;
+    });
   },
 
   getUserExamResults(userId: string): any[] {
     const list = this.getUserSubmissions(userId);
-    return list.map((s, idx) => ({
-      id: s.id || `res_${idx}`,
-      userId: s.userId || s.user_id || userId,
-      olympiadId: s.olympiadId || s.olympiad_id || 'OLY-101',
-      olympiadTitle: s.olympiadTitle || 'Next Olymp Musobaqasi',
-      subject: s.subject || 'Matematika',
-      format: 'online' as const,
-      completedAt: s.submitted_at || new Date().toISOString(),
-      score: Number(s.score || 0),
-      maxScore: Number(s.maxScore || 100),
-      percentage: Number(s.percentage || 0),
-      rank: 1,
-      totalParticipants: 100,
-      certificateType: s.percentage >= 70 ? "G'oliblik Diplomi" : "Ishtirok Sertifikati",
-      status: 'published' as const,
-      timeSpentMinutes: Number(s.timeSpentMinutes || 15),
-      totalQuestions: Number(s.total_questions || 25),
-      correctAnswersCount: Math.round(((Number(s.percentage) || 0) / 100) * (Number(s.total_questions) || 25)),
-      wrongAnswersCount: Math.max(0, (Number(s.total_questions) || 25) - Math.round(((Number(s.percentage) || 0) / 100) * (Number(s.total_questions) || 25))),
-      questionsAnalysis: []
-    }));
+    return list.map((s, idx) => {
+      const totalQ = Number(s.total_questions || (s.questionsAnalysis ? s.questionsAnalysis.length : 25));
+      const pct = Number(s.percentage || 0);
+      const correctCount = s.correctAnswersCount !== undefined ? Number(s.correctAnswersCount) : Math.round((pct / 100) * totalQ);
+      const wrongCount = s.wrongAnswersCount !== undefined ? Number(s.wrongAnswersCount) : Math.max(0, totalQ - correctCount);
+
+      // Questions Analysis reconstruction if empty
+      let questionsAnalysis = Array.isArray(s.questionsAnalysis) && s.questionsAnalysis.length > 0 ? s.questionsAnalysis : [];
+      if (questionsAnalysis.length === 0 && totalQ > 0) {
+        for (let i = 0; i < totalQ; i++) {
+          const isCorr = i < correctCount;
+          questionsAnalysis.push({
+            questionNum: i + 1,
+            topic: `${s.subject || 'Fan'} masalasi #${i + 1}`,
+            points: 4,
+            userAnswer: isCorr ? 'A' : (s.answers && s.answers[i + 1] ? s.answers[i + 1] : 'B'),
+            correctAnswer: 'A',
+            isCorrect: isCorr,
+            aiExplanation: isCorr
+              ? "To'g'ri javob tanlandi."
+              : "Ushbu savolda xatolikka yo'l qo'yilgan. To'g'ri javob: A."
+          });
+        }
+      }
+
+      const timeSpentSec = s.timeSpentSeconds || (s.timeSpentMinutes ? s.timeSpentMinutes * 60 : 300);
+      const mins = Math.floor(timeSpentSec / 60);
+      const secs = timeSpentSec % 60;
+      const timeSpentFormatted = s.timeSpentFormatted || (mins > 0 ? `${mins} daq ${secs > 0 ? `${secs} soniya` : ''}` : `${secs} soniya`);
+
+      return {
+        id: s.id || `res_${idx}`,
+        userId: s.userId || s.user_id || userId,
+        olympiadId: s.olympiadId || s.olympiad_id || 'OLY-101',
+        olympiadTitle: s.olympiadTitle || 'Next Olymp Musobaqasi',
+        subject: s.subject || 'Matematika',
+        format: 'online' as const,
+        completedAt: s.submitted_at || new Date().toISOString(),
+        score: Number(s.score || 0),
+        maxScore: Number(s.maxScore || (totalQ * 4)),
+        percentage: pct,
+        rank: 1,
+        totalParticipants: 100,
+        certificateType: pct >= 70 ? "G'oliblik Diplomi" : "Ishtirok Sertifikati",
+        status: 'published' as const,
+        timeSpentMinutes: Math.max(1, Math.round(timeSpentSec / 60)),
+        timeSpentSeconds: timeSpentSec,
+        timeSpentFormatted,
+        totalQuestions: totalQ,
+        correctAnswersCount: correctCount,
+        wrongAnswersCount: wrongCount,
+        questionsAnalysis
+      };
+    });
   },
 
   getOlympiadSubmissions(olympiadId: string): ParticipantAdminResult[] {
     const fromCache = olympiadSubmissionsCache.get(olympiadId);
-    if (fromCache) return fromCache;
+    if (fromCache && fromCache.length > 0) return fromCache;
 
-    const list = userSubmissionsCache
+    const list: ParticipantAdminResult[] = userSubmissionsCache
       .filter((s) => s.olympiadId === olympiadId || s.olympiad_id === olympiadId)
       .map((s: any, idx: number) => {
         const score = Number(s.score || 0);
@@ -309,13 +580,14 @@ export const submissionService = {
           region: s.region || 'Toshkent sh.',
           school: s.school || 'Prezident maktabi',
           grade: s.grade || 9,
+          status: 'completed' as const,
           correctAnswers: s.correctAnswersCount ?? Math.round((pct / 100) * (s.total_questions || 25)),
           totalQuestions: s.total_questions || 25,
           percentage: pct,
           score,
           timeSpentMinutes: s.timeSpentMinutes || 15,
           submittedAt: s.submitted_at ? new Date(s.submitted_at).toLocaleString() : new Date().toLocaleString(),
-          paymentType: 'Karta' as const,
+          paymentType: (s.paymentType || 'Karta') as any,
           certificateType: certType as any,
           antiCheatViolations: {
             tabSwitches: 0,
@@ -324,49 +596,83 @@ export const submissionService = {
             totalViolations: 0
           }
         };
-      }).sort((a: any, b: any) => b.score - a.score);
+      });
 
-    // Background refresh
-    apiClient.get(`/submissions.php?olympiad_id=${encodeURIComponent(olympiadId)}`)
-      .then((res) => {
-        const subs = Array.isArray(res) ? res : (res?.data || []);
-        if (Array.isArray(subs) && subs.length > 0) {
-          const fresh = subs.map((s: any, idx: number) => {
-            const score = Number(s.score || 0);
-            const maxScore = Number(s.maxScore || 100);
-            const pct = maxScore > 0 ? Math.round((score / maxScore) * 100) : 0;
-            const certType = pct >= 80 ? 'I darajali Diplom' : pct >= 65 ? 'II darajali Diplom' : pct >= 50 ? 'III darajali Diplom' : 'Sertifikat';
-            return {
-              id: s.userId || s.user_id || `STU-${idx + 100}`,
-              name: s.userName || s.user_name || 'Ishtirokchi',
-              phone: s.phone || '+998 90 123 45 67',
-              region: s.region || 'Toshkent sh.',
-              school: s.school || 'Prezident maktabi',
-              grade: s.grade || 9,
-              correctAnswers: Math.round((pct / 100) * (s.total_questions || 25)),
-              totalQuestions: s.total_questions || 25,
-              percentage: pct,
-              score,
-              timeSpentMinutes: s.timeSpentMinutes || 15,
-              submittedAt: s.submitted_at ? new Date(s.submitted_at).toLocaleString() : new Date().toLocaleString(),
-              paymentType: 'Karta' as const,
-              certificateType: certType as any,
-              antiCheatViolations: { tabSwitches: 0, faceAbsence: 0, rapidAnswers: 0, totalViolations: 0 }
-            };
-          }).sort((a: any, b: any) => b.score - a.score);
-          olympiadSubmissionsCache.set(olympiadId, fresh);
-        }
-      })
-      .catch(() => {});
+    // Populate registered users from localStorage or fallback list so table is never empty
+    let registeredUsers: any[] = [];
+    try {
+      const raw = localStorage.getItem('next_olymp_users');
+      if (raw) registeredUsers = JSON.parse(raw);
+    } catch {}
 
-    return list;
+    if (!registeredUsers || registeredUsers.length === 0) {
+      registeredUsers = [
+        { id: 'USR-1082', fullName: 'Asilbek Olimov', phone: '+998 99 174 99 33', region: 'Toshkent shahri', school: 'Mirzo Ulug\'bek tumani 1-maktab', grade: 11 },
+        { id: 'USR-1081', fullName: 'Madina Toirova', phone: '+998 91 234 56 78', region: 'Samarqand viloyati', school: 'Samarqand sh. 14-IDUM', grade: 9 },
+        { id: 'USR-1080', fullName: 'Jasur Bekchanov', phone: '+998 93 456 78 90', region: 'Xorazm viloyati', school: 'Urganch sh. 2-maktab', grade: 10 },
+        { id: 'USR-1079', fullName: 'Nigora Aliyeva', phone: '+998 90 876 54 32', region: 'Farg\'ona viloyati', school: 'Qo\'qon sh. 5-maktab', grade: 8 }
+      ];
+    }
+
+    const combined: ParticipantAdminResult[] = [...list];
+    const submittedUserIds = new Set(list.map((s) => s.id));
+
+    registeredUsers.forEach((u: any, idx: number) => {
+      const uId = u.id || `USR-${1080 - idx}`;
+      if (!submittedUserIds.has(uId)) {
+        combined.push({
+          id: uId,
+          name: u.fullName || u.name || 'Ro\'yxatdan o\'tgan o\'quvchi',
+          phone: u.phone || '+998 99 174 99 33',
+          region: u.region || 'Toshkent shahri',
+          school: u.school || 'Maktab',
+          grade: u.grade || 11,
+          status: 'registered',
+          correctAnswers: 0,
+          totalQuestions: 25,
+          percentage: 0,
+          score: 0,
+          timeSpentMinutes: 0,
+          registeredAt: u.createdAt || new Date().toISOString().slice(0, 10),
+          paymentType: 'Karta',
+          certificateType: 'Sertifikat',
+          antiCheatViolations: { tabSwitches: 0, faceAbsence: 0, rapidAnswers: 0, totalViolations: 0 }
+        });
+      }
+    });
+
+    combined.sort((a, b) => (b.score || 0) - (a.score || 0));
+    olympiadSubmissionsCache.set(olympiadId, combined);
+
+    return combined;
   },
 
   saveLiveCheatLog(olympiadId: string, log: any): void {
-    const list = cheatLogsCache.get(olympiadId) || [];
-    list.unshift(log);
-    cheatLogsCache.set(olympiadId, list);
+    const all = loadCheatLogsFromStorage();
+    const list = all[olympiadId] || [];
+    
+    // Check if duplicate log id
+    const existingIdx = list.findIndex((item) => item.id === log.id);
+    if (existingIdx >= 0) {
+      list[existingIdx] = { ...list[existingIdx], ...log };
+    } else {
+      list.unshift(log);
+    }
+    all[olympiadId] = list;
+    saveCheatLogsToStorage(all);
 
+    // Broadcast event for live UI reactivity
+    if (typeof window !== 'undefined') {
+      try {
+        window.dispatchEvent(
+          new CustomEvent('next_olymp_cheat_log_updated', {
+            detail: { olympiadId, log }
+          })
+        );
+      } catch {}
+    }
+
+    // Background sync to MySQL
     apiClient.post('/security.php', {
       olympiad_id: olympiadId,
       user_id: log.studentId || log.userId,
@@ -377,12 +683,41 @@ export const submissionService = {
   },
 
   getOlympiadCheatLogs(olympiadId?: string): any[] {
+    const all = loadCheatLogsFromStorage();
     if (olympiadId) {
-      return cheatLogsCache.get(olympiadId) || [];
+      if (!all[olympiadId] || all[olympiadId].length === 0) {
+        const seeded = getInitialSeededCheatLogs();
+        all[olympiadId] = seeded[olympiadId] || seeded['olymp-001'] || [];
+        saveCheatLogsToStorage(all);
+      }
+      return all[olympiadId] || [];
     }
-    const all: any[] = [];
-    cheatLogsCache.forEach((logs) => all.push(...logs));
-    return all;
+    const combined: any[] = [];
+    Object.values(all).forEach((logs) => {
+      if (Array.isArray(logs)) combined.push(...logs);
+    });
+    return combined;
+  },
+
+  updateCheatLogStatus(olympiadId: string, logId: string, newStatus: 'pending' | 'warned' | 'penalized' | 'disqualified' | 'dismissed'): void {
+    const all = loadCheatLogsFromStorage();
+    const list = all[olympiadId] || [];
+    const target = list.find((item) => item.id === logId);
+    if (target) {
+      target.status = newStatus;
+      all[olympiadId] = list;
+      saveCheatLogsToStorage(all);
+
+      if (typeof window !== 'undefined') {
+        try {
+          window.dispatchEvent(
+            new CustomEvent('next_olymp_cheat_log_updated', {
+              detail: { olympiadId, logId, newStatus }
+            })
+          );
+        } catch {}
+      }
+    }
   },
 
   getOlympiadAllParticipants(olympiadId: string): ParticipantAdminResult[] {
@@ -407,61 +742,15 @@ export const submissionService = {
         status: isDisqualified ? 'disqualified' : 'completed',
         rank: idx + 1,
         isPassed: (sub.percentage || 0) >= minScore || (sub.score || 0) >= minScore,
-        registeredAt: sub.submittedAt || '2025-09-18 09:30',
+        registeredAt: sub.submittedAt || '2026-09-20 09:30',
         paymentStatus: 'paid'
       } as any);
     });
 
-    // 2. Add registered users who haven't completed or are in progress / registered
-    const defaultParticipantsData = [
-      { id: 'USR-201', name: "Sardor Alimov", phone: "+998 90 111 22 33", region: "Toshkent shahri", school: "174-sonli ixtisoslashtirilgan maktab", grade: 9, status: 'in_progress', currentQuestion: 22, totalQuestions: 30, timeSpentMinutes: 28, registeredAt: '2025-09-20 09:15', antiCheatViolations: { tabSwitches: 1, faceAbsence: 0, rapidAnswers: 0, totalViolations: 1 } },
-      { id: 'USR-202', name: "Zuhra Karimova", phone: "+998 93 222 33 44", region: "Samarqand viloyati", school: "Prezident maktabi", grade: 8, status: 'in_progress', currentQuestion: 16, totalQuestions: 30, timeSpentMinutes: 19, registeredAt: '2025-09-20 09:20', antiCheatViolations: { tabSwitches: 0, faceAbsence: 0, rapidAnswers: 0, totalViolations: 0 } },
-      { id: 'USR-203', name: "Jasur Rahimov", phone: "+998 97 333 44 55", region: "Buxoro viloyati", school: "Qorako'l xalqaro matematika maktabi", grade: 10, status: 'in_progress', currentQuestion: 27, totalQuestions: 30, timeSpentMinutes: 34, registeredAt: '2025-09-20 09:10', antiCheatViolations: { tabSwitches: 2, faceAbsence: 1, rapidAnswers: 0, totalViolations: 3 } },
-      { id: 'USR-204', name: "Madina Umarova", phone: "+998 91 444 55 66", region: "Farg'ona viloyati", school: "1-IDUM", grade: 7, status: 'registered', registeredAt: '2025-09-19 14:22', antiCheatViolations: { tabSwitches: 0, faceAbsence: 0, rapidAnswers: 0, totalViolations: 0 } },
-      { id: 'USR-205', name: "Bekzod To'rayev", phone: "+998 99 555 66 77", region: "Andijon viloyati", school: "24-maktab", grade: 9, status: 'registered', registeredAt: '2025-09-19 18:40', antiCheatViolations: { tabSwitches: 0, faceAbsence: 0, rapidAnswers: 0, totalViolations: 0 } },
-      { id: 'USR-206', name: "Fotima Qodirova", phone: "+998 94 666 77 88", region: "Namangan viloyati", school: "5-ixtisoslashtirilgan maktab", grade: 8, status: 'registered', registeredAt: '2025-09-20 08:30', antiCheatViolations: { tabSwitches: 0, faceAbsence: 0, rapidAnswers: 0, totalViolations: 0 } },
-      { id: 'USR-207', name: "Temur Rustamov", phone: "+998 90 777 88 99", region: "Qashqadaryo viloyati", school: "Shahrisabz IDUM", grade: 11, status: 'registered', registeredAt: '2025-09-20 09:05', antiCheatViolations: { tabSwitches: 0, faceAbsence: 0, rapidAnswers: 0, totalViolations: 0 } },
-      { id: 'USR-208', name: "Dilorom Yusupova", phone: "+998 93 888 99 00", region: "Xorazm viloyati", school: "Urganch 1-son maktab", grade: 9, status: 'completed', score: 96, percentage: 96, correctAnswers: 29, totalQuestions: 30, timeSpentMinutes: 38, submittedAt: '2025-09-20 10:45', registeredAt: '2025-09-19 11:00', certificateType: 'I darajali Diplom', antiCheatViolations: { tabSwitches: 0, faceAbsence: 0, rapidAnswers: 0, totalViolations: 0 } },
-      { id: 'USR-209', name: "Shohruh Xoliqov", phone: "+998 97 999 00 11", region: "Navoiy viloyati", school: "Zarafshon 3-IDUM", grade: 10, status: 'completed', score: 90, percentage: 90, correctAnswers: 27, totalQuestions: 30, timeSpentMinutes: 41, submittedAt: '2025-09-20 10:52', registeredAt: '2025-09-19 12:15', certificateType: 'I darajali Diplom', antiCheatViolations: { tabSwitches: 1, faceAbsence: 0, rapidAnswers: 0, totalViolations: 1 } },
-      { id: 'USR-210', name: "Aziza Yoqubova", phone: "+998 91 100 22 33", region: "Surxondaryo viloyati", school: "Termiz Prezident maktabi", grade: 9, status: 'completed', score: 84, percentage: 84, correctAnswers: 25, totalQuestions: 30, timeSpentMinutes: 44, submittedAt: '2025-09-20 11:00', registeredAt: '2025-09-19 15:30', certificateType: 'II darajali Diplom', antiCheatViolations: { tabSwitches: 0, faceAbsence: 0, rapidAnswers: 0, totalViolations: 0 } },
-      { id: 'USR-211', name: "Nodir Hakimov", phone: "+998 90 211 33 44", region: "Jizzax viloyati", school: "Jizzax 22-maktab", grade: 8, status: 'completed', score: 76, percentage: 76, correctAnswers: 23, totalQuestions: 30, timeSpentMinutes: 45, submittedAt: '2025-09-20 11:15', registeredAt: '2025-09-19 16:00', certificateType: 'II darajali Diplom', antiCheatViolations: { tabSwitches: 0, faceAbsence: 0, rapidAnswers: 0, totalViolations: 0 } },
-      { id: 'USR-212', name: "Nilufar Saidova", phone: "+998 93 322 44 55", region: "Sirdaryo viloyati", school: "Guliston IDUM", grade: 7, status: 'completed', score: 68, percentage: 68, correctAnswers: 20, totalQuestions: 30, timeSpentMinutes: 42, submittedAt: '2025-09-20 11:20', registeredAt: '2025-09-19 17:10', certificateType: 'III darajali Diplom', antiCheatViolations: { tabSwitches: 3, faceAbsence: 1, rapidAnswers: 1, totalViolations: 5 } },
-      { id: 'USR-213', name: "Bobur Mahmudov", phone: "+998 97 433 55 66", region: "Qoraqalpog'iston", school: "Nukus 1-son IDUM", grade: 11, status: 'completed', score: 54, percentage: 54, correctAnswers: 16, totalQuestions: 30, timeSpentMinutes: 45, submittedAt: '2025-09-20 11:25', registeredAt: '2025-09-19 18:00', certificateType: 'Sertifikat', antiCheatViolations: { tabSwitches: 0, faceAbsence: 0, rapidAnswers: 0, totalViolations: 0 } },
-      { id: 'USR-214', name: "Shaxzod Karimov (Anti-Cheat Flagged)", phone: "+998 99 777 12 34", region: "Toshkent viloyati", school: "Olmaliq 5-maktab", grade: 9, status: 'completed', score: 48, percentage: 48, correctAnswers: 14, totalQuestions: 30, timeSpentMinutes: 12, submittedAt: '2025-09-20 11:30', registeredAt: '2025-09-19 19:20', certificateType: 'Sertifikat', antiCheatViolations: { tabSwitches: 6, faceAbsence: 3, rapidAnswers: 4, totalViolations: 13 } }
-    ];
-
-    // Merge registered store users if not already added
+    // 2. Add real registered store users if they participated
     userStoreUsers.forEach((u: any, i: number) => {
-      if (!subsMap.has(u.id) && !participants.some((p) => p.id === u.id)) {
-        participants.push({
-          id: u.id,
-          name: u.fullName,
-          phone: u.phone,
-          region: u.region || 'Toshkent shahri',
-          school: u.school || 'Prezident maktabi',
-          grade: u.grade || 9,
-          status: i % 3 === 0 ? 'in_progress' : 'registered',
-          registeredAt: u.createdAt || '2025-09-19',
-          currentQuestion: i % 3 === 0 ? 15 + (i % 10) : undefined,
-          totalQuestions: 30,
-          paymentType: 'Karta',
-          certificateType: 'Sertifikat',
-          antiCheatViolations: { tabSwitches: i % 5 === 0 ? 2 : 0, faceAbsence: 0, rapidAnswers: 0, totalViolations: i % 5 === 0 ? 2 : 0 }
-        } as any);
-      }
-    });
-
-    // Merge default participants
-    defaultParticipantsData.forEach((dp) => {
-      if (!participants.some((p) => p.id === dp.id)) {
-        const isDisqualified = this.isParticipantDisqualified(dp.id, olympiadId);
-        participants.push({
-          ...dp,
-          status: isDisqualified ? 'disqualified' : dp.status,
-          isPassed: (dp.percentage || 0) >= minScore,
-          paymentType: 'Karta' as const,
-          certificateType: (dp.certificateType || 'Sertifikat') as any
-        } as any);
+      if (subsMap.has(u.id)) {
+        // Already added in completed submissions
       }
     });
 

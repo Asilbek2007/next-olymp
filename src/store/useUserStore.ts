@@ -3,6 +3,31 @@ import { UserItem, INITIAL_USERS } from '../data/initialUsers';
 import { useLeaderboardStore } from './useLeaderboardStore';
 import { apiClient } from '../services/api';
 
+const STORAGE_KEY = 'next_olymp_users';
+
+const getStoredUsers = (): UserItem[] => {
+  if (typeof window === 'undefined') return INITIAL_USERS;
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+    }
+  } catch (e) {
+    console.warn('LocalStorage load error for users:', e);
+  }
+  return INITIAL_USERS;
+};
+
+const persistUsers = (items: UserItem[]) => {
+  if (typeof window === 'undefined') return;
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(items));
+  } catch (e) {
+    console.warn('LocalStorage save error for users:', e);
+  }
+};
+
 interface UserState {
   users: UserItem[];
   loading: boolean;
@@ -15,7 +40,7 @@ interface UserState {
 }
 
 export const useUserStore = create<UserState>((set, get) => ({
-  users: INITIAL_USERS,
+  users: getStoredUsers(),
   loading: false,
 
   fetchFromApi: async () => {
@@ -47,12 +72,12 @@ export const useUserStore = create<UserState>((set, get) => ({
             participationCount: Number(u.participationCount) || 0,
           }));
 
+        persistUsers(cleanUsers);
         set({ users: cleanUsers, loading: false });
       } else {
         set({ loading: false });
       }
     } catch (e) {
-      console.warn('User API fetch warning:', e);
       set({ loading: false });
     }
   },
@@ -67,6 +92,7 @@ export const useUserStore = create<UserState>((set, get) => ({
       status: userData.status || 'active',
     };
     const updated = [newUser, ...users];
+    persistUsers(updated);
     set({ users: updated });
 
     // Save directly to MySQL API via apiClient
@@ -76,6 +102,7 @@ export const useUserStore = create<UserState>((set, get) => ({
   updateUser: (id, userData) => {
     const { users } = get();
     const updated = users.map((u) => (u.id === id ? { ...u, ...userData } : u));
+    persistUsers(updated);
     set({ users: updated });
 
     const target = updated.find((u) => u.id === id);
@@ -87,6 +114,7 @@ export const useUserStore = create<UserState>((set, get) => ({
   deleteUser: (id) => {
     const { users } = get();
     const updated = users.filter((u) => u.id !== id);
+    persistUsers(updated);
     set({ users: updated });
 
     // Delete from MySQL API via apiClient
@@ -105,6 +133,7 @@ export const useUserStore = create<UserState>((set, get) => ({
       }
       return u;
     });
+    persistUsers(updated);
     set({ users: updated });
 
     const target = updated.find((u) => u.id === id);
@@ -114,6 +143,7 @@ export const useUserStore = create<UserState>((set, get) => ({
   },
 
   resetToDefaults: () => {
+    persistUsers(INITIAL_USERS);
     set({ users: INITIAL_USERS });
   },
 }));

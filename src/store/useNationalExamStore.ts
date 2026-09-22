@@ -2,6 +2,31 @@ import { create } from 'zustand';
 import { NationalExamItem } from '../data/initialNationalExams';
 import { apiClient } from '../services/api';
 
+const STORAGE_KEY = 'next_olymp_national_exams';
+
+const getStoredExams = (): NationalExamItem[] => {
+  if (typeof window === 'undefined') return [];
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed)) return parsed;
+    }
+  } catch (e) {
+    console.warn('LocalStorage load error for national exams:', e);
+  }
+  return [];
+};
+
+const persistExams = (items: NationalExamItem[]) => {
+  if (typeof window === 'undefined') return;
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(items));
+  } catch (e) {
+    console.warn('LocalStorage save error for national exams:', e);
+  }
+};
+
 interface NationalExamStore {
   exams: NationalExamItem[];
   loading: boolean;
@@ -15,7 +40,7 @@ interface NationalExamStore {
 }
 
 export const useNationalExamStore = create<NationalExamStore>((set, get) => ({
-  exams: [],
+  exams: getStoredExams(),
   loading: false,
 
   fetchFromApi: async () => {
@@ -23,9 +48,13 @@ export const useNationalExamStore = create<NationalExamStore>((set, get) => ({
     try {
       const json = await apiClient.get('/national-exams.php');
       const data = Array.isArray(json) ? json : (json?.data || []);
-      set({ exams: data, loading: false });
+      if (Array.isArray(data) && data.length > 0) {
+        persistExams(data);
+        set({ exams: data, loading: false });
+      } else {
+        set({ loading: false });
+      }
     } catch (err) {
-      console.warn('Could not fetch national exams from MySQL API:', err);
       set({ loading: false });
     }
   },
@@ -52,6 +81,7 @@ export const useNationalExamStore = create<NationalExamStore>((set, get) => ({
     };
 
     const updated = [exam, ...current];
+    persistExams(updated);
     set({ exams: updated });
 
     // Save directly to MySQL via apiClient
@@ -62,6 +92,7 @@ export const useNationalExamStore = create<NationalExamStore>((set, get) => ({
 
   updateExam: (id, updatedFields) => {
     const updated = get().exams.map((e) => (e.id === id ? { ...e, ...updatedFields } : e));
+    persistExams(updated);
     set({ exams: updated });
 
     const target = updated.find((e) => e.id === id);
@@ -72,6 +103,7 @@ export const useNationalExamStore = create<NationalExamStore>((set, get) => ({
 
   deleteExam: (id) => {
     const updated = get().exams.filter((e) => e.id !== id);
+    persistExams(updated);
     set({ exams: updated });
 
     // Delete from MySQL via apiClient
@@ -82,6 +114,7 @@ export const useNationalExamStore = create<NationalExamStore>((set, get) => ({
 
   togglePinExam: (id) => {
     const updated = get().exams.map((e) => (e.id === id ? { ...e, isPinned: !e.isPinned } : e));
+    persistExams(updated);
     set({ exams: updated });
 
     const target = updated.find((e) => e.id === id);
@@ -94,6 +127,7 @@ export const useNationalExamStore = create<NationalExamStore>((set, get) => ({
     const updated = get().exams.map((e) =>
       e.id === id ? { ...e, status: (e.status === 'ochiq' ? 'yopiq' : 'ochiq') as 'ochiq' | 'yopiq' } : e
     );
+    persistExams(updated);
     set({ exams: updated });
 
     const target = updated.find((e) => e.id === id);
@@ -103,6 +137,7 @@ export const useNationalExamStore = create<NationalExamStore>((set, get) => ({
   },
 
   resetExams: () => {
+    persistExams([]);
     set({ exams: [] });
   },
 }));

@@ -58,7 +58,7 @@ export const VerifyCertificatePage: React.FC = () => {
       <div className="bg-[#111827] border border-[#1E293B] rounded-xl p-6 shadow-xs max-w-xl mx-auto space-y-4">
         <div className="flex flex-col sm:flex-row gap-3">
           <Input
-            placeholder={t('certificate.verifyInputPlaceholder') || "Masalan: NO-2026-MATH-8921"}
+            placeholder={t('certificate.verifyInputPlaceholder') || "Masalan: NO-8921"}
             value={code}
             onChange={(e) => setCode(e.target.value)}
             className="font-mono uppercase font-bold"

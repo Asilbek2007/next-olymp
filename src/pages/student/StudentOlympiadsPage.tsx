@@ -47,10 +47,12 @@ export const StudentOlympiadsPage: React.FC = () => {
       const regEndTime = o.registrationEndDate ? new Date(o.registrationEndDate.replace(' ', 'T')).getTime() : Infinity;
       const regStartTime = o.registrationStartDate ? new Date(o.registrationStartDate.replace(' ', 'T')).getTime() : 0;
 
+      const isAlwaysOpen = Boolean((o as any).isAlwaysOpen);
+
       let mappedStatus: OlympiadStatus = 'active';
-      if (o.status === 'yopiq' || (endTime && now > endTime)) {
+      if (!isAlwaysOpen && (o.status === 'yopiq' || (endTime && now > endTime))) {
         mappedStatus = 'finished';
-      } else if (stTime && now < stTime) {
+      } else if (!isAlwaysOpen && (stTime && now < stTime)) {
         mappedStatus = 'upcoming';
       } else {
         mappedStatus = 'active';
@@ -63,10 +65,11 @@ export const StudentOlympiadsPage: React.FC = () => {
         ...o,
         subject: o.subject || 'other',
         status: mappedStatus,
-        isDateFinished: endTime ? now > endTime : false,
-        isRegistrationExpired: regEndTime ? now > regEndTime : false,
-        isUpcoming: stTime ? now < stTime : false,
-        isLive: (stTime ? now >= stTime : true) && (endTime ? now <= endTime : true) && o.status !== 'yopiq',
+        isAlwaysOpen,
+        isDateFinished: isAlwaysOpen ? false : (endTime ? now > endTime : false),
+        isRegistrationExpired: isAlwaysOpen ? false : (regEndTime ? now > regEndTime : false),
+        isUpcoming: isAlwaysOpen ? false : (stTime ? now < stTime : false),
+        isLive: isAlwaysOpen ? (o.status !== 'yopiq') : ((stTime ? now >= stTime : true) && (endTime ? now <= endTime : true) && o.status !== 'yopiq'),
         startDate: o.startDate || new Date().toISOString(),
         endDate: o.endDate || new Date(Date.now() + 86400000).toISOString(),
         durationMinutes: durMin,
@@ -195,64 +198,71 @@ export const StudentOlympiadsPage: React.FC = () => {
             const hasRemainingAttempts = retakeAllowed && attemptsCount > 0 && attemptsCount < maxAttempts;
             const isCompleted = attemptsCount > 0 && (!retakeAllowed || attemptsCount >= maxAttempts);
 
-            return (
-              <Card key={o.id} hoverEffect className="p-6 space-y-5 bg-[#111827] border border-[#1E293B] flex flex-col justify-between">
-                <div className="space-y-3">
-                  <div className="flex items-center justify-between flex-wrap gap-2">
-                    <div className="flex items-center gap-1.5 flex-wrap">
+                        return (
+              <Card key={o.id} hoverEffect className="p-0 overflow-hidden bg-[#111827] border border-[#1E293B] flex flex-col justify-between group">
+                <div>
+                  {/* Cover Image Banner */}
+                  <div className="relative h-40 w-full bg-[#0B1120] overflow-hidden">
+                    <img
+                      src={(o as any).imageUrl || 'https://images.unsplash.com/photo-1635070041078-e363dbe005cb?w=800&auto=format&fit=crop&q=80'}
+                      alt={o.title}
+                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300 opacity-80"
+                    />
+                    <div className="absolute inset-0 bg-gradient-to-t from-[#111827] via-[#111827]/40 to-transparent" />
+                    
+                    <div className="absolute top-3 left-3 flex items-center gap-1.5 flex-wrap">
                       <Badge subject={o.subject} />
                       {hasGradeFilter && (
-                        <span className="px-2 py-0.5 rounded-full bg-purple-500/15 text-purple-400 border border-purple-500/30 text-[10px] font-bold flex items-center gap-1">
+                        <span className="px-2 py-0.5 rounded-full bg-purple-500/80 text-white text-[10px] font-bold flex items-center gap-1 backdrop-blur-xs">
                           <GraduationCap className="w-3 h-3" />
                           {targetGrades.join(', ')}-sinf
                         </span>
                       )}
-                      {retakeAllowed && (
-                        <span className="px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-400 border border-amber-500/30 text-[10px] font-bold flex items-center gap-1">
-                          <RotateCcw className="w-3 h-3" />
-                          {maxAttempts}x Urinish
-                        </span>
-                      )}
                     </div>
-                    <Badge status={o.status} />
+
+                    <div className="absolute top-3 right-3">
+                      <Badge status={o.status} />
+                    </div>
                   </div>
 
-                  <div>
-                    <h3 className="font-bold text-lg text-[#F1F5F9] leading-snug">{o.title}</h3>
-                    <p className="text-xs text-[#94A3B8] line-clamp-2 mt-2 leading-relaxed">{o.description}</p>
-                  </div>
-
-                  {/* Warning if student grade doesn't match */}
-                  {!isGradeEligible && (
-                    <div className="p-2.5 rounded-lg bg-rose-500/10 border border-rose-500/30 flex items-center gap-2 text-[11px] text-rose-300">
-                      <AlertTriangle className="w-4 h-4 text-rose-400 shrink-0" />
-                      <span>
-                        Faqat <strong>{targetGrades.join(', ')}-sinf</strong> o'quvchilari uchun. Siz: <strong>{studentGrade}-sinf</strong>.
-                      </span>
+                  <div className="p-5 space-y-3">
+                    <div>
+                      <h3 className="font-bold text-lg text-[#F1F5F9] leading-snug group-hover:text-[#3B82F6] transition-colors">{o.title}</h3>
+                      <p className="text-xs text-[#94A3B8] line-clamp-2 mt-2 leading-relaxed">{o.description}</p>
                     </div>
-                  )}
 
-                  {/* Status if already participated */}
-                  {attemptsCount > 0 && (
-                    <div className={`p-2.5 rounded-lg border flex items-center justify-between text-[11px] ${
-                      hasRemainingAttempts 
-                        ? 'bg-amber-500/10 border-amber-500/30 text-amber-300' 
-                        : 'bg-emerald-500/10 border-emerald-500/30 text-emerald-300'
-                    }`}>
-                      <div className="flex items-center gap-1.5">
-                        <CheckCircle2 className="w-4 h-4 shrink-0" />
+                    {/* Warning if student grade doesn't match */}
+                    {!isGradeEligible && (
+                      <div className="p-2.5 rounded-lg bg-rose-500/10 border border-rose-500/30 flex items-center gap-2 text-[11px] text-rose-300">
+                        <AlertTriangle className="w-4 h-4 text-rose-400 shrink-0" />
                         <span>
-                          {hasRemainingAttempts 
-                            ? `Ishtirok etilgan (${attemptsCount}/${maxAttempts} ta urinish ishlatildi)`
-                            : `Yakunlangan (${attemptsCount} ta urinish topshirilgan)`}
+                          Faqat <strong>{targetGrades.join(', ')}-sinf</strong> o'quvchilari uchun. Siz: <strong>{studentGrade}-sinf</strong>.
                         </span>
                       </div>
-                    </div>
-                  )}
+                    )}
+
+                    {/* Status if already participated */}
+                    {attemptsCount > 0 && (
+                      <div className={`p-2.5 rounded-lg border flex items-center justify-between text-[11px] ${
+                        hasRemainingAttempts 
+                          ? 'bg-amber-500/10 border-amber-500/30 text-amber-300' 
+                          : 'bg-emerald-500/10 border-emerald-500/30 text-emerald-300'
+                      }`}>
+                        <div className="flex items-center gap-1.5">
+                          <CheckCircle2 className="w-4 h-4 shrink-0" />
+                          <span>
+                            {hasRemainingAttempts 
+                              ? `Ishtirok etilgan (${attemptsCount}/${maxAttempts} ta urinish ishlatildi)`
+                              : `Yakunlangan (${attemptsCount} ta urinish topshirilgan)`}
+                          </span>
+                        </div>
+                      </div>
+                    )}
+                  </div>
                 </div>
 
-                <div className="space-y-4 pt-4 border-t border-[#1E293B]">
-                  <div className="grid grid-cols-2 gap-2 text-xs text-[#94A3B8] font-medium">
+                <div className="p-5 pt-0 space-y-4">
+                  <div className="grid grid-cols-2 gap-2 text-xs text-[#94A3B8] font-medium pt-3 border-t border-[#1E293B]">
                     <div className="flex items-center gap-1.5">
                       <Clock className="w-4 h-4 text-[#3B82F6]" />
                       <span>{o.durationMinutes} daqiqa</span>

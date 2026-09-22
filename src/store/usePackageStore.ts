@@ -1,6 +1,31 @@
 import { create } from 'zustand';
 import { PackageItem, INITIAL_PACKAGES } from '../data/initialPackages';
 
+const STORAGE_KEY = 'next_olymp_packages';
+
+const getStoredPackages = (): PackageItem[] => {
+  if (typeof window === 'undefined') return INITIAL_PACKAGES;
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+    }
+  } catch (e) {
+    console.warn('LocalStorage load error for packages:', e);
+  }
+  return INITIAL_PACKAGES;
+};
+
+const persistPackages = (items: PackageItem[]) => {
+  if (typeof window === 'undefined') return;
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(items));
+  } catch (e) {
+    console.warn('LocalStorage save error for packages:', e);
+  }
+};
+
 interface PackageStore {
   packages: PackageItem[];
   addPackage: (pkg: Omit<PackageItem, 'id' | 'createdAt' | 'sotilganSoni' | 'jamiTushum'>) => void;
@@ -11,7 +36,7 @@ interface PackageStore {
 }
 
 export const usePackageStore = create<PackageStore>((set, get) => ({
-  packages: INITIAL_PACKAGES,
+  packages: getStoredPackages(),
 
   addPackage: (newPkg) => {
     const current = get().packages;
@@ -28,6 +53,7 @@ export const usePackageStore = create<PackageStore>((set, get) => ({
     };
 
     const updatedList = [packageItem, ...current];
+    persistPackages(updatedList);
     set({ packages: updatedList });
   },
 
@@ -39,11 +65,13 @@ export const usePackageStore = create<PackageStore>((set, get) => ({
       return p;
     });
 
+    persistPackages(updatedList);
     set({ packages: updatedList });
   },
 
   deletePackage: (id) => {
     const updatedList = get().packages.filter((p) => p.id !== id);
+    persistPackages(updatedList);
     set({ packages: updatedList });
   },
 
@@ -56,10 +84,12 @@ export const usePackageStore = create<PackageStore>((set, get) => ({
       return p;
     });
 
+    persistPackages(updatedList);
     set({ packages: updatedList });
   },
 
   resetPackages: () => {
+    persistPackages(INITIAL_PACKAGES);
     set({ packages: INITIAL_PACKAGES });
   },
 }));

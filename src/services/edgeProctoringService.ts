@@ -1,5 +1,5 @@
-// src/services/edgeProctoringService.ts — Client-Side Edge Detection & Local Verification Engine
 import { useProctoringStore } from '../store/useProctoringStore';
+import { AntiCheatConfig } from '../types';
 
 export interface EdgeDetectionResult {
   faceCount: number;
@@ -95,10 +95,35 @@ export class EdgeAudioMonitor {
 }
 
 // ─── Edge Vision Analysis Calculator ─────────────────────────────────────────
+// Euclidean distance helper
+function dist2D(p1: { x: number; y: number }, p2: { x: number; y: number }): number {
+  const dx = p1.x - p2.x;
+  const dy = p1.y - p2.y;
+  return Math.sqrt(dx * dx + dy * dy);
+}
+
+// ─── Edge Vision Analysis Calculator ─────────────────────────────────────────
 export function analyzeFaceLandmarks(
-  faceLandmarksArray: { x: number; y: number; z?: number }[][]
+  faceLandmarksArray: { x: number; y: number; z?: number }[][],
+  config?: Partial<AntiCheatConfig>
 ): EdgeDetectionResult {
-  const faceCount = faceLandmarksArray.length;
+  const mode = config?.proctoringMode || 'STRICT';
+
+  // If proctoring is disabled completely
+  if (mode === 'DISABLED') {
+    return {
+      faceCount: faceLandmarksArray?.length || 1,
+      faceDetected: true,
+      multipleFaces: false,
+      eyeGazeScore: 100,
+      headPose: 'center',
+      relativeNoseX: 0.5,
+      audioVolumeDb: 0,
+      anomalyDetected: false,
+    };
+  }
+
+  const faceCount = faceLandmarksArray?.length || 0;
 
   if (faceCount === 0) {
     return {
@@ -110,7 +135,7 @@ export function analyzeFaceLandmarks(
       relativeNoseX: 0.5,
       audioVolumeDb: 0,
       anomalyDetected: true,
-      anomalyReason: 'Foydalanuvchi kamera kadrida ko\'rinmayapti (No Face)',
+      anomalyReason: 'Kadrda yuz aniqlanmadi (yuz to\'silgan yoki kadrda yo\'q)',
       anomalyType: 'no_face',
     };
   }
@@ -125,38 +150,143 @@ export function analyzeFaceLandmarks(
       relativeNoseX: 0.5,
       audioVolumeDb: 0,
       anomalyDetected: true,
-      anomalyReason: 'Kamerada ikkinchi shaxs aniqlandi (Multiple Faces)',
+      anomalyReason: 'Kamerada begona shaxs aniqlandi (Multiple Faces)',
       anomalyType: 'multiple_faces',
     };
   }
 
-  // Exactly 1 face: Calculate Nose Tip relative position (Gaze / Pose)
+  // Exactly 1 face: Check Landmark integrity based on Config
   const landmarks = faceLandmarksArray[0];
-  const noseTip = landmarks[1] || landmarks[Math.floor(landmarks.length / 2)];
-  const leftCheek = landmarks[234] || landmarks[0];
-  const rightCheek = landmarks[454] || landmarks[landmarks.length - 1];
 
-  const faceWidth = Math.max(0.01, rightCheek.x - leftCheek.x);
-  const relativeNose = (noseTip.x - leftCheek.x) / faceWidth;
+  // In Relaxed mode, basic face presence is enough
+  if (mode === 'RELAXED') {
+    return {
+      faceCount: 1,
+      faceDetected: true,
+      multipleFaces: false,
+      eyeGazeScore: 90,
+      headPose: 'center',
+      relativeNoseX: 0.5,
+      audioVolumeDb: 10,
+      anomalyDetected: false,
+      landmarks,
+    };
+  }
 
+  if (!landmarks || landmarks.length < 30) {
+    return {
+      faceCount: 1,
+      faceDetected: false,
+      multipleFaces: false,
+      eyeGazeScore: 0,
+      headPose: 'center',
+      relativeNoseX: 0.5,
+      audioVolumeDb: 0,
+      anomalyDetected: true,
+      anomalyReason: 'Yuz nuqtalari yetarli emas (yuz qisman yoki butunlay to\'silgan)',
+      anomalyType: 'no_face',
+    };
+  }
+
+  const strictFace = config?.strictFaceCheck ?? (mode === 'STRICT' || mode === 'STANDARD');
+  const requireEyes = config?.requireBothEyesVisible ?? (mode === 'STRICT');
+  const trackGaze = config?.trackGazeDirection ?? (mode === 'STRICT');
+
+  const noseTip = landmarks[1];
+  const chin = landmarks[152];
+  const forehead = landmarks[10];
+  const leftEyeOuter = landmarks[33];
+  const leftEyeInner = landmarks[133];
+  const leftEyeTop = landmarks[159];
+  const leftEyeBottom = landmarks[145];
+  const rightEyeOuter = landmarks[263];
+  const rightEyeInner = landmarks[362];
+  const rightEyeTop = landmarks[386];
+  const rightEyeBottom = landmarks[374];
+  const leftCheek = landmarks[234];
+  const rightCheek = landmarks[454];
+
+  // 1. Check if critical facial landmarks are missing or covered
+  if (strictFace) {
+    if (!noseTip || !chin || !forehead || (requireEyes && (!leftEyeOuter || !rightEyeOuter))) {
+      return {
+        faceCount: 1,
+        faceDetected: false,
+        multipleFaces: false,
+        eyeGazeScore: 0,
+        headPose: 'center',
+        relativeNoseX: 0.5,
+        audioVolumeDb: 0,
+        anomalyDetected: true,
+        anomalyReason: 'Yuzning asosiy nuqtalari to\'silgan (yuz yoki ko\'zlar yopiq)',
+        anomalyType: 'no_face',
+        landmarks,
+      };
+    }
+  }
+
+  // 2. Eye Aspect Ratio (EAR) - detect if eyes are covered/closed in strict mode
+  if (requireEyes) {
+    let leftEAR = 0.3;
+    let rightEAR = 0.3;
+    if (leftEyeTop && leftEyeBottom && leftEyeOuter && leftEyeInner) {
+      const vDist = dist2D(leftEyeTop, leftEyeBottom);
+      const hDist = Math.max(0.001, dist2D(leftEyeOuter, leftEyeInner));
+      leftEAR = vDist / (2 * hDist);
+    }
+    if (rightEyeTop && rightEyeBottom && rightEyeOuter && rightEyeInner) {
+      const vDist = dist2D(rightEyeTop, rightEyeBottom);
+      const hDist = Math.max(0.001, dist2D(rightEyeOuter, rightEyeInner));
+      rightEAR = vDist / (2 * hDist);
+    }
+  }
+
+  // Face Width and Height
+  const faceWidth = Math.max(0.01, Math.abs((rightCheek?.x || rightEyeOuter?.x || 1) - (leftCheek?.x || leftEyeOuter?.x || 0)));
+  const faceHeight = Math.max(0.01, Math.abs((chin?.y || 1) - (forehead?.y || 0)));
+
+  // Check if face is unnaturally compressed or cropped (e.g. palm covering half the face)
+  if (faceWidth < 0.08 || faceHeight < 0.08) {
+    return {
+      faceCount: 1,
+      faceDetected: false,
+      multipleFaces: false,
+      eyeGazeScore: 0,
+      headPose: 'center',
+      relativeNoseX: 0.5,
+      audioVolumeDb: 0,
+      anomalyDetected: true,
+      anomalyReason: 'Yuzingiz kamera kadriga juda kichik yoki to\'siq bilan yopilgan',
+      anomalyType: 'no_face',
+      landmarks,
+    };
+  }
+
+  // 3. Head pose & Gaze deviation (only if trackGaze is enabled)
   let headPose: 'center' | 'left' | 'right' | 'up' | 'down' = 'center';
   let eyeGazeScore = 95;
   let anomalyDetected = false;
   let anomalyReason: string | undefined;
   let anomalyType: 'looking_away' | undefined;
 
-  if (relativeNose < 0.32) {
-    headPose = 'left';
-    eyeGazeScore = 45;
-    anomalyDetected = true;
-    anomalyReason = 'O\'quvchi ekrandan chapga qattiq burildi (Gaze Deviation)';
-    anomalyType = 'looking_away';
-  } else if (relativeNose > 0.68) {
-    headPose = 'right';
-    eyeGazeScore = 45;
-    anomalyDetected = true;
-    anomalyReason = 'O\'quvchi ekrandan o\'ngga qattiq burildi (Gaze Deviation)';
-    anomalyType = 'looking_away';
+  if (trackGaze && noseTip && (leftCheek || leftEyeOuter) && (rightCheek || rightEyeOuter)) {
+    const lX = leftCheek?.x ?? leftEyeOuter.x;
+    const rX = rightCheek?.x ?? rightEyeOuter.x;
+    const relativeNose = (noseTip.x - lX) / Math.max(0.001, rX - lX);
+
+    if (relativeNose < 0.22) {
+      headPose = 'left';
+      eyeGazeScore = 40;
+      anomalyDetected = true;
+      anomalyReason = 'O\'quvchi ekrandan chapga qattiq burildi (Gaze Deviation)';
+      anomalyType = 'looking_away';
+    } else if (relativeNose > 0.78) {
+      headPose = 'right';
+      eyeGazeScore = 40;
+      anomalyDetected = true;
+      anomalyReason = 'O\'quvchi ekrandan o\'ngga qattiq burildi (Gaze Deviation)';
+      anomalyType = 'looking_away';
+    }
   }
 
   return {
@@ -165,7 +295,7 @@ export function analyzeFaceLandmarks(
     multipleFaces: false,
     eyeGazeScore,
     headPose,
-    relativeNoseX: relativeNose,
+    relativeNoseX: 0.5,
     audioVolumeDb: 10,
     anomalyDetected,
     anomalyReason,

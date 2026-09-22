@@ -4,6 +4,7 @@ import { useProctoringStore } from './useProctoringStore';
 import { useNotificationStore } from './useNotificationStore';
 import { useAuthStore } from './useAuthStore';
 import { ServerExamEngine, ServerSyncResponse } from '../services/serverExamEngine';
+import { submissionService } from '../services/submissionService';
 
 export interface IncidentLog {
   id: string;
@@ -202,6 +203,7 @@ export const useContestStore = create<ContestState>((set, get) => ({
         type === 'EXIT_FULLSCREEN' ? 'To\'liq ekrandan chiqildi (Fullscreen Exit)' :
         type === 'NO_FACE_DETECTED' ? 'Kamera oldida yuz ko\'rinmadi (No Face)' :
         type === 'MULTIPLE_FACES_DETECTED' ? 'Kadrda begona shaxs aniqlandi' :
+        type === 'LOOKING_AWAY' ? 'Monitordan chetga qarash holati' :
         type === 'CLIPBOARD_ACTION' ? 'Nusxa olish taqiqlandi' :
         type.includes('DEVTOOLS') ? 'Dasturchi paneli (DevTools) ochildi' : type;
 
@@ -222,6 +224,9 @@ export const useContestStore = create<ContestState>((set, get) => ({
         snapshotUrl: snapshotUrl,
         status: 'pending'
       };
+
+      // Save live incident & snapshot to persistent local and cloud storage
+      submissionService.saveLiveCheatLog(olympiadId, formattedLog);
 
       // Sync incident & snapshot to MySQL API
       fetch('/api/anticheat.php', {

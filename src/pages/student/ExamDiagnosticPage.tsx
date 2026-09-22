@@ -20,7 +20,10 @@ import {
   Zap,
   ScanFace,
   AudioLines,
+  Radio,
+  Fingerprint
 } from 'lucide-react';
+import { useAudioProctoring } from '../../hooks/useAudioProctoring';
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 type CheckStatus = 'pending' | 'loading' | 'success' | 'failed' | 'warning';
@@ -67,11 +70,18 @@ export const ExamDiagnosticPage: React.FC = () => {
   const faceAnimFrameRef = useRef<number>(0);
   const faceLandmarkerRef = useRef<any>(null);
 
-  // State
   const [audioLevel, setAudioLevel] = useState(0);
   const [liveGuidance, setLiveGuidance] = useState({ text: 'Diagnostika boshlanmoqda...', color: 'text-slate-400' });
   const [overallProgress, setOverallProgress] = useState(0);
   const [networkLatency, setNetworkLatency] = useState<number | null>(null);
+
+  // Voiceprint Biometrics Hook
+  const {
+    isEnrolled: hasVoiceprint,
+    isRecordingEnrollment,
+    enrollProgress,
+    startEnrollment
+  } = useAudioProctoring({ contestId: id, olympiadId: id });
 
   const [checks, setChecks] = useState<DiagnosticCheck[]>([
     {
@@ -107,6 +117,14 @@ export const ExamDiagnosticPage: React.FC = () => {
       icon: <AudioLines className="w-5 h-5" />,
     },
     {
+      id: 'voiceprint',
+      label: 'Ovoz Biometriyasi (Voiceprint)',
+      description: 'Qoidani o\'qib ovoz profilingizni tasdiqlang',
+      status: hasVoiceprint ? 'success' : 'failed',
+      detail: hasVoiceprint ? 'Voiceprint tayyor ✓' : 'Ovoz yozilmagan (Majburiy)',
+      icon: <Fingerprint className="w-5 h-5" />,
+    },
+    {
       id: 'screens',
       label: 'Ikkinchi ekran nazorati',
       description: 'Faqat bitta displey ulanganligini tekshirish',
@@ -136,6 +154,13 @@ export const ExamDiagnosticPage: React.FC = () => {
   const updateCheck = useCallback((checkId: string, status: CheckStatus, detail: string) => {
     setChecks(prev => prev.map(c => c.id === checkId ? { ...c, status, detail } : c));
   }, []);
+
+  // Update voiceprint check status when enrollment changes
+  useEffect(() => {
+    if (hasVoiceprint) {
+      updateCheck('voiceprint', 'success', 'Voiceprint tayyor ✓');
+    }
+  }, [hasVoiceprint, updateCheck]);
 
   // ─── Progress calculator ───────────────────────────────────────────────
   useEffect(() => {
@@ -359,7 +384,11 @@ export const ExamDiagnosticPage: React.FC = () => {
   }, [checks, runFaceDetection]);
 
   // ─── Ready evaluation ──────────────────────────────────────────────────
-  const requiredChecks = ['model', 'hardware', 'face', 'audio', 'screens'];
+  const requireVoiceBio = olympiad?.antiCheatConfig?.requireVoiceBiometrics !== false;
+  const requiredChecks = requireVoiceBio
+    ? ['model', 'hardware', 'face', 'audio', 'voiceprint', 'screens']
+    : ['model', 'hardware', 'face', 'audio', 'screens'];
+
   const allRequiredPassed = requiredChecks.every(
     cid => checks.find(c => c.id === cid)?.status === 'success'
   );
@@ -555,6 +584,94 @@ export const ExamDiagnosticPage: React.FC = () => {
                   className="h-full rounded-full bg-gradient-to-r from-violet-500 to-fuchsia-500 transition-all duration-100"
                   style={{ width: `${audioLevel}%` }}
                 />
+              </div>
+            </div>
+
+            {/* Voice Biometrics Calibration Card */}
+            <div className="rounded-2xl border border-cyan-500/20 bg-gradient-to-br from-cyan-950/40 via-blue-950/20 to-slate-900/50 backdrop-blur-sm p-5 space-y-4">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Fingerprint className="w-4.5 h-4.5 text-cyan-400" />
+                  <span className="text-sm font-semibold text-white">Ovoz Biometriyasi (Voiceprint Enrollment)</span>
+                </div>
+                {hasVoiceprint ? (
+                  <span className="px-2.5 py-0.5 rounded-full text-[10px] font-mono font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
+                    ✓ KALIBRLANGAN
+                  </span>
+                ) : (
+                  <span className="px-2.5 py-0.5 rounded-full text-[10px] font-mono font-bold bg-amber-500/20 text-amber-400 border border-amber-500/30">
+                    TALAB ETILADI
+                  </span>
+                )}
+              </div>
+
+              <p className="text-xs text-slate-300 leading-relaxed">
+                Begona shaxslar yordamini oldini olish uchun pastdagi matnni baland va aniq ovozda o'qib, ovoz namunangizni yozib qoldiring:
+              </p>
+
+              {/* Calibration sentence display */}
+              <div className="p-3.5 rounded-xl bg-black/40 border border-cyan-500/30 font-medium text-cyan-100 text-xs italic text-center select-none shadow-inner">
+                "Men qoidalarga to'liq roziman va imtihonni mustaqil topshiraman"
+              </div>
+
+              {/* Progress bar during enrollment */}
+              {isRecordingEnrollment && (
+                <div className="space-y-1.5">
+                  <div className="flex items-center justify-between text-[11px] font-mono text-cyan-300">
+                    <span className="flex items-center gap-1.5">
+                      <span className="w-2 h-2 rounded-full bg-rose-500 animate-ping" />
+                      Ovoz yozilmoqda va embedding hisoblanmoqda...
+                    </span>
+                    <span>{enrollProgress}%</span>
+                  </div>
+                  <div className="h-2 rounded-full bg-slate-800 overflow-hidden">
+                    <div
+                      className="h-full bg-gradient-to-r from-cyan-500 via-blue-500 to-emerald-500 transition-all duration-75"
+                      style={{ width: `${enrollProgress}%` }}
+                    />
+                  </div>
+                </div>
+              )}
+
+              {/* Action button */}
+              <div className="pt-1 flex items-center gap-3">
+                <button
+                  disabled={isRecordingEnrollment}
+                  onClick={async () => {
+                    updateCheck('voiceprint', 'loading', 'Ovoz yozilmoqda...');
+                    const ok = await startEnrollment();
+                    if (ok) {
+                      updateCheck('voiceprint', 'success', 'Voiceprint tayyor ✓');
+                    } else {
+                      updateCheck('voiceprint', 'failed', 'Yozishda xatolik yuz berdi');
+                    }
+                  }}
+                  className={`
+                    w-full py-2.5 px-4 rounded-xl font-bold text-xs flex items-center justify-center gap-2 transition-all
+                    ${hasVoiceprint
+                      ? 'bg-cyan-950/60 hover:bg-cyan-900/60 text-cyan-300 border border-cyan-500/40'
+                      : 'bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white shadow-lg shadow-cyan-500/20'
+                    }
+                    ${isRecordingEnrollment ? 'opacity-50 cursor-wait' : ''}
+                  `}
+                >
+                  {isRecordingEnrollment ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin text-cyan-300" />
+                      4 soniya davomida o'qing...
+                    </>
+                  ) : hasVoiceprint ? (
+                    <>
+                      <RotateCcw className="w-3.5 h-3.5" />
+                      Ovoz namunasini qayta yozish
+                    </>
+                  ) : (
+                    <>
+                      <Mic className="w-4 h-4 text-cyan-200" />
+                      Ovozni yozish va kalibrlash (4s)
+                    </>
+                  )}
+                </button>
               </div>
             </div>
 

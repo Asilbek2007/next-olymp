@@ -12,7 +12,8 @@ import {
   LogOut,
   ShieldCheck,
   ShieldAlert,
-  Award
+  Award,
+  Brain
 } from 'lucide-react';
 import { useAuth } from '../../hooks/useAuth';
 import { useTranslation } from 'react-i18next';
@@ -35,6 +36,7 @@ export const EgaSidebar: React.FC<EgaSidebarProps> = ({ isCollapsed }) => {
       items: [
         { label: translateText('Boshqaruv paneli', currentLang), path: '/ega', icon: LayoutDashboard },
         { label: translateText('Olimpiadalar', currentLang), path: '/ega/competitions', icon: Trophy },
+        { label: translateText('Daraja Testlari (O\'tgan Yillar)', currentLang), path: '/ega/level-tests', icon: Brain },
         { label: translateText('Baholash Moduli (Rasch)', currentLang), path: '/ega/baholash', icon: Award },
         { label: translateText('Reytinglar', currentLang), path: '/ega/leaderboard', icon: Award },
         { label: translateText('Foydalanuvchilar', currentLang), path: '/ega/users', icon: Users },

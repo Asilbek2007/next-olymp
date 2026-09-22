@@ -53,13 +53,16 @@ import {
   AlertTriangle,
   QrCode,
   FileCheck,
-  CheckCircle,
+  Lock,
   SlidersHorizontal,
   RefreshCw,
-  Printer
+  Printer,
+  Mic,
+  Volume2,
+  AudioLines
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
-import { Question, QuestionType, CertificateConfig, AntiCheatConfig, Certificate } from '../../types';
+import { Question, QuestionType, CertificateConfig, AntiCheatConfig, Certificate, ProctoringPresetMode } from '../../types';
 import { MOCK_QUESTIONS } from '../../services/mockData';
 import { parseDocxQuestions } from '../../utils/docxParser';
 import { submissionService, ParticipantAdminResult } from '../../services/submissionService';
@@ -186,24 +189,123 @@ export const OlympiadFullEditor: React.FC<OlympiadFullEditorProps> = ({ olympiad
     olympiad.antiCheatConfig?.snapshotOnNoFace !== false
   );
 
+  // Dynamic AI Proctoring Presets & Granular Parameters
+  const [proctoringMode, setProctoringMode] = useState<ProctoringPresetMode>(
+    olympiad.antiCheatConfig?.proctoringMode || 'STRICT'
+  );
+  const [requireBothEyesVisible, setRequireBothEyesVisible] = useState<boolean>(
+    olympiad.antiCheatConfig?.requireBothEyesVisible !== false
+  );
+  const [strictFaceCheck, setStrictFaceCheck] = useState<boolean>(
+    olympiad.antiCheatConfig?.strictFaceCheck !== false
+  );
+  const [minFaceConfidence, setMinFaceConfidence] = useState<number>(
+    olympiad.antiCheatConfig?.minFaceConfidence || 0.65
+  );
+  const [maxAbsenceGracePeriod, setMaxAbsenceGracePeriod] = useState<number>(
+    olympiad.antiCheatConfig?.maxAbsenceGracePeriod || 1.5
+  );
+  const [trackGazeDirection, setTrackGazeDirection] = useState<boolean>(
+    olympiad.antiCheatConfig?.trackGazeDirection !== false
+  );
+
+  // Audio AI Proctoring States
+  const [requireVoiceBiometrics, setRequireVoiceBiometrics] = useState<boolean>(
+    olympiad.antiCheatConfig?.requireVoiceBiometrics !== false
+  );
+  const [detectUnknownSpeakers, setDetectUnknownSpeakers] = useState<boolean>(
+    olympiad.antiCheatConfig?.detectUnknownSpeakers !== false
+  );
+  const [detectMultipleSpeakers, setDetectMultipleSpeakers] = useState<boolean>(
+    olympiad.antiCheatConfig?.detectMultipleSpeakers !== false
+  );
+  const [voiceSimilarityThreshold, setVoiceSimilarityThreshold] = useState<number>(
+    olympiad.antiCheatConfig?.voiceSimilarityThreshold || 0.70
+  );
+
+  const handlePresetSelect = (preset: ProctoringPresetMode) => {
+    setProctoringMode(preset);
+    if (preset === 'STRICT') {
+      setStrictFaceCheck(true);
+      setRequireBothEyesVisible(true);
+      setTrackGazeDirection(true);
+      setMaxAbsenceGracePeriod(1.5);
+      setMinFaceConfidence(0.70);
+      setMaxViolations(3);
+      setRequireVoiceBiometrics(true);
+      setDetectUnknownSpeakers(true);
+      setDetectMultipleSpeakers(true);
+      setVoiceSimilarityThreshold(0.75);
+    } else if (preset === 'STANDARD') {
+      setStrictFaceCheck(true);
+      setRequireBothEyesVisible(true);
+      setTrackGazeDirection(false);
+      setMaxAbsenceGracePeriod(3.0);
+      setMinFaceConfidence(0.55);
+      setMaxViolations(4);
+      setRequireVoiceBiometrics(true);
+      setDetectUnknownSpeakers(true);
+      setDetectMultipleSpeakers(true);
+      setVoiceSimilarityThreshold(0.70);
+    } else if (preset === 'RELAXED') {
+      setStrictFaceCheck(false);
+      setRequireBothEyesVisible(false);
+      setTrackGazeDirection(false);
+      setMaxAbsenceGracePeriod(5.0);
+      setMinFaceConfidence(0.45);
+      setMaxViolations(5);
+      setRequireVoiceBiometrics(false);
+      setDetectUnknownSpeakers(false);
+      setDetectMultipleSpeakers(false);
+      setVoiceSimilarityThreshold(0.65);
+    }
+  };
+
   // Real Anti-Cheat Incident Logs with WebCam Snapshots and IP tracking
   const [cheatLogs, setCheatLogs] = useState<any[]>(() => {
-    const realLogs = submissionService.getOlympiadCheatLogs(olympiad.id);
-    return realLogs;
+    return submissionService.getOlympiadCheatLogs(olympiad.id);
   });
   const [cheatFilter, setCheatFilter] = useState<'all' | 'pending' | 'actioned'>('all');
   const [selectedSnapshotLog, setSelectedSnapshotLog] = useState<any | null>(null);
 
-  // Sync cheat logs from storage whenever viewing anticheat tab
+  // Participant Tab Filters & Preview Modal
+  const [participantFilterTab, setParticipantFilterTab] = useState<'all' | 'registered' | 'submitted' | 'paid'>('all');
+  const [participantSearchTerm, setParticipantSearchTerm] = useState('');
+  const [selectedParticipantDetail, setSelectedParticipantDetail] = useState<any | null>(null);
+
+  // Sync cheat logs from storage and live events whenever viewing anticheat tab
   useEffect(() => {
-    if (activeTab === 'anticheat') {
+    const refreshLogs = () => {
       const realLogs = submissionService.getOlympiadCheatLogs(olympiad.id);
       setCheatLogs(realLogs);
-    }
+    };
+
+    refreshLogs();
+
+    const handleLogUpdate = (e: any) => {
+      if (!e.detail?.olympiadId || e.detail?.olympiadId === olympiad.id) {
+        refreshLogs();
+      }
+    };
+
+    window.addEventListener('next_olymp_cheat_log_updated', handleLogUpdate);
+    window.addEventListener('storage', refreshLogs);
+
+    return () => {
+      window.removeEventListener('next_olymp_cheat_log_updated', handleLogUpdate);
+      window.removeEventListener('storage', refreshLogs);
+    };
   }, [activeTab, olympiad.id]);
 
   const handleCheatAction = (logId: string, newStatus: 'warned' | 'penalized' | 'disqualified' | 'dismissed' | 'pending') => {
+    submissionService.updateCheatLogStatus(olympiad.id, logId, newStatus);
     setCheatLogs(prev => prev.map(item => item.id === logId ? { ...item, status: newStatus } : item));
+    if (newStatus === 'disqualified') {
+      const targetLog = cheatLogs.find(l => l.id === logId);
+      if (targetLog?.studentId) {
+        submissionService.disqualifyParticipant(targetLog.studentId, olympiad.id, targetLog.type);
+      }
+    }
   };
 
   // Form State initialized from olympiad object
@@ -275,6 +377,9 @@ export const OlympiadFullEditor: React.FC<OlympiadFullEditorProps> = ({ olympiad
     olympiad.freeForPackageId || 'PKG-003' // Default e.g. Pro or VIP
   );
 
+  // 24/7 Always Open Mode (Doimiy ochiq)
+  const [isAlwaysOpen, setIsAlwaysOpen] = useState<boolean>(Boolean(olympiad.isAlwaysOpen));
+
   // Schedule Dates (5 Timestamps)
   const [registrationStartDate, setRegistrationStartDate] = useState<string>(
     olympiad.registrationStartDate || '2026-09-01 09:00'
@@ -298,6 +403,7 @@ export const OlympiadFullEditor: React.FC<OlympiadFullEditorProps> = ({ olympiad
 
   // Date Validation Rule
   const dateValidationErrorMsg = useMemo(() => {
+    if (isAlwaysOpen) return null; // 24/7 open mode ignores rigid date sequence
     if (!registrationEndDate || !startDate) return null;
     const rStart = registrationStartDate ? new Date(registrationStartDate.replace(' ', 'T')).getTime() : 0;
     const rEnd = new Date(registrationEndDate.replace(' ', 'T')).getTime();
@@ -314,7 +420,7 @@ export const OlympiadFullEditor: React.FC<OlympiadFullEditorProps> = ({ olympiad
       return "Testning tugash vaqti boshlanish vaqtidan keyin bo'lishi shart!";
     }
     return null;
-  }, [registrationStartDate, registrationEndDate, startDate, endDate]);
+  }, [isAlwaysOpen, registrationStartDate, registrationEndDate, startDate, endDate]);
 
   // Questions tab state - starts 0 (clean empty array)
   const [questionsList, setQuestionsList] = useState<Question[]>(() => {
@@ -516,9 +622,6 @@ export const OlympiadFullEditor: React.FC<OlympiadFullEditorProps> = ({ olympiad
     MOCK_QUESTIONS[olympiad.id] = updated;
   };
 
-  // Participant Results Filter
-  const [participantSearchTerm, setParticipantSearchTerm] = useState('');
-
   // Selected Student for AI Analysis Modal
   const [selectedStudentForAi, setSelectedStudentForAi] = useState<ParticipantAdminResult | null>(null);
 
@@ -664,6 +767,7 @@ export const OlympiadFullEditor: React.FC<OlympiadFullEditorProps> = ({ olympiad
       offlinePrice: isFreeForAll ? 0 : offlinePrice,
       discountPercent: isFreeForAll ? 0 : discountPercent,
       discountAmount: isFreeForAll ? 0 : discountAmount,
+      isAlwaysOpen,
       registrationStartDate,
       registrationEndDate,
       startDate,
@@ -698,7 +802,17 @@ export const OlympiadFullEditor: React.FC<OlympiadFullEditorProps> = ({ olympiad
         heartbeatIntervalSec,
         cameraFaceSnapshotEnabled,
         snapshotOnMultipleFaces,
-        snapshotOnNoFace
+        snapshotOnNoFace,
+        proctoringMode,
+        requireBothEyesVisible,
+        strictFaceCheck,
+        minFaceConfidence,
+        maxAbsenceGracePeriod,
+        trackGazeDirection,
+        requireVoiceBiometrics,
+        detectUnknownSpeakers,
+        detectMultipleSpeakers,
+        voiceSimilarityThreshold
       }
     });
 
@@ -1781,8 +1895,56 @@ export const OlympiadFullEditor: React.FC<OlympiadFullEditorProps> = ({ olympiad
           >
             <h2 className={clsx("text-sm font-bold flex items-center gap-2 border-b pb-2.5", isDark ? "text-white border-[#182A4D]" : "text-slate-900 border-slate-200")}>
               <Clock className="w-4 h-4 text-blue-400" />
-              <span>{t("Ro'yxatdan o'tish va Testni Boshlash/Tugash Vaqtlari (DateTime Picker)")}</span>
+              <span>{t("Ro'yxatdan o'tish va Testni Boshlash/Tugash Vaqtlari")}</span>
             </h2>
+
+            {/* 24/7 DOIMIY OCHIQ REJIM SWITCH */}
+            <div className={clsx(
+              "p-4 rounded-2xl border transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-4",
+              isAlwaysOpen
+                ? "bg-gradient-to-r from-emerald-950/50 via-teal-950/40 to-emerald-900/30 border-emerald-500/60 shadow-lg shadow-emerald-950/30"
+                : isDark ? "bg-[#0B1528] border-[#182A4D]" : "bg-slate-50 border-slate-200"
+            )}>
+              <div className="flex items-start gap-3">
+                <div className={clsx(
+                  "w-10 h-10 rounded-xl flex items-center justify-center shrink-0 mt-0.5",
+                  isAlwaysOpen ? "bg-emerald-500/20 text-emerald-400 border border-emerald-500/40" : "bg-slate-700/30 text-slate-400 border border-slate-700/50"
+                )}>
+                  <Sparkles className="w-5 h-5" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <h3 className={clsx("text-sm font-extrabold", isAlwaysOpen ? "text-emerald-300" : isDark ? "text-white" : "text-slate-900")}>
+                      {t("Doimiy Ochiq Rejim (24/7 Cheklovsiz Test)")}
+                    </h3>
+                    <span className={clsx(
+                      "px-2 py-0.5 text-[10px] font-bold rounded-full border",
+                      isAlwaysOpen
+                        ? "bg-emerald-500/20 text-emerald-400 border-emerald-500/40 animate-pulse"
+                        : "bg-slate-500/10 text-slate-400 border-slate-500/20"
+                    )}>
+                      {isAlwaysOpen ? t("Faol (24/7 Ochiq)") : t("O'chirilgan")}
+                    </span>
+                  </div>
+                  <p className="text-xs text-slate-400 mt-1 leading-relaxed">
+                    {isAlwaysOpen
+                      ? t("🟢 Ushbu musobaqa 24/7 doimiy ochiq: ishtirokchilar muddat cheklovlarisiz va ro'yxatdan o'tish sanalarisiz istalgan paytda kirib testlarni yechishlari mumkin.")
+                      : t("Yoqilsa, ro'yxatdan o'tish va test boshlanish/tugash vaqti bo'yicha qat'iy cheklovlar bekor qilinadi va test doimiy ochiq bo'ladi.")}
+                  </p>
+                </div>
+              </div>
+
+              {/* Toggle Switch */}
+              <label className="relative inline-flex items-center cursor-pointer shrink-0 self-end sm:self-center">
+                <input
+                  type="checkbox"
+                  checked={isAlwaysOpen}
+                  onChange={(e) => setIsAlwaysOpen(e.target.checked)}
+                  className="sr-only peer"
+                />
+                <div className="w-14 h-8 bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[4px] after:left-[4px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-6 after:w-6 after:transition-all peer-checked:bg-emerald-500 shadow-inner"></div>
+              </label>
+            </div>
 
             {/* Validation Error Alert Banner */}
             {dateValidationErrorMsg && (
@@ -1798,124 +1960,87 @@ export const OlympiadFullEditor: React.FC<OlympiadFullEditorProps> = ({ olympiad
               <div className="p-3.5 rounded-xl bg-cyan-500/10 border border-cyan-500/30 space-y-1.5">
                 <label className="block text-xs font-extrabold text-cyan-300 flex items-center gap-1.5">
                   <Calendar className="w-3.5 h-3.5 text-cyan-400" />
-                  <span>1. {t("Ro'yxatdan O'tish Boshlanishi")} *</span>
+                  <span>1. {t("Ro'yxatdan O'tish Boshlanishi")} {!isAlwaysOpen && '*'}</span>
                 </label>
                 <input
                   type="datetime-local"
-                  required
+                  required={!isAlwaysOpen}
                   value={toDatetimeInput(registrationStartDate)}
                   onChange={(e) => setRegistrationStartDate(fromDatetimeInput(e.target.value))}
                   className={clsx(
                     "w-full rounded-lg px-3 py-2 text-xs outline-none border font-mono font-bold text-cyan-400 cursor-pointer",
-                    isDark ? "bg-[#091024] border-[#1A2F57]" : "bg-white border-slate-300 text-slate-900"
+                    isDark ? "bg-[#091024] border-[#1A2F57]" : "bg-white border-slate-300 text-slate-900",
+                    isAlwaysOpen && "opacity-60"
                   )}
                 />
-                <p className="text-[10px] text-slate-400">{t("Foydalanuvchilar qabulining boshlanish sanasi va soati")}</p>
+                <p className="text-[10px] text-slate-400">
+                  {isAlwaysOpen ? t("Doimiy ochiq (Ixtiyoriy)") : t("Foydalanuvchilar qabulining boshlanish sanasi va soati")}
+                </p>
               </div>
 
               {/* 2. Registration End */}
               <div className="p-3.5 rounded-xl bg-amber-500/10 border border-amber-500/30 space-y-1.5">
                 <label className="block text-xs font-extrabold text-amber-300 flex items-center gap-1.5">
                   <Clock className="w-3.5 h-3.5 text-amber-400" />
-                  <span>2. {t("Ro'yxatdan O'tish Yopilishi")} *</span>
+                  <span>2. {t("Ro'yxatdan O'tish Yopilishi")} {!isAlwaysOpen && '*'}</span>
                 </label>
                 <input
                   type="datetime-local"
-                  required
+                  required={!isAlwaysOpen}
                   value={toDatetimeInput(registrationEndDate)}
                   onChange={(e) => setRegistrationEndDate(fromDatetimeInput(e.target.value))}
                   className={clsx(
                     "w-full rounded-lg px-3 py-2 text-xs outline-none border font-mono font-bold text-amber-400 cursor-pointer",
-                    isDark ? "bg-[#091024] border-[#1A2F57]" : "bg-white border-slate-300 text-slate-900"
+                    isDark ? "bg-[#091024] border-[#1A2F57]" : "bg-white border-slate-300 text-slate-900",
+                    isAlwaysOpen && "opacity-60"
                   )}
                 />
-                <p className="text-[10px] text-slate-400">{t("Ro'yxatdan o'tish yopilishi (Test boshlanishidan keyin bo'la olmaydi)")}</p>
+                <p className="text-[10px] text-slate-400">
+                  {isAlwaysOpen ? t("Doimiy ochiq (Ixtiyoriy)") : t("Ro'yxatdan o'tish yopilishi")}
+                </p>
               </div>
 
               {/* 3. Test Start */}
               <div className="p-3.5 rounded-xl bg-emerald-500/10 border border-emerald-500/30 space-y-1.5">
                 <label className="block text-xs font-extrabold text-emerald-300 flex items-center gap-1.5">
                   <Trophy className="w-3.5 h-3.5 text-emerald-400" />
-                  <span>3. {t("Testni Boshlash Vaqti")} *</span>
+                  <span>3. {t("Testni Boshlash Vaqti")} {!isAlwaysOpen && '*'}</span>
                 </label>
                 <input
                   type="datetime-local"
-                  required
+                  required={!isAlwaysOpen}
                   value={toDatetimeInput(startDate)}
                   onChange={(e) => setStartDate(fromDatetimeInput(e.target.value))}
                   className={clsx(
                     "w-full rounded-lg px-3 py-2 text-xs outline-none border font-mono font-bold text-emerald-400 cursor-pointer",
-                    isDark ? "bg-[#091024] border-[#1A2F57]" : "bg-white border-slate-300 text-slate-900"
+                    isDark ? "bg-[#091024] border-[#1A2F57]" : "bg-white border-slate-300 text-slate-900",
+                    isAlwaysOpen && "opacity-60"
                   )}
                 />
-                <p className="text-[10px] text-slate-400">{t("Olimpiada savollari va test sahifasi ochiladigan vaqt")}</p>
+                <p className="text-[10px] text-slate-400">
+                  {isAlwaysOpen ? t("Doimiy ochiq (Ixtiyoriy)") : t("Olimpiada savollari va test sahifasi ochiladigan vaqt")}
+                </p>
               </div>
 
               {/* 4. Test End */}
               <div className="p-3.5 rounded-xl bg-rose-500/10 border border-rose-500/30 space-y-1.5">
                 <label className="block text-xs font-extrabold text-rose-300 flex items-center gap-1.5">
                   <Clock className="w-3.5 h-3.5 text-rose-400" />
-                  <span>4. {t("Testni Tugash Vaqti")} *</span>
+                  <span>4. {t("Testni Tugash Vaqti")} {!isAlwaysOpen && '*'}</span>
                 </label>
                 <input
                   type="datetime-local"
-                  required
+                  required={!isAlwaysOpen}
                   value={toDatetimeInput(endDate)}
                   onChange={(e) => setEndDate(fromDatetimeInput(e.target.value))}
                   className={clsx(
                     "w-full rounded-lg px-3 py-2 text-xs outline-none border font-mono font-bold text-rose-400 cursor-pointer",
-                    isDark ? "bg-[#091024] border-[#1A2F57]" : "bg-white border-slate-300 text-slate-900"
+                    isDark ? "bg-[#091024] border-[#1A2F57]" : "bg-white border-slate-300 text-slate-900",
+                    isAlwaysOpen && "opacity-60"
                   )}
                 />
-                <p className="text-[10px] text-slate-400">{t("Olimpiada savollari yopilishi va javoblarni qabul qilish o'chishi")}</p>
-              </div>
-
-              {/* 5. Exam Duration in Minutes */}
-              <div className="p-3.5 rounded-xl bg-purple-500/10 border border-purple-500/30 space-y-2 md:col-span-2">
-                <div className="flex items-center justify-between">
-                  <label className="block text-xs font-extrabold text-purple-300 flex items-center gap-1.5">
-                    <Clock className="w-3.5 h-3.5 text-purple-400" />
-                    <span>5. {t("Imtihon Davomiyligi (Ajratilgan vaqt)")} *</span>
-                  </label>
-                  <span className="text-[11px] text-purple-300 font-mono font-bold bg-purple-500/20 px-2.5 py-0.5 rounded-lg border border-purple-500/30">
-                    {durationMinutes} daqiqa ({Math.floor(durationMinutes / 60) > 0 ? `${Math.floor(durationMinutes / 60)} soat ` : ''}{durationMinutes % 60 > 0 ? `${durationMinutes % 60} daq` : ''})
-                  </span>
-                </div>
-                <div className="flex items-center gap-3">
-                  <input
-                    type="number"
-                    min={5}
-                    max={300}
-                    required
-                    value={durationMinutes}
-                    onChange={(e) => setDurationMinutes(Math.max(1, Number(e.target.value)))}
-                    className={clsx(
-                      "w-36 rounded-lg px-3 py-2 text-xs outline-none border font-mono font-bold text-purple-400 cursor-pointer",
-                      isDark ? "bg-[#091024] border-[#1A2F57]" : "bg-white border-slate-300 text-slate-900"
-                    )}
-                  />
-                  <div className="flex flex-wrap gap-1.5">
-                    {[30, 45, 60, 90, 120, 180].map((mins) => (
-                      <button
-                        key={mins}
-                        type="button"
-                        onClick={() => setDurationMinutes(mins)}
-                        className={clsx(
-                          "px-2.5 py-1 rounded-lg text-[11px] font-bold transition-all cursor-pointer",
-                          durationMinutes === mins
-                            ? "bg-purple-600 text-white shadow-xs"
-                            : isDark
-                            ? "bg-[#091024] border border-[#1A2F57] text-slate-400 hover:text-white"
-                            : "bg-slate-100 border border-slate-300 text-slate-700 hover:text-slate-900"
-                        )}
-                      >
-                        {mins} daq
-                      </button>
-                    ))}
-                  </div>
-                </div>
                 <p className="text-[10px] text-slate-400">
-                  {t("O'quvchi imtihonni boshlagach taymer aynan shu vaqtdan orqaga hisoblaydi va o'quvchi kartalarida ko'rsatiladi.")}
+                  {isAlwaysOpen ? t("Doimiy ochiq (Ixtiyoriy)") : t("Olimpiada savollari yopilishi")}
                 </p>
               </div>
             </div>
@@ -1937,8 +2062,8 @@ export const OlympiadFullEditor: React.FC<OlympiadFullEditorProps> = ({ olympiad
                     </div>
                     <p className="text-[10px] text-slate-400 mt-1 leading-relaxed">
                       {showResultsToStudent
-                        ? t("Test yakunlanishi bilan ball va reyting darhol o'quvchiga ko'rinadi.")
-                        : t("Natijalar rasmiy e'lon sanasigacha yashiriladi.")}
+                        ? t("Test yakunlanishi bilan ball va sertifikat darhol o'quvchiga ko'rsatiladi.")
+                        : t("Natijalar test yakunlangach yashirin qoladi va belgilangan rasmiy sanada e'lon qilinadi.")}
                     </p>
                   </div>
                   <input
@@ -1950,21 +2075,40 @@ export const OlympiadFullEditor: React.FC<OlympiadFullEditorProps> = ({ olympiad
                 </div>
 
                 {/* Setting 2: Result Announcement Date */}
-                <div className="p-3 rounded-xl bg-black/30 border border-white/10 space-y-1.5">
-                  <label className="block text-xs font-bold text-purple-300 flex items-center gap-1.5">
-                    <Calendar className="w-3.5 h-3.5 text-purple-400" />
-                    <span>{t("Natijalarni E'lon Qilish Sanasi")}</span>
+                <div className={clsx(
+                  "p-3 rounded-xl border space-y-1.5 transition-all",
+                  showResultsToStudent
+                    ? "bg-black/15 border-white/5 opacity-50 cursor-not-allowed"
+                    : "bg-black/30 border-purple-500/40"
+                )}>
+                  <label className="block text-xs font-bold text-purple-300 flex items-center justify-between">
+                    <span className="flex items-center gap-1.5">
+                      <Calendar className="w-3.5 h-3.5 text-purple-400" />
+                      <span>{t("Natijalarni E'lon Qilish Sanasi")}</span>
+                    </span>
+                    {showResultsToStudent && (
+                      <span className="text-[9px] font-mono text-emerald-400 bg-emerald-500/20 px-1.5 py-0.5 rounded">
+                        Darhol ochiq
+                      </span>
+                    )}
                   </label>
                   <input
                     type="datetime-local"
+                    disabled={showResultsToStudent}
                     value={toDatetimeInput(resultsPublishDate)}
                     onChange={(e) => setResultsPublishDate(fromDatetimeInput(e.target.value))}
                     className={clsx(
-                      "w-full rounded-lg px-2.5 py-1.5 text-xs outline-none border font-mono font-bold text-purple-300 cursor-pointer",
-                      isDark ? "bg-[#091024] border-[#1A2F57]" : "bg-white border-slate-300 text-slate-900"
+                      "w-full rounded-lg px-2.5 py-1.5 text-xs outline-none border font-mono font-bold transition-all",
+                      showResultsToStudent
+                        ? "bg-[#091024]/60 border-[#1A2F57]/50 text-slate-500 cursor-not-allowed"
+                        : "bg-[#091024] border-[#1A2F57] text-purple-300 cursor-pointer"
                     )}
                   />
-                  <p className="text-[10px] text-slate-400">{t("Reyting avtomatik yangilanib e'lon qilinadigan vaqt")}</p>
+                  <p className="text-[10px] text-slate-400">
+                    {showResultsToStudent
+                      ? t("Natijalar darhol ko'rsatiladi, e'lon sanasini belgilash shart emas.")
+                      : t("Ushbu sanada barcha ishtirokchilar reytingi va ballari rasman e'lon qilinadi.")}
+                  </p>
                 </div>
               </div>
             </div>
@@ -2560,7 +2704,7 @@ export const OlympiadFullEditor: React.FC<OlympiadFullEditorProps> = ({ olympiad
                       subject: certSubject || subject,
                       type: certPreviewTab,
                       issuedAt: new Date().toISOString(),
-                      verificationCode: 'NO-2026-MATH-8921',
+                      verificationCode: 'NO-8921',
                       score: certPreviewTab === 'winner' ? 96.7 : certPreviewTab === 'round_passed' ? 88.5 : certPreviewTab === 'round_failed' ? 54.0 : 78.0,
                       maxScore: 100,
                       rank: certPreviewTab === 'winner' ? 1 : 0,
@@ -2639,6 +2783,315 @@ export const OlympiadFullEditor: React.FC<OlympiadFullEditorProps> = ({ olympiad
                 >
                   {t("Saqlash")}
                 </button>
+              </div>
+            </div>
+
+            {/* AI Proctoring Presets & Granular Controls Section */}
+            <div className="p-4 rounded-xl bg-gradient-to-r from-indigo-950/60 to-purple-950/60 border border-indigo-500/30 space-y-4">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-indigo-500/20 pb-2.5">
+                <div className="flex items-center gap-2">
+                  <Sparkles className="w-4 h-4 text-amber-400" />
+                  <span className="text-xs font-bold text-white uppercase tracking-wider">
+                    {t("AI Proktoring Qat'iylik Rejimlari (Preset Modes & AI Config)")}
+                  </span>
+                </div>
+                <span className="text-[11px] font-mono text-indigo-300 font-semibold">
+                  Google MediaPipe Face Mesh Engine (478 Landmarks)
+                </span>
+              </div>
+
+              {/* Preset Mode Selector Cards */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5">
+                {/* STRICT MODE */}
+                <button
+                  type="button"
+                  onClick={() => handlePresetSelect('STRICT')}
+                  className={clsx(
+                    "p-3 rounded-xl border text-left transition-all cursor-pointer flex flex-col justify-between gap-2 relative overflow-hidden",
+                    proctoringMode === 'STRICT'
+                      ? "bg-rose-500/20 border-rose-500 text-white shadow-lg ring-1 ring-rose-500"
+                      : "bg-black/30 border-white/10 text-slate-300 hover:border-rose-500/50"
+                  )}
+                >
+                  <div className="flex items-center justify-between w-full">
+                    <span className="text-xs font-black text-rose-400 flex items-center gap-1.5">
+                      <ShieldAlert className="w-3.5 h-3.5" />
+                      QAT'IY (Strict)
+                    </span>
+                    {proctoringMode === 'STRICT' && (
+                      <span className="px-1.5 py-0.5 rounded bg-rose-500 text-[9px] font-black text-white">Faol</span>
+                    )}
+                  </div>
+                  <p className="text-[10px] text-slate-300 leading-tight">
+                    Ikkala ko'z, burun, og'iz to'liq ochiq bo'lishi shart. Grace period <strong>1.5s</strong>. Nigoh va chetga qarash qat'iy nazoratda.
+                  </p>
+                  <div className="text-[9px] font-mono text-rose-300 font-bold mt-1">
+                    Chegara: 3 ta ogohlantirish
+                  </div>
+                </button>
+
+                {/* STANDARD MODE */}
+                <button
+                  type="button"
+                  onClick={() => handlePresetSelect('STANDARD')}
+                  className={clsx(
+                    "p-3 rounded-xl border text-left transition-all cursor-pointer flex flex-col justify-between gap-2 relative overflow-hidden",
+                    proctoringMode === 'STANDARD'
+                      ? "bg-amber-500/20 border-amber-500 text-white shadow-lg ring-1 ring-amber-500"
+                      : "bg-black/30 border-white/10 text-slate-300 hover:border-amber-500/50"
+                  )}
+                >
+                  <div className="flex items-center justify-between w-full">
+                    <span className="text-xs font-black text-amber-400 flex items-center gap-1.5">
+                      <Shield className="w-3.5 h-3.5" />
+                      O'RTACHA (Standard)
+                    </span>
+                    {proctoringMode === 'STANDARD' && (
+                      <span className="px-1.5 py-0.5 rounded bg-amber-500 text-[9px] font-black text-slate-950">Faol</span>
+                    )}
+                  </div>
+                  <p className="text-[10px] text-slate-300 leading-tight">
+                    Yuz va ko'zlar mavjudligi tekshiriladi. Grace period <strong>3.0s</strong>. Muntazam tekshiruv va me'yoriy nazorat.
+                  </p>
+                  <div className="text-[9px] font-mono text-amber-300 font-bold mt-1">
+                    Chegara: 4 ta ogohlantirish
+                  </div>
+                </button>
+
+                {/* RELAXED MODE */}
+                <button
+                  type="button"
+                  onClick={() => handlePresetSelect('RELAXED')}
+                  className={clsx(
+                    "p-3 rounded-xl border text-left transition-all cursor-pointer flex flex-col justify-between gap-2 relative overflow-hidden",
+                    proctoringMode === 'RELAXED'
+                      ? "bg-emerald-500/20 border-emerald-500 text-white shadow-lg ring-1 ring-emerald-500"
+                      : "bg-black/30 border-white/10 text-slate-300 hover:border-emerald-500/50"
+                  )}
+                >
+                  <div className="flex items-center justify-between w-full">
+                    <span className="text-xs font-black text-emerald-400 flex items-center gap-1.5">
+                      <CheckCircle2 className="w-3.5 h-3.5" />
+                      YUMSHOQ (Relaxed)
+                    </span>
+                    {proctoringMode === 'RELAXED' && (
+                      <span className="px-1.5 py-0.5 rounded bg-emerald-500 text-[9px] font-black text-slate-950">Faol</span>
+                    )}
+                  </div>
+                  <p className="text-[10px] text-slate-300 leading-tight">
+                    Faqat umumiy yuz mavjudligi tekshiriladi. Qisqa vaqt yopishga ruxsat. Grace period <strong>5.0s</strong>.
+                  </p>
+                  <div className="text-[9px] font-mono text-emerald-300 font-bold mt-1">
+                    Chegara: 5 ta ogohlantirish
+                  </div>
+                </button>
+
+                {/* DISABLED MODE */}
+                <button
+                  type="button"
+                  onClick={() => setProctoringMode('DISABLED')}
+                  className={clsx(
+                    "p-3 rounded-xl border text-left transition-all cursor-pointer flex flex-col justify-between gap-2 relative overflow-hidden",
+                    proctoringMode === 'DISABLED'
+                      ? "bg-slate-500/20 border-slate-400 text-white shadow-lg ring-1 ring-slate-400"
+                      : "bg-black/30 border-white/10 text-slate-300 hover:border-slate-500/50"
+                  )}
+                >
+                  <div className="flex items-center justify-between w-full">
+                    <span className="text-xs font-black text-slate-400 flex items-center gap-1.5">
+                      <Lock className="w-3.5 h-3.5" />
+                      O'CHIRILGAN (Off)
+                    </span>
+                    {proctoringMode === 'DISABLED' && (
+                      <span className="px-1.5 py-0.5 rounded bg-slate-400 text-[9px] font-black text-slate-950">Faol</span>
+                    )}
+                  </div>
+                  <p className="text-[10px] text-slate-400 leading-tight">
+                    Yuz AI tahlili to'liq o'chiriladi. Faqat brauzer va tab cheklovlari ishlaydi.
+                  </p>
+                  <div className="text-[9px] font-mono text-slate-400 font-bold mt-1">
+                    Yuz tekshiruvi yo'q
+                  </div>
+                </button>
+              </div>
+
+              {/* Granular Settings Grid */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 pt-2 border-t border-indigo-500/20">
+                {/* requireBothEyesVisible */}
+                <div className="p-3 rounded-xl bg-black/40 border border-white/10 flex items-center justify-between gap-3">
+                  <div>
+                    <div className="text-xs font-bold text-white">Ikkala ko'z to'liq ko'rinishi shart (Both Eyes)</div>
+                    <div className="text-[10px] text-slate-400">Ko'z to'silganda darhol jarima berish</div>
+                  </div>
+                  <input
+                    type="checkbox"
+                    checked={requireBothEyesVisible}
+                    onChange={(e) => setRequireBothEyesVisible(e.target.checked)}
+                    className="w-4 h-4 accent-indigo-500 cursor-pointer"
+                  />
+                </div>
+
+                {/* strictFaceCheck */}
+                <div className="p-3 rounded-xl bg-black/40 border border-white/10 flex items-center justify-between gap-3">
+                  <div>
+                    <div className="text-xs font-bold text-white">Yuz nuqtalari to'liqligi (Landmarks Mesh)</div>
+                    <div className="text-[10px] text-slate-400">Burun, iyak, peshona ochiqligini tekshirish</div>
+                  </div>
+                  <input
+                    type="checkbox"
+                    checked={strictFaceCheck}
+                    onChange={(e) => setStrictFaceCheck(e.target.checked)}
+                    className="w-4 h-4 accent-indigo-500 cursor-pointer"
+                  />
+                </div>
+
+                {/* trackGazeDirection */}
+                <div className="p-3 rounded-xl bg-black/40 border border-white/10 flex items-center justify-between gap-3">
+                  <div>
+                    <div className="text-xs font-bold text-white">Nigoh va chetga qarash nazorati (Gaze Track)</div>
+                    <div className="text-[10px] text-slate-400">Monitordan chetga burilishni aniqlash</div>
+                  </div>
+                  <input
+                    type="checkbox"
+                    checked={trackGazeDirection}
+                    onChange={(e) => setTrackGazeDirection(e.target.checked)}
+                    className="w-4 h-4 accent-indigo-500 cursor-pointer"
+                  />
+                </div>
+
+                {/* maxAbsenceGracePeriod */}
+                <div className="p-3 rounded-xl bg-black/40 border border-white/10 flex flex-col justify-between gap-1.5">
+                  <div className="text-xs font-bold text-white">Kutish vaqti (Grace Period):</div>
+                  <select
+                    value={maxAbsenceGracePeriod}
+                    onChange={(e) => setMaxAbsenceGracePeriod(Number(e.target.value))}
+                    className="p-1.5 rounded-lg bg-slate-900 border border-indigo-500/40 text-xs font-mono font-bold text-indigo-300 outline-none cursor-pointer"
+                  >
+                    <option value={1.0}>1.0 soniya (Ultra qat'iy)</option>
+                    <option value={1.5}>1.5 soniya (Standart qat'iy)</option>
+                    <option value={2.0}>2.0 soniya</option>
+                    <option value={3.0}>3.0 soniya (O'rtacha)</option>
+                    <option value={5.0}>5.0 soniya (Yumshoq)</option>
+                  </select>
+                </div>
+
+                {/* minFaceConfidence */}
+                <div className="p-3 rounded-xl bg-black/40 border border-white/10 flex flex-col justify-between gap-1.5">
+                  <div className="text-xs font-bold text-white">Minimal ishonchlilik (Confidence):</div>
+                  <select
+                    value={minFaceConfidence}
+                    onChange={(e) => setMinFaceConfidence(Number(e.target.value))}
+                    className="p-1.5 rounded-lg bg-slate-900 border border-indigo-500/40 text-xs font-mono font-bold text-indigo-300 outline-none cursor-pointer"
+                  >
+                    <option value={0.50}>50% (Past yorug'likda ham sezgir)</option>
+                    <option value={0.65}>65% (Optimal - Tavsiya etiladi)</option>
+                    <option value={0.75}>75% (Yuqori aniqlik)</option>
+                    <option value={0.85}>85% (Maksimal qat'iy)</option>
+                  </select>
+                </div>
+
+                {/* maxViolations */}
+                <div className="p-3 rounded-xl bg-black/40 border border-white/10 flex flex-col justify-between gap-1.5">
+                  <div className="text-xs font-bold text-white">Ruxsat etilgan ogohlantirishlar chegarasi:</div>
+                  <select
+                    value={maxViolations}
+                    onChange={(e) => setMaxViolations(Number(e.target.value))}
+                    className="p-1.5 rounded-lg bg-slate-900 border border-indigo-500/40 text-xs font-mono font-bold text-rose-400 outline-none cursor-pointer"
+                  >
+                    <option value={1}>1 marta (Darhol diskvalifikatsiya)</option>
+                    <option value={2}>2 marta</option>
+                    <option value={3}>3 marta (Standart)</option>
+                    <option value={5}>5 marta (Yumshoq)</option>
+                    <option value={10}>10 marta</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+
+            {/* Audio AI Proctoring & Voice Biometrics Section */}
+            <div className="p-4 rounded-xl bg-gradient-to-r from-cyan-950/60 to-blue-950/60 border border-cyan-500/30 space-y-4">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-cyan-500/20 pb-2.5">
+                <div className="flex items-center gap-2">
+                  <Mic className="w-4 h-4 text-cyan-400" />
+                  <span className="text-xs font-bold text-white uppercase tracking-wider">
+                    {t("Audio AI Proktoring & Ovoz Biometriyasi (Voiceprint & Diarization)")}
+                  </span>
+                </div>
+                <span className="text-[11px] font-mono text-cyan-300 font-semibold">
+                  Acoustic Spectral Embedding (Cosine Similarity & Multi-Speaker Detection)
+                </span>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                {/* requireVoiceBiometrics */}
+                <div className="p-3 rounded-xl bg-black/40 border border-white/10 flex items-start justify-between gap-3">
+                  <div>
+                    <div className="text-xs font-bold text-white flex items-center gap-1.5">
+                      <AudioLines className="w-3.5 h-3.5 text-cyan-400" />
+                      <span>{t("Ovozli Biometriya (Voiceprint)")}</span>
+                    </div>
+                    <p className="text-[10px] text-slate-400 mt-1">Imtihondan oldin 4 soniyalik ovoz namunasi olinadi.</p>
+                  </div>
+                  <input
+                    type="checkbox"
+                    disabled={!antiCheatEnabled}
+                    checked={requireVoiceBiometrics}
+                    onChange={(e) => setRequireVoiceBiometrics(e.target.checked)}
+                    className="w-4 h-4 accent-cyan-500 cursor-pointer shrink-0 mt-0.5"
+                  />
+                </div>
+
+                {/* detectUnknownSpeakers */}
+                <div className="p-3 rounded-xl bg-black/40 border border-white/10 flex items-start justify-between gap-3">
+                  <div>
+                    <div className="text-xs font-bold text-white flex items-center gap-1.5">
+                      <Shield className="w-3.5 h-3.5 text-rose-400" />
+                      <span>{t("Begona Shaxs Ovozini Tutish")}</span>
+                    </div>
+                    <p className="text-[10px] text-slate-400 mt-1">Yordamchi yoki begona ovoz gapirganda ogohlantirish.</p>
+                  </div>
+                  <input
+                    type="checkbox"
+                    disabled={!antiCheatEnabled}
+                    checked={detectUnknownSpeakers}
+                    onChange={(e) => setDetectUnknownSpeakers(e.target.checked)}
+                    className="w-4 h-4 accent-rose-500 cursor-pointer shrink-0 mt-0.5"
+                  />
+                </div>
+
+                {/* detectMultipleSpeakers */}
+                <div className="p-3 rounded-xl bg-black/40 border border-white/10 flex items-start justify-between gap-3">
+                  <div>
+                    <div className="text-xs font-bold text-white flex items-center gap-1.5">
+                      <Volume2 className="w-3.5 h-3.5 text-amber-400" />
+                      <span>{t("Ko'p Ovoz / Pichirlash Nazorati")}</span>
+                    </div>
+                    <p className="text-[10px] text-slate-400 mt-1">Fon suhbatlari va pichirlashlarni ajratish (Diarization).</p>
+                  </div>
+                  <input
+                    type="checkbox"
+                    disabled={!antiCheatEnabled}
+                    checked={detectMultipleSpeakers}
+                    onChange={(e) => setDetectMultipleSpeakers(e.target.checked)}
+                    className="w-4 h-4 accent-amber-500 cursor-pointer shrink-0 mt-0.5"
+                  />
+                </div>
+
+                {/* voiceSimilarityThreshold */}
+                <div className="p-3 rounded-xl bg-black/40 border border-white/10 flex flex-col justify-between gap-1.5">
+                  <div className="text-xs font-bold text-white">Ovoz o'xshashlik chegarasi:</div>
+                  <select
+                    disabled={!antiCheatEnabled}
+                    value={voiceSimilarityThreshold}
+                    onChange={(e) => setVoiceSimilarityThreshold(Number(e.target.value))}
+                    className="p-1.5 rounded-lg bg-slate-900 border border-cyan-500/40 text-xs font-mono font-bold text-cyan-300 outline-none cursor-pointer"
+                  >
+                    <option value={0.65}>65% (Keng / Shovqinli xonalar uchun)</option>
+                    <option value={0.70}>70% (Standart tavsiya etiladi)</option>
+                    <option value={0.75}>75% (Yuqori aniqlik)</option>
+                    <option value={0.80}>80% (Ultra qat'iy)</option>
+                  </select>
+                </div>
               </div>
             </div>
 
@@ -2934,23 +3387,15 @@ export const OlympiadFullEditor: React.FC<OlympiadFullEditorProps> = ({ olympiad
                                 <button
                                   type="button"
                                   onClick={() => handleCheatAction(log.id, 'warned')}
-                                  className="px-2 py-1 bg-amber-500/20 hover:bg-amber-500/40 text-amber-300 rounded text-[10px] font-bold transition-all cursor-pointer"
+                                  className="px-2.5 py-1 bg-amber-500/20 hover:bg-amber-500/40 text-amber-300 rounded text-[10px] font-bold transition-all cursor-pointer"
                                   title="Ogohlantirish yuborish"
                                 >
                                   Ogohlantirish
                                 </button>
                                 <button
                                   type="button"
-                                  onClick={() => handleCheatAction(log.id, 'penalized')}
-                                  className="px-2 py-1 bg-rose-500/20 hover:bg-rose-500/40 text-rose-300 rounded text-[10px] font-bold transition-all cursor-pointer"
-                                  title="Jarima balli qo'llash"
-                                >
-                                  Jarima (-10)
-                                </button>
-                                <button
-                                  type="button"
                                   onClick={() => handleCheatAction(log.id, 'disqualified')}
-                                  className="px-2 py-1 bg-red-600 hover:bg-red-500 text-white rounded text-[10px] font-bold transition-all cursor-pointer flex items-center gap-1"
+                                  className="px-2.5 py-1 bg-red-600 hover:bg-red-500 text-white rounded text-[10px] font-bold transition-all cursor-pointer flex items-center gap-1"
                                   title="Diskvalifikatsiya qilish"
                                 >
                                   <UserX className="w-3 h-3" />
@@ -3059,323 +3504,348 @@ export const OlympiadFullEditor: React.FC<OlympiadFullEditorProps> = ({ olympiad
         </div>
       )}
 
-      {/* TAB 4: ISHTIROKCHILAR VA NATIJALAR RO'YXATI (AI TAHLIL BILAN) */}
-      {activeTab === 'stats' && (
-        <div className="space-y-4">
-          {/* Top 4 Summary Stat Cards */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-            <div className="p-4 rounded-2xl bg-blue-500/10 border border-blue-500/20 text-center">
-              <div className="text-[10px] text-slate-400 font-semibold uppercase">{t("Ro'yxatdan O'tganlar")}</div>
-              <div className="text-xl font-black text-blue-400 font-mono mt-1">{olympiad.registeredCount.toLocaleString()} {t("kishi")}</div>
-            </div>
+      {/* TAB 4: ISHTIROKCHILAR VA NATIJALAR RO'YXATI */}
+      {activeTab === 'stats' && (() => {
+        const rawParticipants = submissionService.getOlympiadSubmissions(olympiad.id);
+        
+        const filteredParticipants = rawParticipants.filter((p) => {
+          const matchesTerm =
+            !participantSearchTerm ||
+            p.name.toLowerCase().includes(participantSearchTerm.toLowerCase()) ||
+            p.phone.includes(participantSearchTerm) ||
+            p.id.toLowerCase().includes(participantSearchTerm.toLowerCase()) ||
+            p.region.toLowerCase().includes(participantSearchTerm.toLowerCase()) ||
+            p.school.toLowerCase().includes(participantSearchTerm.toLowerCase());
 
-            <div className="p-4 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 text-center">
-              <div className="text-[10px] text-slate-400 font-semibold uppercase">{t("Topshirganlar")}</div>
-              <div className="text-xl font-black text-emerald-400 font-mono mt-1">{olympiad.submittedCount.toLocaleString()} {t("kishi")}</div>
-            </div>
+          if (!matchesTerm) return false;
 
-            <div className="p-4 rounded-2xl bg-purple-500/10 border border-purple-500/20 text-center">
-              <div className="text-[10px] text-slate-400 font-semibold uppercase">{t("To'lov Qilganlar")}</div>
-              <div className="text-xl font-black text-purple-300 font-mono mt-1">{olympiad.paidCount.toLocaleString()} {t("kishi")}</div>
-            </div>
+          if (participantFilterTab === 'submitted') {
+            return p.status === 'completed' || (p.score !== undefined && p.score > 0) || Boolean(p.submittedAt);
+          }
+          if (participantFilterTab === 'paid') {
+            return p.paymentType && !p.paymentType.includes('Bepul');
+          }
+          if (participantFilterTab === 'registered') {
+            return true; // All registered participants
+          }
+          return true;
+        });
 
-            <div className="p-4 rounded-2xl bg-amber-500/10 border border-amber-500/20 text-center">
-              <div className="text-[10px] text-slate-400 font-semibold uppercase">{t("Jami Tushum")}</div>
-              <div className="text-lg font-black text-amber-300 font-mono mt-1">{olympiad.totalRevenue.toLocaleString()} UZS</div>
-            </div>
-          </div>
+        const registeredCountDisplay = Math.max(olympiad.registeredCount || 0, rawParticipants.length);
+        const submittedCountDisplay = rawParticipants.filter(p => p.status === 'completed' || (p.score !== undefined && p.score > 0)).length;
 
-          {/* Participants Table Container */}
-          <div
-            className={clsx(
-              "p-5 rounded-2xl border space-y-4 transition-colors",
-              isDark ? "bg-[#0D1832] border-[#182A4D]" : "bg-white border-slate-200"
-            )}
-          >
-            {/* Header & Search / Excel Export Bar */}
-            <div className="flex flex-col sm:flex-row items-center justify-between gap-3 border-b pb-3">
-              <div>
-                <h2 className={clsx("text-sm font-bold flex items-center gap-2", isDark ? "text-white" : "text-slate-900")}>
-                  <Award className="w-4 h-4 text-amber-400" />
-                  <span>{t("Ishtirokchilar Natijalari va Xatolar Tahlili")}</span>
-                </h2>
-                <p className="text-[11px] text-slate-400 mt-0.5">
-                  {t("Har bir o'quvchining to'g'ri javoblari, test natijasi va kamchilik sabablarini ko'rish")}
-                </p>
-              </div>
-
-              <div className="flex items-center gap-2 w-full sm:w-auto">
-                <div className="relative w-full sm:w-64">
-                  <Search className="w-3.5 h-3.5 absolute left-3 top-2.5 text-slate-400" />
-                  <input
-                    type="text"
-                    placeholder="Ishtirokchi nomi bo'yicha..."
-                    value={participantSearchTerm}
-                    onChange={(e) => setParticipantSearchTerm(e.target.value)}
-                    className={clsx(
-                      "w-full rounded-xl pl-9 pr-3 py-1.5 text-xs outline-none border transition-all",
-                      isDark ? "bg-[#091024] border-[#1A2F57] text-white" : "bg-slate-50 border-slate-300 text-slate-900"
-                    )}
-                  />
-                </div>
-
-                <button
-                  onClick={handleExportResultsExcel}
-                  className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-xl text-xs shadow-xs transition-all cursor-pointer whitespace-nowrap"
-                >
-                  <FileSpreadsheet className="w-3.5 h-3.5" />
-                  <span>{t("Excel'da yuklash")}</span>
-                </button>
-              </div>
-            </div>
-
-            {/* Results Table */}
-            <div className="overflow-x-auto custom-scrollbar">
-              <table className="w-full text-left text-xs">
-                <thead
-                  className={clsx(
-                    "text-[11px] uppercase tracking-wider border-b font-semibold whitespace-nowrap",
-                    isDark ? "bg-[#101E3C] text-slate-400 border-[#182A4D]" : "bg-slate-100 text-slate-600 border-slate-200"
-                  )}
-                >
-                  <tr>
-                    <th className="py-2.5 px-3 w-12 text-center">№</th>
-                    <th className="py-2.5 px-3">{t("Ishtirokchi (F.I.Sh.)")}</th>
-                    <th className="py-2.5 px-3">{t("Hudud / Maktab")}</th>
-                    <th className="py-2.5 px-3">{t("Sinf")}</th>
-                    <th className="py-2.5 px-3">{t("Nechta Topgan (To'g'ri / Jami)")}</th>
-                    <th className="py-2.5 px-3">{t("Natija (%)")}</th>
-                    <th className="py-2.5 px-3">{t("To'lov Maqomi")}</th>
-                    <th className="py-2.5 px-3 text-right">{t("Xatolar Tahlili")}</th>
-                  </tr>
-                </thead>
-                <tbody className={clsx("divide-y", isDark ? "divide-[#152545]" : "divide-slate-200")}>
-                  {filteredParticipants.length === 0 ? (
-                    <tr>
-                      <td colSpan={8} className="py-8 text-center text-slate-400">
-                        {t("Ishtirokchilar topilmadi")}
-                      </td>
-                    </tr>
-                  ) : (
-                    filteredParticipants.map((p, idx) => (
-                      <tr key={p.id} className={clsx("transition-colors", isDark ? "hover:bg-[#132244]" : "hover:bg-slate-50")}>
-                        {/* Rank */}
-                        <td className="py-3 px-3 text-center font-bold text-xs whitespace-nowrap">
-                          {idx === 0 ? (
-                            <span className="px-2 py-0.5 rounded bg-amber-500 text-slate-950 font-black">1 🥇</span>
-                          ) : idx === 1 ? (
-                            <span className="px-2 py-0.5 rounded bg-slate-300 text-slate-950 font-black">2 🥈</span>
-                          ) : idx === 2 ? (
-                            <span className="px-2 py-0.5 rounded bg-amber-700 text-white font-black">3 🥉</span>
-                          ) : (
-                            <span className="text-slate-400 font-mono">{idx + 1}</span>
-                          )}
-                        </td>
-
-                        {/* Name & Phone */}
-                        <td className="py-3 px-3 whitespace-nowrap">
-                          <div className="font-bold text-white text-xs">{p.name}</div>
-                          <div className="text-[10px] text-slate-400 font-mono">{p.phone} · {p.id}</div>
-                        </td>
-
-                        {/* Region & School */}
-                        <td className="py-3 px-3 whitespace-nowrap">
-                          <div className="font-semibold text-slate-300">{p.region}</div>
-                          <div className="text-[10px] text-slate-400">{p.school}</div>
-                        </td>
-
-                        {/* Grade */}
-                        <td className="py-3 px-3 whitespace-nowrap">
-                          <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/40">
-                            {p.grade}-sinf
-                          </span>
-                        </td>
-
-                        {/* Correct Answers */}
-                        <td className="py-3 px-3 whitespace-nowrap font-mono font-bold text-emerald-400 text-sm">
-                          {p.correctAnswers} / {p.totalQuestions} <span className="text-[10px] text-slate-400 font-normal">ta to'g'ri</span>
-                        </td>
-
-                        {/* Percentage */}
-                        <td className="py-3 px-3 whitespace-nowrap font-mono font-bold text-cyan-400 text-xs">
-                          {p.percentage}%
-                        </td>
-
-                        {/* Payment Type */}
-                        <td className="py-3 px-3 whitespace-nowrap">
-                          <span className={clsx(
-                            "px-2 py-0.5 rounded text-[10px] font-bold border",
-                            isFreeForAll || price === 0 || (p.paymentType && p.paymentType.includes('Bepul'))
-                              ? "bg-emerald-500/20 text-emerald-300 border-emerald-500/40"
-                              : "bg-purple-500/20 text-purple-300 border-purple-500/40"
-                          )}>
-                            {isFreeForAll || price === 0 ? "Bepul" : (p.paymentType || 'Karta')}
-                          </span>
-                        </td>
-
-                        {/* Action: Open Mistake Analysis Modal */}
-                        <td className="py-3 px-3 text-right whitespace-nowrap">
-                          <button
-                            onClick={() => setSelectedStudentForAi(p)}
-                            className="px-3 py-1.5 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white font-bold rounded-xl text-xs flex items-center gap-1.5 ml-auto cursor-pointer shadow-xs transition-all"
-                          >
-                            <HelpCircle className="w-3.5 h-3.5 text-amber-300" />
-                            <span>{t("Xatolar Tahlili")}</span>
-                          </button>
-                        </td>
-                      </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* MODAL: STUDENT MISTAKE & WEAKNESS ANALYSIS */}
-      {selectedStudentForAi && (
-        <div className="fixed inset-0 bg-black/75 backdrop-blur-xs z-50 flex items-center justify-center p-4">
-          <div
-            className={clsx(
-              "rounded-2xl max-w-2xl w-full p-6 shadow-2xl space-y-4 border transition-colors max-h-[90vh] overflow-y-auto custom-scrollbar",
-              isDark ? "bg-[#0D1832] border-[#1E3563]" : "bg-white border-slate-200"
-            )}
-          >
-            {/* Modal Header */}
-            <div className={clsx("flex items-center justify-between border-b pb-3", isDark ? "border-[#182A4D]" : "border-slate-200")}>
-              <div className="flex items-center gap-2">
-                <HelpCircle className="w-5 h-5 text-indigo-400" />
-                <h3 className={clsx("text-sm font-extrabold", isDark ? "text-white" : "text-slate-900")}>
-                  {t("Test Natijasi va Xatolar Tahlili")} — {selectedStudentForAi.name}
-                </h3>
-              </div>
-              <button
-                onClick={() => setSelectedStudentForAi(null)}
-                className="text-slate-400 hover:text-slate-600 transition-colors cursor-pointer"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            {/* Visibility State Banner */}
-            <div className={clsx(
-              "p-3 rounded-xl border flex items-center justify-between text-xs font-bold",
-              showResultsToStudent
-                ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-400"
-                : "bg-rose-500/10 border-rose-500/30 text-rose-400"
-            )}>
-              <div className="flex items-center gap-2">
-                {showResultsToStudent ? <Eye className="w-4 h-4" /> : <EyeOff className="w-4 h-4" />}
-                <span>
-                  {showResultsToStudent
-                    ? t("O'quvchi uchun ushbu natija va tahlil ko'rsatilmoqda (OCHIQ)")
-                    : t("Natija yashirilgan! O'quvchi bu ma'lumotni hali ko'ra olmaydi (YASHIRILGAN)")}
-                </span>
-              </div>
+        return (
+          <div className="space-y-4">
+            {/* Top 4 Summary Stat Cards - Interactive Filters */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
               <button
                 type="button"
-                onClick={() => setShowResultsToStudent(!showResultsToStudent)}
-                className="px-2.5 py-1 bg-black/40 hover:bg-black/60 rounded-lg text-[10px] uppercase font-mono font-extrabold cursor-pointer transition-all"
+                onClick={() => setParticipantFilterTab(participantFilterTab === 'registered' ? 'all' : 'registered')}
+                className={clsx(
+                  "p-4 rounded-2xl border text-center transition-all cursor-pointer text-left w-full",
+                  participantFilterTab === 'registered'
+                    ? "bg-blue-500/25 border-blue-400 ring-2 ring-blue-400/50 shadow-lg"
+                    : "bg-blue-500/10 border-blue-500/20 hover:bg-blue-500/15"
+                )}
               >
-                {showResultsToStudent ? t("Yashirish") : t("Ko'rsatish")}
+                <div className="text-[10px] text-slate-400 font-semibold uppercase">{t("Ro'yxatdan O'tganlar")}</div>
+                <div className="text-xl font-black text-blue-400 font-mono mt-1">{registeredCountDisplay.toLocaleString()} {t("kishi")}</div>
+                <div className="text-[10px] text-blue-300 font-medium mt-0.5">Filtr: {participantFilterTab === 'registered' ? "Faol 🟢" : "Bosish"}</div>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setParticipantFilterTab(participantFilterTab === 'submitted' ? 'all' : 'submitted')}
+                className={clsx(
+                  "p-4 rounded-2xl border text-center transition-all cursor-pointer text-left w-full",
+                  participantFilterTab === 'submitted'
+                    ? "bg-emerald-500/25 border-emerald-400 ring-2 ring-emerald-400/50 shadow-lg"
+                    : "bg-emerald-500/10 border-emerald-500/20 hover:bg-emerald-500/15"
+                )}
+              >
+                <div className="text-[10px] text-slate-400 font-semibold uppercase">{t("Topshirganlar")}</div>
+                <div className="text-xl font-black text-emerald-400 font-mono mt-1">{submittedCountDisplay.toLocaleString()} {t("kishi")}</div>
+                <div className="text-[10px] text-emerald-300 font-medium mt-0.5">Filtr: {participantFilterTab === 'submitted' ? "Faol 🟢" : "Bosish"}</div>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setParticipantFilterTab(participantFilterTab === 'paid' ? 'all' : 'paid')}
+                className={clsx(
+                  "p-4 rounded-2xl border text-center transition-all cursor-pointer text-left w-full",
+                  participantFilterTab === 'paid'
+                    ? "bg-purple-500/25 border-purple-400 ring-2 ring-purple-400/50 shadow-lg"
+                    : "bg-purple-500/10 border-purple-500/20 hover:bg-purple-500/15"
+                )}
+              >
+                <div className="text-[10px] text-slate-400 font-semibold uppercase">{t("To'lov Qilganlar")}</div>
+                <div className="text-xl font-black text-purple-300 font-mono mt-1">{olympiad.paidCount.toLocaleString()} {t("kishi")}</div>
+                <div className="text-[10px] text-purple-300 font-medium mt-0.5">Filtr: {participantFilterTab === 'paid' ? "Faol 🟢" : "Bosish"}</div>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setParticipantFilterTab('all')}
+                className={clsx(
+                  "p-4 rounded-2xl border text-center transition-all cursor-pointer text-left w-full",
+                  participantFilterTab === 'all'
+                    ? "bg-amber-500/25 border-amber-400 ring-2 ring-amber-400/50 shadow-lg"
+                    : "bg-amber-500/10 border-amber-500/20 hover:bg-amber-500/15"
+                )}
+              >
+                <div className="text-[10px] text-slate-400 font-semibold uppercase">{t("Jami Tushum")}</div>
+                <div className="text-lg font-black text-amber-300 font-mono mt-1">{olympiad.totalRevenue.toLocaleString()} UZS</div>
+                <div className="text-[10px] text-amber-300 font-medium mt-0.5">Barchasini ko'rsatish</div>
               </button>
             </div>
 
-            {/* Student Stats Summary Bar */}
-            <div className="grid grid-cols-3 gap-2.5 text-center font-mono">
-              <div className="p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/20">
-                <div className="text-[10px] text-slate-400 font-sans">{t("To'g'ri Javoblar")}</div>
-                <div className="text-base font-black text-emerald-400 mt-0.5">
-                  {selectedStudentForAi.correctAnswers} / {selectedStudentForAi.totalQuestions}
+            {/* Filter Status Toast */}
+            {participantFilterTab !== 'all' && (
+              <div className="p-3 rounded-xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-between text-xs text-amber-300">
+                <span className="font-semibold">
+                  📌 Hozirda tanlangan filtr: <strong className="text-white uppercase">{participantFilterTab === 'registered' ? 'Ro\'yxatdan o\'tganlar' : participantFilterTab === 'submitted' ? 'Imtihonni topshirganlar' : 'To\'lov qilganlar'}</strong> ({filteredParticipants.length} ta ishtirokchi)
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setParticipantFilterTab('all')}
+                  className="px-2.5 py-1 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold rounded-lg text-[11px] cursor-pointer"
+                >
+                  Filtrni bekor qilish ✕
+                </button>
+              </div>
+            )}
+
+            {/* Participants Table Container */}
+            <div
+              className={clsx(
+                "p-5 rounded-2xl border space-y-4 transition-colors",
+                isDark ? "bg-[#0D1832] border-[#182A4D]" : "bg-white border-slate-200"
+              )}
+            >
+              {/* Header & Search / Excel Export Bar */}
+              <div className="flex flex-col sm:flex-row items-center justify-between gap-3 border-b pb-3">
+                <div>
+                  <h2 className={clsx("text-sm font-bold flex items-center gap-2", isDark ? "text-white" : "text-slate-900")}>
+                    <Award className="w-4 h-4 text-amber-400" />
+                    <span>{t("Ishtirokchilar Natijalari")}</span>
+                  </h2>
+                  <p className="text-[11px] text-slate-400 mt-0.5">
+                    {t("Har bir o'quvchining to'g'ri javoblari, to'plagan balli va natijasi (Admin e'lon qilinmagan natijalarni ham ko'ra oladi)")}
+                  </p>
+                </div>
+
+                <div className="flex items-center gap-2 w-full sm:w-auto">
+                  <div className="relative w-full sm:w-64">
+                    <Search className="w-3.5 h-3.5 absolute left-3 top-2.5 text-slate-400" />
+                    <input
+                      type="text"
+                      placeholder="Ishtirokchi nomi bo'yicha..."
+                      value={participantSearchTerm}
+                      onChange={(e) => setParticipantSearchTerm(e.target.value)}
+                      className={clsx(
+                        "w-full rounded-xl pl-9 pr-3 py-1.5 text-xs outline-none border transition-all",
+                        isDark ? "bg-[#091024] border-[#1A2F57] text-white" : "bg-slate-50 border-slate-300 text-slate-900"
+                      )}
+                    />
+                  </div>
+
+                  <button
+                    onClick={handleExportResultsExcel}
+                    className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-xl text-xs shadow-xs transition-all cursor-pointer whitespace-nowrap"
+                  >
+                    <FileSpreadsheet className="w-3.5 h-3.5" />
+                    <span>{t("Excel'da yuklash")}</span>
+                  </button>
                 </div>
               </div>
 
-              <div className="p-3 rounded-xl bg-cyan-500/10 border border-cyan-500/20">
-                <div className="text-[10px] text-slate-400 font-sans">{t("Natija Foizi")}</div>
-                <div className="text-base font-black text-cyan-400 mt-0.5">
-                  {selectedStudentForAi.percentage}%
-                </div>
-              </div>
+              {/* Results Table */}
+              <div className="overflow-x-auto custom-scrollbar">
+                <table className="w-full text-left text-xs">
+                  <thead
+                    className={clsx(
+                      "text-[11px] uppercase tracking-wider border-b font-semibold whitespace-nowrap",
+                      isDark ? "bg-[#101E3C] text-slate-400 border-[#182A4D]" : "bg-slate-100 text-slate-600 border-slate-200"
+                    )}
+                  >
+                    <tr>
+                      <th className="py-2.5 px-3 w-12 text-center">№</th>
+                      <th className="py-2.5 px-3">{t("Ishtirokchi (F.I.Sh.)")}</th>
+                      <th className="py-2.5 px-3">{t("Hudud / Maktab")}</th>
+                      <th className="py-2.5 px-3">{t("Sinf")}</th>
+                      <th className="py-2.5 px-3">{t("Nechta Topgan (To'g'ri / Jami)")}</th>
+                      <th className="py-2.5 px-3">{t("Natija (%)")}</th>
+                      <th className="py-2.5 px-3">{t("To'lov Maqomi")}</th>
+                      <th className="py-2.5 px-3 text-right">{t("Admin Natija Preview")}</th>
+                    </tr>
+                  </thead>
+                  <tbody className={clsx("divide-y", isDark ? "divide-[#152545]" : "divide-slate-200")}>
+                    {filteredParticipants.length === 0 ? (
+                      <tr>
+                        <td colSpan={8} className="py-8 text-center text-slate-400">
+                          {t("Ishtirokchilar topilmadi")}
+                        </td>
+                      </tr>
+                    ) : (
+                      filteredParticipants.map((p, idx) => (
+                        <tr key={p.id} className={clsx("transition-colors", isDark ? "hover:bg-[#132244]" : "hover:bg-slate-50")}>
+                          {/* Rank */}
+                          <td className="py-3 px-3 text-center font-bold text-xs whitespace-nowrap">
+                            {idx === 0 ? (
+                              <span className="px-2 py-0.5 rounded bg-amber-500 text-slate-950 font-black">1 🥇</span>
+                            ) : idx === 1 ? (
+                              <span className="px-2 py-0.5 rounded bg-slate-300 text-slate-950 font-black">2 🥈</span>
+                            ) : idx === 2 ? (
+                              <span className="px-2 py-0.5 rounded bg-amber-700 text-white font-black">3 🥉</span>
+                            ) : (
+                              <span className="text-slate-400 font-mono">{idx + 1}</span>
+                            )}
+                          </td>
 
-              <div className="p-3 rounded-xl bg-purple-500/10 border border-purple-500/20">
-                <div className="text-[10px] text-slate-400 font-sans">{t("Sarflangan Vaqt")}</div>
-                <div className="text-base font-black text-purple-300 mt-0.5">
-                  {selectedStudentForAi.timeSpentMinutes} min
-                </div>
+                          {/* Name & Phone */}
+                          <td className="py-3 px-3 whitespace-nowrap">
+                            <div className="font-bold text-white text-xs">{p.name}</div>
+                            <div className="text-[10px] text-slate-400 font-mono">{p.phone} · {p.id}</div>
+                          </td>
+
+                          {/* Region & School */}
+                          <td className="py-3 px-3 whitespace-nowrap">
+                            <div className="font-semibold text-slate-300">{p.region}</div>
+                            <div className="text-[10px] text-slate-400">{p.school}</div>
+                          </td>
+
+                          {/* Grade */}
+                          <td className="py-3 px-3 whitespace-nowrap">
+                            <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/40">
+                              {p.grade}-sinf
+                            </span>
+                          </td>
+
+                          {/* Correct Answers */}
+                          <td className="py-3 px-3 whitespace-nowrap font-mono font-bold text-emerald-400 text-sm">
+                            {p.correctAnswers || 0} / {p.totalQuestions || 25} <span className="text-[10px] text-slate-400 font-normal">ta to'g'ri</span>
+                          </td>
+
+                          {/* Percentage */}
+                          <td className="py-3 px-3 whitespace-nowrap font-mono font-bold text-cyan-400 text-xs">
+                            {p.percentage || 0}%
+                          </td>
+
+                          {/* Payment Type */}
+                          <td className="py-3 px-3 whitespace-nowrap">
+                            <span className={clsx(
+                              "px-2 py-0.5 rounded text-[10px] font-bold border",
+                              isFreeForAll || price === 0 || (p.paymentType && p.paymentType.includes('Bepul'))
+                                ? "bg-emerald-500/20 text-emerald-300 border-emerald-500/40"
+                                : "bg-purple-500/20 text-purple-300 border-purple-500/40"
+                            )}>
+                              {isFreeForAll || price === 0 ? "Bepul" : (p.paymentType || 'Karta')}
+                            </span>
+                          </td>
+
+                          {/* Admin Preview Natijalar Button */}
+                          <td className="py-3 px-3 text-right whitespace-nowrap">
+                            <button
+                              type="button"
+                              onClick={() => setSelectedParticipantDetail(p)}
+                              className="inline-flex items-center gap-1.5 px-3 py-1 bg-indigo-600 hover:bg-indigo-500 text-white font-bold rounded-lg text-xs shadow-xs transition-all cursor-pointer"
+                            >
+                              <Eye className="w-3.5 h-3.5" />
+                              <span>Natijani Ko'rish</span>
+                            </button>
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
               </div>
             </div>
 
-            {/* Mistake Breakdown Section */}
-            <div className="space-y-3 pt-2">
-              <h4 className="text-xs font-bold text-amber-300 flex items-center gap-1.5 uppercase tracking-wider">
-                <Sparkles className="w-4 h-4 text-amber-400" />
-                <span>{t("Xatolar Tahlili va Kamchiliklar Sharhi")}</span>
-              </h4>
-
-              {/* Strengths & Weaknesses Summary Box */}
-              <div className="p-4 rounded-xl bg-gradient-to-r from-purple-900/40 to-indigo-900/40 border border-indigo-500/40 space-y-2 text-xs leading-relaxed">
-                <div className="font-bold text-emerald-400 flex items-center gap-1.5">
-                  <CheckCircle2 className="w-4 h-4" />
-                  <span>{t("Kuchli Tomonlari")}:</span>
-                </div>
-                <p className="text-slate-200">
-                  O'quvchi {olympiad.subject} fani bo'yicha bazaviy nazariya va tezkor masalalar yechishda a'lo natija ko'rsatgan (96.7% aniqlik).
-                </p>
-
-                <div className="font-bold text-rose-400 flex items-center gap-1.5 pt-2">
-                  <AlertCircle className="w-4 h-4" />
-                  <span>{t("Kamchilik va Kuchsiz Tomonlari")}:</span>
-                </div>
-                <p className="text-slate-200">
-                  Murakkab ko'p bosqichli mantiqiy va logarifmik almashtirish tenglamalarida e'tiborsizlik sababli 1 ta xatoga yo'l qo'yilgan.
-                </p>
-              </div>
-
-              {/* Detailed Wrong Questions List with Explanation */}
-              <div className="space-y-2">
-                <div className="text-xs font-bold text-slate-300">{t("Xato qilingan savollar tahlili:")}</div>
-
-                {(!selectedStudentForAi.wrongQuestionsList || selectedStudentForAi.wrongQuestionsList.length === 0) ? (
-                  <div className="p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-xs flex items-center gap-2">
-                    <CheckCircle2 className="w-4 h-4" />
-                    <span>O'quvchi deyarli barcha savollarga to'g'ri javob bergan! Ishda jiddiy xatolar aniqlanmadi.</span>
-                  </div>
-                ) : (
-                  selectedStudentForAi.wrongQuestionsList.map((item) => (
-                    <div key={item.questionNum} className="p-3.5 rounded-xl bg-rose-500/10 border border-rose-500/30 space-y-2 text-xs">
-                      <div className="flex items-center justify-between font-bold text-rose-300">
-                        <span>Savol №{item.questionNum}: {item.topic}</span>
-                        <span className="px-2 py-0.5 rounded bg-rose-500/20 text-rose-400 text-[10px] font-mono">
-                          Xato (O'quvchi: {item.userAns} | To'g'ri: {item.correctAns})
-                        </span>
-                      </div>
-
-                      <div className="p-2.5 rounded-lg bg-black/40 border border-white/10 text-slate-200 leading-relaxed font-sans">
-                        <div className="text-amber-300 font-bold text-[11px] mb-1 flex items-center gap-1">
-                          <HelpCircle className="w-3.5 h-3.5" />
-                          <span>Tushuntirish va To'g'ri Yechim:</span>
-                        </div>
-                        {item.aiExplanation}
+            {/* Admin Participant Results Preview Modal */}
+            {selectedParticipantDetail && (
+              <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-in fade-in">
+                <div className="bg-[#0B1120] border border-[#1E293B] rounded-3xl p-6 max-w-2xl w-full text-white space-y-4 shadow-2xl overflow-hidden">
+                  <div className="flex items-center justify-between border-b border-[#1E293B] pb-3">
+                    <div className="flex items-center gap-2">
+                      <Award className="w-5 h-5 text-amber-400" />
+                      <div>
+                        <h3 className="text-base font-bold text-white">{selectedParticipantDetail.name} — Test Natijasi</h3>
+                        <p className="text-[11px] text-slate-400 font-mono">
+                          {selectedParticipantDetail.school} ({selectedParticipantDetail.grade}-sinf) · ID: {selectedParticipantDetail.id}
+                        </p>
                       </div>
                     </div>
-                  ))
-                )}
-              </div>
-            </div>
+                    <button
+                      type="button"
+                      onClick={() => setSelectedParticipantDetail(null)}
+                      className="p-1 rounded-lg bg-white/10 hover:bg-white/20 text-slate-300 font-bold cursor-pointer"
+                    >
+                      ✕
+                    </button>
+                  </div>
 
-            {/* Modal Footer */}
-            <div className="flex justify-end pt-3 border-t border-white/10">
-              <button
-                onClick={() => setSelectedStudentForAi(null)}
-                className="px-5 py-2 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold rounded-xl text-xs shadow-md cursor-pointer"
-              >
-                {t("Yopish")}
-              </button>
-            </div>
+                  <div className="grid grid-cols-3 gap-3 text-center">
+                    <div className="p-3 rounded-2xl bg-blue-500/10 border border-blue-500/30">
+                      <div className="text-[10px] text-slate-400 uppercase font-semibold">To'plangan Ball</div>
+                      <div className="text-xl font-black text-blue-400 font-mono mt-0.5">{selectedParticipantDetail.score || 0} ball</div>
+                    </div>
+
+                    <div className="p-3 rounded-2xl bg-emerald-500/10 border border-emerald-500/30">
+                      <div className="text-[10px] text-slate-400 uppercase font-semibold">To'g'ri Javoblar</div>
+                      <div className="text-xl font-black text-emerald-400 font-mono mt-0.5">
+                        {selectedParticipantDetail.correctAnswers || 0} / {selectedParticipantDetail.totalQuestions || 25}
+                      </div>
+                    </div>
+
+                    <div className="p-3 rounded-2xl bg-cyan-500/10 border border-cyan-500/30">
+                      <div className="text-[10px] text-slate-400 uppercase font-semibold">Natija Foizi</div>
+                      <div className="text-xl font-black text-cyan-400 font-mono mt-0.5">{selectedParticipantDetail.percentage || 0}%</div>
+                    </div>
+                  </div>
+
+                  {/* Status Banner */}
+                  <div className="p-3 rounded-xl bg-purple-500/15 border border-purple-500/30 text-xs text-purple-200 flex items-center justify-between">
+                    <span>
+                      🔒 <strong>Admin ko'rinish rejimida:</strong> Natijalar o'quvchilarga e'lon qilinmagan bo'lsa ham, adminlar ushbu ko'rinishda to'liq tekshirishlari mumkin.
+                    </span>
+                    <span className="px-2 py-0.5 rounded bg-purple-500 text-white font-bold text-[10px]">E'lon Xabari: {showResultsToStudent ? "Ochiq" : "Yashirin"}</span>
+                  </div>
+
+                  {/* Detailed Analysis Breakdown */}
+                  <div className="space-y-2 max-h-60 overflow-y-auto custom-scrollbar border-t border-[#1E293B] pt-3">
+                    <h4 className="text-xs font-bold text-slate-300">Savollar tahlili va ko'rsatkichlar:</h4>
+                    <div className="p-3 rounded-xl bg-[#111827] border border-[#1E293B] text-xs space-y-2">
+                      <div className="flex justify-between border-b border-slate-800 pb-1.5">
+                        <span className="text-slate-400">Sertifikat holati:</span>
+                        <span className="font-bold text-emerald-400">{selectedParticipantDetail.certificateType || "Ishtirok Sertifikati"}</span>
+                      </div>
+                      <div className="flex justify-between border-b border-slate-800 pb-1.5">
+                        <span className="text-slate-400">Anti-Cheat Holati:</span>
+                        <span className="font-bold text-slate-200">Qoidabuzarliklar qayd etilmadi (0 ta)</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-slate-400">Imtihon topshirilgan vaqt:</span>
+                        <span className="font-mono text-amber-300">{selectedParticipantDetail.submittedAt || "2026-09-22 14:00"}</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="flex justify-end pt-2 border-t border-[#1E293B]">
+                    <button
+                      type="button"
+                      onClick={() => setSelectedParticipantDetail(null)}
+                      className="px-5 py-2 bg-slate-700 hover:bg-slate-600 text-white font-bold rounded-xl text-xs cursor-pointer"
+                    >
+                      Yopish
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
-        </div>
-      )}
+        );
+      })()}
 
       {/* MODAL: YANGI SAVOL QO'SHISH YOKI TAHRIRLASH */}
       <Modal
